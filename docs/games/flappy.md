@@ -13,7 +13,9 @@
 - Score: one point after the player completely passes a barricade pair.
 - End: player intersects a barricade or leaves the playable vertical bounds.
 
-The recovered gravity/impulse values came from frame-based mock code. Preserve their observed 60Hz feel; do not blindly treat them as SI or per-millisecond units. The M2 implementation records the normalized fixed-step values that reproduce parity.
+The recovered gravity/impulse values came from frame-based mock code. Preserve their observed 60Hz feel; do not blindly treat them as SI or per-millisecond units.
+
+**Adopted M2 units (per fixed 60Hz simulation step):** gravity 0.45 px/step², flap impulse −7.5 px/step, pipe speed 2.6 px/step, pipe spacing 180 px, pipe width 46 px, gap 180 px (half 90), gap-center safe range [120, 520], player x = 70, radius 16, floor y = 620. Score envelope 800 (bounded by the 15-minute attempt TTL).
 
 ## Keep
 

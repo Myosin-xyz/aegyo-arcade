@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aegyo Arcade
 
-## Getting Started
+Mobile-first K-pop mini-game portal for `arcade.aegyoarena.com`. Turns social
+traffic into repeat visits via lightweight canvas/DOM games behind a shared
+runtime shell, with a thin retention layer (counted runs, streaks, cosmetic
+leaderboards).
 
-First, run the development server:
+**Spec**: [docs/TECH_SPEC.md](docs/TECH_SPEC.md) (v0.2.1 — approved for M0/M1).
+Decisions land as ADRs in [docs/decisions/](docs/decisions/).
+
+## Develop
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev            # http://localhost:3000
+pnpm typecheck && pnpm lint && pnpm format:check
+pnpm test           # vitest contract conformance suite
+pnpm test:e2e       # Playwright (real-browser claw spike)
+pnpm build && node scripts/check-bundle-budget.mjs
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Layout
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `src/shell/` — game runtime contract v0 + host, loop, surface, input, audio
+- `src/games/<id>/` — framework-free game modules (`claw` migrated from daebak)
+- `docs/games/<id>.md` — per-game rules + deterministic test vectors
+- `docs/GAME_INTAKE.md` — external contributor delivery checklist
+- `tests/unit` (vitest + jsdom) · `tests/e2e` (Playwright)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+House rules: humans commit and push; games never import React or install
+global handlers; player-facing strings go through `src/i18n`.

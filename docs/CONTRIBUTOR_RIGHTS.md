@@ -12,15 +12,15 @@ Thank you — this gives us a clean provenance record before anything ships.
 
 ## Record
 
-| Field | Value |
-| --- | --- |
-| Contributor |  |
-| Game/delivery |  |
-| Source revision or archive |  |
-| Confirmation channel |  |
-| Confirmation date |  |
-| Excluded/third-party items |  |
-| Evidence location |  |
-| Myosin reviewer |  |
+| Field                      | Value |
+| -------------------------- | ----- |
+| Contributor                |       |
+| Game/delivery              |       |
+| Source revision or archive |       |
+| Confirmation channel       |       |
+| Confirmation date          |       |
+| Excluded/third-party items |       |
+| Evidence location          |       |
+| Myosin reviewer            |       |
 
 Store the contributor's actual reply with the delivery record. Do not silently treat file delivery, payment, or repository access as rights confirmation.

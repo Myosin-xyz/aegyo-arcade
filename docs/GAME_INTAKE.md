@@ -3,7 +3,7 @@
 **Version**: 1.0
 **Audience**: Daidai and future external game contributors
 **Purpose**: Make a game easy to integrate into Aegyo Arcade without asking the contributor to reproduce Myosin's runtime or QA process.
-**Delivery cutoff (Frogger)**: end of day **Friday, July 31, 2026** (any timezone). If a delivery hasn't been received and accepted by then, Myosin builds an internal version so the launch date holds — a late delivery can still replace it later if it clears intake.
+**Delivery cutoff (Frogger)**: end of day **Friday, July 31, 2026** (any timezone). This date is fixed regardless of when you receive this document. If a delivery hasn't been received and accepted by then, Myosin builds an internal version so the launch date holds — a late delivery can still replace it later if it clears intake.
 
 ## What to send
 

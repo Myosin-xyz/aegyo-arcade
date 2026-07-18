@@ -13,6 +13,8 @@
 - Falling below the camera's loss boundary ends the run as `lost`.
 - Launch input: horizontal drag/touch steering through `InputBus`. Tilt is deferred as an optional accessibility-reviewed experiment.
 
+**Adopted M2 units (per fixed 60Hz simulation step):** gravity 0.32 px/step², bounce impulse −9.5 px/step, steering `x += clamp((steerX − x) · 0.15, ±8)`, platform 64×10, player 30×28, seeded spawn dy ∈ [55, 85] with |dx| ≤ 140 (reachable under the movement limits: apex ≈ 141 px, horizontal reach ≈ 200 px per hop), camera lead 220 px (up only), loss when the player is 640 px below the camera top. Score envelope 99.
+
 ## Keep
 
 - The chart-position progression hook and visible current rank.

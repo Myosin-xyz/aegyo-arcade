@@ -1,6 +1,6 @@
 # Game Rules Seed — Guess the Slang
 
-**Status**: Recovered v0.1 content baseline; finalize reviewed dictionary/hints before M2 implementation
+**Status**: IMPLEMENTED (M2, 2026-07-18) — launch dictionary v1 (7 reviewed single-word terms); multi-word candidates parked pending fan-fluent review; daily term via server seed `daily:hangman:v1:<dayKey>`
 **Source**: Nicole's playable mock and v0.1 keep/change review
 **Surface**: `dom`
 **Reference box**: responsive portal content area
@@ -11,7 +11,7 @@
 - Six incorrect guesses are allowed.
 - Practice selects from the reviewed dictionary locally.
 - A counted run uses the server-selected daily term for the current `day_key` and content version; the surface is cosmetic and the answer is not represented as cheat-proof.
-- Score on solve: remaining lives (1–6). Leaderboard ties use shorter server-observed duration, then earlier accepted time.
+- Score on solve: remaining lives (1–6). Ties share a rank under the shared competition-ranking policy (`accepted_at` orders display only); any duration-based secondary metric requires a separate approved policy.
 - End: solve is `completed`; sixth wrong guess is `lost`.
 
 ## Seed dictionary

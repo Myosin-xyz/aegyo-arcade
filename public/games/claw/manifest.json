@@ -1,0 +1,144 @@
+{
+  "scale": 0.5249999999999999,
+  "design": {
+    "w": 941,
+    "h": 1488
+  },
+  "back": {
+    "src": "back.webp",
+    "x": 0,
+    "y": 0,
+    "w": 941,
+    "h": 1488
+  },
+  "frontPlush": {
+    "src": "front-plush.webp",
+    "x": 0,
+    "y": 0,
+    "w": 941,
+    "h": 1488
+  },
+  "frame": {
+    "src": "frame.webp",
+    "x": 0,
+    "y": 0,
+    "w": 941,
+    "h": 1488
+  },
+  "trolley": {
+    "src": "trolley.webp",
+    "x": 392,
+    "y": 316,
+    "w": 220,
+    "h": 150
+  },
+  "clawOpen": {
+    "src": "claw-open.webp",
+    "x": 391,
+    "y": 27,
+    "w": 158,
+    "h": 698
+  },
+  "clawClosed": {
+    "src": "claw-closed.webp",
+    "x": 423,
+    "y": 27,
+    "w": 95,
+    "h": 678
+  },
+  "clawPlush": {
+    "D": {
+      "src": "claw-plush-D.webp",
+      "x": 371,
+      "y": 27,
+      "w": 199,
+      "h": 711
+    },
+    "A": {
+      "src": "claw-plush-A.webp",
+      "x": 396,
+      "y": 27,
+      "w": 148,
+      "h": 748
+    },
+    "E": {
+      "src": "claw-plush-E.webp",
+      "x": 377,
+      "y": 27,
+      "w": 183,
+      "h": 791
+    },
+    "B": {
+      "src": "claw-plush-B.webp",
+      "x": 386,
+      "y": 27,
+      "w": 167,
+      "h": 801
+    },
+    "A2": {
+      "src": "claw-plush-A2.webp",
+      "x": 395,
+      "y": 27,
+      "w": 150,
+      "h": 751
+    },
+    "K": {
+      "src": "claw-plush-K.webp",
+      "x": 369,
+      "y": 27,
+      "w": 201,
+      "h": 795
+    },
+    "excl": {
+      "src": "claw-plush-excl.webp",
+      "x": 375,
+      "y": 27,
+      "w": 189,
+      "h": 812
+    }
+  },
+  "winBoard": {
+    "src": "win-board.webp",
+    "x": 0,
+    "y": 22,
+    "w": 913,
+    "h": 272
+  },
+  "controls": {
+    "drop": {
+      "src": "ctl-drop-on.webp",
+      "x": 726,
+      "y": 1331,
+      "w": 160,
+      "h": 133
+    },
+    "forward": {
+      "src": "ctl-forward-on.webp",
+      "x": 123,
+      "y": 1280,
+      "w": 69,
+      "h": 60
+    },
+    "backward": {
+      "src": "ctl-backward-on.webp",
+      "x": 123,
+      "y": 1418,
+      "w": 69,
+      "h": 60
+    },
+    "left": {
+      "src": "ctl-left-on.webp",
+      "x": 43,
+      "y": 1350,
+      "w": 71,
+      "h": 60
+    },
+    "right": {
+      "src": "ctl-right-on.webp",
+      "x": 202,
+      "y": 1350,
+      "w": 71,
+      "h": 60
+    }
+  }
+}

@@ -1,0 +1,318 @@
+/**
+ * Registry-driven per-game smoke (§16.4): every registered game boots,
+ * receives REAL input through its production input path, and — where the
+ * game has a reachable terminal state — runs to an observable end panel.
+ * The claw is the documented exception: practice mode has no terminal
+ * state (attract loop), so its smoke proves boot + input + stability, and
+ * its terminal behavior is covered by the counted-claw test below.
+ *
+ * Plus: full counted loops (snake generic-submit, claw game-owned) and
+ * the §10.1 lost-response → same-attempt retry → receipt flow.
+ */
+
+import { expect, test, type Page } from "@playwright/test";
+import { listGames } from "../../src/games/registry";
+
+const needsDb = Boolean(process.env.CI) && !process.env.DATABASE_URL;
+
+/** Game-specific input that drives the run to its terminal state. */
+const SMOKE_ACTIONS: Record<
+  string,
+  {
+    act: (page: Page) => Promise<void>;
+    terminal: boolean;
+    /** Override the default 20s ended-timeout for slower terminal paths. */
+    endTimeoutMs?: number;
+    /** Extra query string (e.g. a pinned practice seed). */
+    urlQuery?: string;
+  }
+> = {
+  snake: {
+    // Turn once (input proof); the wall ends the run in ~1.5s.
+    act: async (page) => {
+      await page.keyboard.press("ArrowDown");
+    },
+    terminal: true,
+  },
+  flappy: {
+    // One flap (tap anywhere), then gravity finds the floor.
+    act: async (page) => {
+      await page
+        .getByTestId("game-surface")
+        .click({ position: { x: 60, y: 60 } });
+    },
+    terminal: true,
+  },
+  jumper: {
+    // PINNED practice seed (M3 review P2: random layouts sometimes catch
+    // the player at the right edge, so a fixed press count was flaky).
+    // "jumper-smoke-0" is sim-verified: idling survives ≥4s and
+    // continuous right-nudges die for every press cadence 5–14 ticks ×
+    // start offset 0–160 ticks — robust to e2e wall-clock jitter. Keep
+    // pressing until the run actually ends.
+    urlQuery: "?seed=jumper-smoke-0",
+    act: async (page) => {
+      const host = page.getByTestId("game-host");
+      for (let i = 0; i < 120; i++) {
+        if ((await host.getAttribute("data-lifecycle")) === "ended") return;
+        await page.keyboard.press("ArrowRight");
+        await page.waitForTimeout(130);
+      }
+    },
+    terminal: true,
+  },
+  hangman: {
+    // Six letters absent from every dictionary term → lost.
+    act: async (page) => {
+      for (const letter of ["Q", "X", "Z", "J", "V", "W"]) {
+        await page.locator(`button[data-letter="${letter}"]`).click();
+      }
+    },
+    terminal: true,
+  },
+  claw: {
+    // Rail glide via keyboard (input proof); practice never terminates.
+    act: async (page) => {
+      await page.keyboard.press("ArrowLeft");
+    },
+    terminal: false,
+  },
+  freebie: {
+    // OBSERVABLE input proof (M2.5 review P2): hold ArrowLeft and require
+    // pixels to change in the far-left strip of the catcher band — static
+    // background unless the catcher actually travels there (the idle
+    // catcher bobs at center; the first freebie needs ~9s to fall that
+    // low, and we finish in ~2s). Then three drops end the run.
+    act: async (page) => {
+      const surface = page.getByTestId("game-surface");
+      const box = await surface.boundingBox();
+      if (!box) throw new Error("freebie: no game-surface bounding box");
+      const clip = {
+        x: box.x,
+        y: box.y + (555 / 760) * box.height,
+        width: (80 / 480) * box.width,
+        height: (90 / 760) * box.height,
+      };
+      const before = await page.screenshot({ clip });
+      await page.keyboard.down("ArrowLeft");
+      await page.waitForTimeout(1500);
+      await page.keyboard.up("ArrowLeft");
+      const after = await page.screenshot({ clip });
+      if (before.equals(after)) {
+        throw new Error(
+          "freebie: held ArrowLeft did not visibly move the catcher",
+        );
+      }
+    },
+    terminal: true,
+  },
+  frogger: {
+    // OBSERVABLE input proof: the start-row strip is static (sidewalk +
+    // idle hero, nothing animated there in the port) — after ArrowUp the
+    // hero leaves it, so the pixels MUST change. Then keep marching
+    // forward: every crossing attempt ends in a hit (3 lives) or a level
+    // beat (10 levels), so the run is BOUNDED to end either way — the
+    // smoke asserts `ended`, not which side of it.
+    act: async (page) => {
+      const surface = page.getByTestId("game-surface");
+      const box = await surface.boundingBox();
+      if (!box) throw new Error("frogger: no game-surface bounding box");
+      // Two proof regions: the start-row hero strip AND the toast band
+      // over the (static) goal art. ArrowUp either moves the hero out of
+      // the strip, or walks it into the guard lane's near-center
+      // instance — an instant hit that snaps the hero back but raises
+      // the hit toast (which only happens because input moved the hero).
+      // Either pixel change is real input proof; requiring only the
+      // strip made the hit path a ~20% flake (M3 review round).
+      const heroStrip = {
+        x: box.x + (150 / 360) * box.width,
+        y: box.y + (424 / 552) * box.height,
+        width: (60 / 360) * box.width,
+        height: (38 / 552) * box.height,
+      };
+      const toastBand = {
+        x: box.x + (60 / 360) * box.width,
+        y: box.y + (86 / 552) * box.height,
+        width: (240 / 360) * box.width,
+        height: (38 / 552) * box.height,
+      };
+      const heroBefore = await page.screenshot({ clip: heroStrip });
+      const toastBefore = await page.screenshot({ clip: toastBand });
+      await page.keyboard.press("ArrowUp");
+      await page.waitForTimeout(400);
+      const heroAfter = await page.screenshot({ clip: heroStrip });
+      const toastAfter = await page.screenshot({ clip: toastBand });
+      if (heroBefore.equals(heroAfter) && toastBefore.equals(toastAfter)) {
+        throw new Error("frogger: ArrowUp had no visible effect");
+      }
+      const host = page.getByTestId("game-host");
+      for (let i = 0; i < 130; i++) {
+        if ((await host.getAttribute("data-lifecycle")) === "ended") return;
+        await page.keyboard.press("ArrowUp");
+        await page.waitForTimeout(400);
+      }
+    },
+    terminal: true,
+    endTimeoutMs: 60_000,
+  },
+};
+
+test("every registered game has a smoke action (no silent pass for new games)", () => {
+  const missing = listGames()
+    .map((entry) => entry.meta.id)
+    .filter((id) => !SMOKE_ACTIONS[id]);
+  expect(missing).toEqual([]);
+});
+
+for (const entry of listGames()) {
+  const gameId = entry.meta.id;
+  const smoke = SMOKE_ACTIONS[gameId];
+  if (!smoke) {
+    // A new registry entry without a real-input smoke MUST fail loudly at
+    // collection time, not boot-and-pass (M2 review P2).
+    throw new Error(
+      `no SMOKE_ACTIONS entry for "${gameId}" — add real input + a terminal expectation`,
+    );
+  }
+  test(`${gameId}: boots, takes real input${smoke.terminal ? ", reaches the end panel" : ""}`, async ({
+    page,
+  }) => {
+    if (smoke.endTimeoutMs) test.setTimeout(smoke.endTimeoutMs + 45_000);
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(String(error)));
+
+    await page.goto(`/play/${gameId}${smoke.urlQuery ?? ""}`);
+    const host = page.getByTestId("game-host");
+    await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+      timeout: 30_000,
+    });
+    await page.getByTestId("start-run").click();
+    await expect(host).toHaveAttribute("data-lifecycle", "running");
+
+    await smoke.act(page);
+    if (smoke.terminal) {
+      await expect(host).toHaveAttribute("data-lifecycle", "ended", {
+        timeout: smoke.endTimeoutMs ?? 20_000,
+      });
+      await expect(page.getByTestId("play-again")).toBeVisible();
+    } else {
+      await page.waitForTimeout(600);
+      await expect(host).toHaveAttribute("data-lifecycle", "running");
+    }
+    expect(pageErrors).toEqual([]);
+  });
+}
+
+test("snake: full counted loop — issue, die, submit, receipt, board", async ({
+  page,
+}) => {
+  test.skip(needsDb, "counted loop needs DATABASE_URL");
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+
+  await page.goto("/play/snake");
+  const host = page.getByTestId("game-host");
+  await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("start-counted").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "running", {
+    timeout: 10_000,
+  });
+  await expect(host).toHaveAttribute("data-lifecycle", "ended", {
+    timeout: 15_000,
+  });
+  const receipt = page.getByTestId("counted-result");
+  await expect(receipt).toBeVisible({ timeout: 10_000 });
+  await expect(receipt).toContainText("Rank");
+  await expect(receipt).toContainText("streak");
+
+  await receipt.getByRole("link").click();
+  await expect(page.getByTestId("board-me")).toBeVisible({ timeout: 10_000 });
+  expect(pageErrors).toEqual([]);
+});
+
+test("claw: GAME-OWNED counted loop — issue, drop, committed end, receipt", async ({
+  page,
+}) => {
+  test.skip(needsDb, "counted loop needs DATABASE_URL");
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+
+  await page.goto("/play/claw");
+  const host = page.getByTestId("game-host");
+  await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("start-counted").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "running", {
+    timeout: 10_000,
+  });
+
+  // Space = drop → server-committed outcome → animation → game-owned end.
+  await page.keyboard.press("Space");
+  await expect(host).toHaveAttribute("data-lifecycle", "ended", {
+    timeout: 20_000,
+  });
+  const receipt = page.getByTestId("counted-result");
+  await expect(receipt).toBeVisible({ timeout: 10_000 });
+  await expect(receipt).toContainText("saved");
+  expect(pageErrors).toEqual([]);
+});
+
+test("lost PUT response → same-attempt Retry save → receipt (§10.1)", async ({
+  page,
+}) => {
+  test.skip(needsDb, "counted loop needs DATABASE_URL");
+  const putBodies: string[] = [];
+  let firstPutStatus: number | null = null;
+  await page.route("**/api/runs/*", async (route) => {
+    if (route.request().method() === "PUT") {
+      putBodies.push(route.request().postData() ?? "");
+      if (putBodies.length === 1) {
+        // Let the server COMMIT — and capture the proof — then lose the
+        // response on the wire (M2 review P2: the successful commit must
+        // be evidenced, not assumed).
+        const committed = await route.fetch();
+        firstPutStatus = committed.status();
+        await route.abort();
+        return;
+      }
+    }
+    await route.continue();
+  });
+
+  await page.goto("/play/snake");
+  const host = page.getByTestId("game-host");
+  await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("start-counted").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "ended", {
+    timeout: 20_000,
+  });
+
+  // Submission failed → retry is offered with the SAME attempt/payload.
+  const retry = page.getByTestId("retry-save");
+  await expect(retry).toBeVisible({ timeout: 10_000 });
+  const retryResponsePromise = page.waitForResponse(
+    (r) => r.url().includes("/api/runs/") && r.request().method() === "PUT",
+  );
+  await retry.click();
+
+  // The server already committed: the retry replays the ORIGINAL receipt.
+  const receipt = page.getByTestId("counted-result");
+  await expect(receipt).toBeVisible({ timeout: 10_000 });
+  await expect(receipt).toContainText("Rank");
+
+  // Evidence, not inference (M2 review P2): the first PUT committed, the
+  // retry re-sent a byte-identical payload, and the server marked its
+  // response as a replay of the original result.
+  expect(firstPutStatus).toBe(200);
+  expect(putBodies).toHaveLength(2);
+  expect(putBodies[1]).toBe(putBodies[0]);
+  const retryResponse = await retryResponsePromise;
+  expect(retryResponse.status()).toBe(200);
+  const retryBody = (await retryResponse.json()) as { replay?: boolean };
+  expect(retryBody.replay).toBe(true);
+});

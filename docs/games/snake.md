@@ -34,6 +34,8 @@
 
 - At most one direction change is applied per movement step; queued input cannot reverse into the previous cell.
 - Photocards never spawn on the snake.
+- Moving into the cell the tail is vacating this step COUNTS AS A COLLISION
+  (strict rule, matches the mock; decided at M2 review — see V3c vector).
 - A full board ends as `completed` with the maximum possible score.
 - Paused time advances neither movement nor run duration eligibility calculations owned by the shell.
 

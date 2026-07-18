@@ -1,0 +1,4 @@
+# Pinned deps for the claw PSD asset pipeline (ADR 0003, TECH_SPEC §7.1.4).
+# pip install -r scripts/requirements.txt
+Pillow==11.3.0
+psd-tools==1.11.0

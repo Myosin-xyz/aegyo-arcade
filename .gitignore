@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Claw design master stays in shared storage, not git
+*.psd
+
+# Raw external game deliveries stay OUT of git (archive lives in Myosin
+# shared storage per GAME_INTAKE.md); only migrated code/assets are committed.
+/files_freebie_frenzy/
+/cross-to-the-concert/
+/intake/

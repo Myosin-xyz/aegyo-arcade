@@ -12,7 +12,24 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "test-results/**",
+    "playwright-report/**",
   ]),
+  {
+    rules: {
+      // Underscore prefix marks intentionally unused contract params.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+      // LeakTracker patches EventTarget.prototype with function expressions
+      // (needs dynamic `this`), so a self-alias is structurally required.
+      "@typescript-eslint/no-this-alias": [
+        "error",
+        { allowedNames: ["tracker"] },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

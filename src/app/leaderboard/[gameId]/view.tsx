@@ -9,6 +9,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getRegistryEntry } from "@/games/registry";
 import { t } from "@/i18n/t";
+import { bootstrapSession } from "@/shell/session";
+import { useLocaleReady } from "@/app/locale-boundary";
 
 interface BoardRow {
   rank: number;
@@ -29,20 +31,16 @@ type BoardState =
 
 export function LeaderboardView({ gameId }: { gameId: string }) {
   const entry = getRegistryEntry(gameId);
+  const localeReady = useLocaleReady();
   const [board, setBoard] = useState<BoardState>({ kind: "loading" });
 
   useEffect(() => {
-    if (!entry) return;
+    // Session bootstrap waits for the resolved locale (M4 review P1).
+    if (!entry || !localeReady) return;
     let cancelled = false;
     (async () => {
       try {
-        await fetch("/api/session", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
-        });
+        await bootstrapSession();
         const res = await fetch(`/api/leaderboards/${gameId}`);
         if (!res.ok) throw new Error(String(res.status));
         const body = (await res.json()) as {
@@ -58,7 +56,7 @@ export function LeaderboardView({ gameId }: { gameId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [entry, gameId]);
+  }, [entry, gameId, localeReady]);
 
   if (!entry) {
     return (

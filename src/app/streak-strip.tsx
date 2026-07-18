@@ -8,24 +8,25 @@
 
 import { useEffect, useState } from "react";
 import { t } from "@/i18n/t";
+import { bootstrapSession } from "@/shell/session";
+import { useLocaleReady } from "./locale-boundary";
 
 export function StreakStrip() {
+  const localeReady = useLocaleReady();
   const [streak, setStreak] = useState<{
     current: number;
     best: number;
   } | null>(null);
 
   useEffect(() => {
+    // Session bootstrap waits for the resolved locale (M4 review P1):
+    // firing during the initial English pass would create the device
+    // record as `en` and race the Spanish remount's duplicate.
+    if (!localeReady) return;
     let cancelled = false;
     (async () => {
       try {
-        await fetch("/api/session", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
-        });
+        await bootstrapSession();
         const res = await fetch("/api/streak");
         if (!res.ok) return;
         const body = (await res.json()) as { current: number; best: number };
@@ -37,7 +38,7 @@ export function StreakStrip() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [localeReady]);
 
   if (!streak || (streak.current === 0 && streak.best === 0)) return null;
   return (

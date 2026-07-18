@@ -24,6 +24,7 @@ import {
   scoreOf,
   type HangmanState,
 } from "./logic";
+import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -54,6 +55,10 @@ class HangmanGame implements ShellLoopGame {
   constructor(private readonly ctx: GameContext) {}
 
   init(): void {
+    this.ctx.audio.register("good", blip(784, 0.07, "triangle", 0.045));
+    this.ctx.audio.register("bad", thud(160, 0.12, 0.05));
+    this.ctx.audio.register("win", arp([523, 659, 784, 1047]));
+    this.ctx.audio.register("lose", sweep(400, 80, 0.35, "sawtooth", 0.04));
     if (this.ctx.surface.kind !== "dom") {
       throw new Error("hangman requires a dom surface");
     }
@@ -151,6 +156,11 @@ class HangmanGame implements ShellLoopGame {
     const result = guess(state, letter);
     const t = this.ctx.t;
     this.renderState();
+    if (result.kind === "correct") {
+      this.ctx.audio.play(result.solved ? "win" : "good");
+    } else if (result.kind === "wrong") {
+      this.ctx.audio.play(result.lost ? "lose" : "bad");
+    }
 
     switch (result.kind) {
       case "ignored":

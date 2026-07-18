@@ -11,6 +11,7 @@ import type {
   ShellLoopGame,
 } from "@/shell/contract";
 import { flappyMeta } from "./meta";
+import { blip, sweep } from "@/shell/sfx-presets";
 import {
   createFlappyState,
   flap,
@@ -50,16 +51,21 @@ class FlappyGame implements ShellLoopGame {
   constructor(private readonly ctx: GameContext) {}
 
   init(): void {
+    this.ctx.audio.register("flap", sweep(280, 560, 0.09, "triangle", 0.04));
+    this.ctx.audio.register("point", blip(1046, 0.07, "triangle", 0.045));
+    this.ctx.audio.register("lose", sweep(500, 80, 0.28, "sawtooth", 0.045));
     this.unsubscribers.push(
       this.ctx.input.onPointer((p) => {
         if (p.action === "down" && this.state) {
           this.armed = true;
+          if (this.state.status === "running") this.ctx.audio.play("flap");
           flap(this.state);
         }
       }),
       this.ctx.input.onKey((k) => {
         if (k.action === "down" && k.code === "Space" && this.state) {
           this.armed = true;
+          if (this.state.status === "running") this.ctx.audio.play("flap");
           flap(this.state);
         }
       }),
@@ -93,10 +99,14 @@ class FlappyGame implements ShellLoopGame {
       this.accumulator -= SIM_STEP_MS;
       const before = state.score;
       step(state, rng);
-      if (state.score !== before) this.ctx.report.score(state.score);
+      if (state.score !== before) {
+        this.ctx.audio.play("point");
+        this.ctx.report.score(state.score);
+      }
       if (state.status !== "running") {
         if (!this.endedReported) {
           this.endedReported = true;
+          this.ctx.audio.play("lose");
           this.ctx.report.end({ reason: "lost" });
         }
         return;

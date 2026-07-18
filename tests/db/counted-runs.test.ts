@@ -18,6 +18,7 @@ import {
   promotions,
   runAttempts,
   streaks,
+  devices,
 } from "@/db/schema";
 import {
   issueCountedAttempt,
@@ -28,7 +29,7 @@ import { buildDailySeed } from "@/server/games-config";
 import { getSeasonBoard, rankForScore } from "@/server/leaderboard";
 import { effectiveStreak } from "@/server/streak";
 import { recordClawPlay } from "@/server/claw-play";
-import { createDeviceSession } from "@/server/identity";
+import { createDeviceSession, touchSession } from "@/server/identity";
 import { prevDayKey } from "@/server/streak";
 import { seasonKeyFor } from "@/server/season";
 
@@ -644,5 +645,43 @@ describe("effective streak (M2 review P1)", () => {
     ).toEqual({ current: 0, best: 6 });
     expect(effectiveStreak(null, tz, now)).toEqual({ current: 0, best: 0 });
     // The stored row is untouched by display math — pure function only.
+  });
+});
+
+describe("device locale (§12.1; M4 review P1/P2)", () => {
+  it("creates the device with the resolved locale; touch persists changes and no-locale touches leave it alone", async () => {
+    const created = await createDeviceSession(db, {
+      timeZone: "America/Mexico_City",
+      locale: "es-419",
+    });
+    // First-visit Spanish device: record is es-419 from the START.
+    expect(created.device.locale).toBe("es-419");
+    const rowAfterCreate = await db
+      .select({ locale: devices.locale })
+      .from(devices)
+      .where(eq(devices.id, created.device.deviceId));
+    expect(rowAfterCreate[0].locale).toBe("es-419");
+
+    // Toggle to EN: touch persists the allowlisted change.
+    await touchSession(db, created.token, created.device, undefined, "en");
+    const rowAfterToggle = await db
+      .select({ locale: devices.locale })
+      .from(devices)
+      .where(eq(devices.id, created.device.deviceId));
+    expect(rowAfterToggle[0].locale).toBe("en");
+
+    // A plain activity touch (no locale) never clobbers the record.
+    await touchSession(
+      db,
+      created.token,
+      { ...created.device, locale: "en" },
+      undefined,
+      undefined,
+    );
+    const rowAfterPlain = await db
+      .select({ locale: devices.locale })
+      .from(devices)
+      .where(eq(devices.id, created.device.deviceId));
+    expect(rowAfterPlain[0].locale).toBe("en");
   });
 });

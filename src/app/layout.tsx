@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Silkscreen } from "next/font/google";
 import "./globals.css";
 import { Suspense } from "react";
 import { CampaignCapture } from "./campaign-capture";
+import { LocaleBoundary } from "./locale-boundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,7 +47,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <CampaignCapture />
         </Suspense>
-        {children}
+        <LocaleBoundary>{children}</LocaleBoundary>
       </body>
     </html>
   );

@@ -261,6 +261,55 @@ test("claw: GAME-OWNED counted loop — issue, drop, committed end, receipt", as
   expect(pageErrors).toEqual([]);
 });
 
+test("fresh es device: home load fires EXACTLY ONE session bootstrap, already es-419 (M4 review P1)", async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({ locale: "es-MX" });
+  const page = await context.newPage();
+  const sessionBodies: string[] = [];
+  await page.route("**/api/session", async (route) => {
+    sessionBodies.push(route.request().postData() ?? "");
+    await route.continue();
+  });
+  await page.goto(`${baseURL}/`);
+  // Streak strip settles (or stays hidden) once the bootstrap resolves.
+  await page.waitForTimeout(1500);
+  // ONE request, ALREADY carrying the resolved locale — the duplicate
+  // cookie-less en/es pair created two device identities before.
+  expect(sessionBodies).toHaveLength(1);
+  expect(JSON.parse(sessionBodies[0]).locale).toBe("es-419");
+  await context.close();
+});
+
+test("es device: direct game route is fully Spanish — text, ARIA, lang — with NO hydration errors (M4 review P1)", async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({ locale: "es-MX" });
+  const page = await context.newPage();
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  await page.goto(`${baseURL}/play/snake`);
+  await expect(page.getByTestId("game-host")).toHaveAttribute(
+    "data-lifecycle",
+    "ready",
+    { timeout: 30_000 },
+  );
+  await expect(page.locator("html")).toHaveAttribute("lang", "es-419");
+  await expect(page.getByTestId("start-run")).toContainText("Práctica");
+  // ATTRIBUTES must localize too — the old client-init approach left
+  // hydration-mismatched English aria labels behind.
+  await expect(
+    page.getByRole("link", { name: "Volver al arcade" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Silenciar" })).toBeVisible();
+  expect(consoleErrors.filter((text) => /hydrat/i.test(text))).toEqual([]);
+  await context.close();
+});
+
 test("lost PUT response → same-attempt Retry save → receipt (§10.1)", async ({
   page,
 }) => {

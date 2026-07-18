@@ -22,6 +22,10 @@ export async function POST(request: NextRequest) {
 
   const body = (await readJsonBody(request)) ?? {};
   const timeZone = body.timeZone;
+  // §12.1: the client preference updates the device record. Allowlisted
+  // — junk never reaches the column.
+  const locale =
+    body.locale === "en" || body.locale === "es-419" ? body.locale : undefined;
 
   const existingToken = request.cookies.get(SESSION_COOKIE)?.value;
   if (existingToken) {
@@ -30,11 +34,19 @@ export async function POST(request: NextRequest) {
       // ROLLING session (§8.1): every visit extends both the DB row and
       // the cookie — retention is 90 days since last activity. A null
       // expiry means a deletion raced us — fall through to a new identity.
-      const touched = await touchSession(db, existingToken, device, timeZone);
+      const touched = await touchSession(
+        db,
+        existingToken,
+        device,
+        timeZone,
+        locale,
+      );
       if (touched.expiresAt) {
         const response = NextResponse.json({
           ok: true,
-          locale: device.locale,
+          // Effective locale: touchSession may just have persisted the
+          // requested change; the pre-update record would be stale.
+          locale: locale ?? device.locale,
           handle: device.handle,
         });
         response.cookies.set({
@@ -51,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const created = await createDeviceSession(db, { timeZone });
+  const created = await createDeviceSession(db, { timeZone, locale });
   const response = NextResponse.json({
     ok: true,
     locale: created.device.locale,

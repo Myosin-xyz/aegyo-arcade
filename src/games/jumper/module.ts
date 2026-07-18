@@ -13,6 +13,7 @@ import type {
   ShellLoopGame,
 } from "@/shell/contract";
 import { jumperMeta } from "./meta";
+import { arp, blip, sweep } from "@/shell/sfx-presets";
 import {
   createJumperState,
   rankOf,
@@ -52,6 +53,10 @@ class JumperGame implements ShellLoopGame {
   constructor(private readonly ctx: GameContext) {}
 
   init(): void {
+    this.ctx.audio.register("bounce", sweep(210, 430, 0.08, "triangle", 0.035));
+    this.ctx.audio.register("point", blip(988, 0.06, "square", 0.04));
+    this.ctx.audio.register("win", arp([523, 659, 784, 1047]));
+    this.ctx.audio.register("lose", sweep(460, 70, 0.3, "sawtooth", 0.045));
     this.unsubscribers.push(
       this.ctx.input.onPointer((p) => this.onPointer(p)),
       this.ctx.input.onKey((k) => {
@@ -95,11 +100,17 @@ class JumperGame implements ShellLoopGame {
     while (this.accumulator >= SIM_STEP_MS) {
       this.accumulator -= SIM_STEP_MS;
       const before = state.climbed;
+      const vyBefore = state.vy;
       step(state, rng);
-      if (state.climbed !== before) this.ctx.report.score(state.climbed);
+      if (vyBefore >= 0 && state.vy < 0) this.ctx.audio.play("bounce");
+      if (state.climbed !== before) {
+        this.ctx.audio.play("point");
+        this.ctx.report.score(state.climbed);
+      }
       if (state.status !== "running") {
         if (!this.endedReported) {
           this.endedReported = true;
+          this.ctx.audio.play(state.status === "completed" ? "win" : "lose");
           this.ctx.report.end({
             reason: state.status === "completed" ? "completed" : "lost",
           });

@@ -29,13 +29,16 @@ export function createAudioBus(): AudioBus {
     removeUnlockListeners();
   };
 
-  // Any first gesture on the page unlocks; listeners self-remove.
+  // Any first gesture unlocks. CAPTURE phase so the bus unlocks BEFORE
+  // target-level input handlers run — otherwise the very first
+  // flap/hop's play() lands while still locked and is dropped (M4
+  // review P2).
   const removeUnlockListeners = (): void => {
-    window.removeEventListener("pointerdown", unlock);
-    window.removeEventListener("keydown", unlock);
+    window.removeEventListener("pointerdown", unlock, { capture: true });
+    window.removeEventListener("keydown", unlock, { capture: true });
   };
-  window.addEventListener("pointerdown", unlock);
-  window.addEventListener("keydown", unlock);
+  window.addEventListener("pointerdown", unlock, { capture: true });
+  window.addEventListener("keydown", unlock, { capture: true });
 
   return {
     register(name, synth) {
@@ -43,6 +46,10 @@ export function createAudioBus(): AudioBus {
       synths.set(name, synth);
     },
     play(name) {
+      // Contract: a no-op until GESTURE-unlocked (the capture-phase
+      // listeners fire before any game input handler, so the first
+      // gesture's own SFX still lands — M4 review P2 kept the frozen
+      // semantics instead of lazily unlocking here).
       if (destroyed || muted || !unlocked || !ctx) return;
       const synth = synths.get(name);
       if (!synth) return;

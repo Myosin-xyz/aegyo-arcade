@@ -12,19 +12,13 @@
 import type { Outcome } from "./engine/types";
 import type { OutcomeProvider } from "./engine/outcome";
 import { ClawPlayRefusedError } from "./engine/outcome";
+import { bootstrapSession } from "@/shell/session";
 
 const RETRIES = 3;
 const RETRY_DELAY_MS = 350;
 
 async function ensureSession(signal: AbortSignal): Promise<void> {
-  await fetch("/api/session", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    }),
-    signal,
-  });
+  await bootstrapSession({ signal });
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {

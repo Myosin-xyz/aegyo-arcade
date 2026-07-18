@@ -26,6 +26,7 @@ import {
   type SnakeState,
 } from "./logic";
 import { CONTROL_ZONES, hitControl } from "./controls";
+import { arp, blip, sweep } from "@/shell/sfx-presets";
 
 const SWIPE_MIN_PX = 24;
 
@@ -56,6 +57,9 @@ class SnakeGame implements ShellLoopGame {
   constructor(private readonly ctx: GameContext) {}
 
   init(): void {
+    this.ctx.audio.register("eat", blip(880, 0.06, "square", 0.05));
+    this.ctx.audio.register("win", arp([523, 659, 784, 1047]));
+    this.ctx.audio.register("lose", sweep(440, 90, 0.3, "sawtooth", 0.04));
     this.unsubscribers.push(
       this.ctx.input.onPointer((p) => this.onPointer(p)),
       this.ctx.input.onKey((k) => {
@@ -95,10 +99,14 @@ class SnakeGame implements ShellLoopGame {
       this.accumulator -= STEP_MS;
       const before = state.collected;
       step(state, rng);
-      if (state.collected !== before) this.ctx.report.score(state.collected);
+      if (state.collected !== before) {
+        this.ctx.audio.play("eat");
+        this.ctx.report.score(state.collected);
+      }
       if (state.status !== "running") {
         if (!this.endedReported) {
           this.endedReported = true;
+          this.ctx.audio.play(state.status === "completed" ? "win" : "lose");
           this.ctx.report.end({
             reason: state.status === "completed" ? "completed" : "lost",
           });

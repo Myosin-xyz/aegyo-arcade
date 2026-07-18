@@ -7,7 +7,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameContext, InputBus, RunContext } from "@/shell/contract";
-import { createAudioBus } from "@/shell/audio";
+import {
+  createRecordingAudio,
+  type RecordingAudio,
+} from "../fixtures/recording-audio";
 import { createInputBus } from "@/shell/input";
 import { seededRandom } from "@/shell/rng";
 import { froggerDefinition } from "@/games/frogger/module";
@@ -48,6 +51,7 @@ describe("frogger module — real lifecycle", () => {
   let canvas: HTMLCanvasElement;
   let bus: InputBus;
   let endReasons: string[];
+  let audio: RecordingAudio;
   let ctx: GameContext;
 
   beforeEach(() => {
@@ -58,6 +62,7 @@ describe("frogger module — real lifecycle", () => {
     host.appendChild(canvas);
     bus = createInputBus({ target: canvas, toDesign: (x, y) => ({ x, y }) });
     endReasons = [];
+    audio = createRecordingAudio();
     ctx = {
       host,
       surface: {
@@ -67,7 +72,7 @@ describe("frogger module — real lifecycle", () => {
         designBox: { w: DESIGN_W, h: DESIGN_H },
       },
       input: bus,
-      audio: createAudioBus(),
+      audio,
       t: (key) => key,
       report: {
         score: () => undefined,
@@ -98,8 +103,12 @@ describe("frogger module — real lifecycle", () => {
 
     key("ArrowUp");
     expect(probe.state!.row).toBe(START_ROW - 1); // input moved the game
+    expect(audio.plays).toContain("hop"); // accepted move fires the SFX
+    const hopsAfterUp = audio.plays.filter((n) => n === "hop").length;
     key("ArrowDown");
     expect(probe.state!.row).toBe(START_ROW);
+    key("ArrowDown"); // REJECTED (already at the start row) — no sound
+    expect(audio.plays.filter((n) => n === "hop").length).toBe(hopsAfterUp + 1);
 
     bus.setEnabled(false);
     game.pause("blur");
@@ -136,8 +145,11 @@ describe("frogger module — real lifecycle", () => {
     probe.state!.lanes[4].xs = [HERO_X, HERO_X];
     game.update(50);
     expect(endReasons).toEqual(["lost"]);
+    expect(audio.plays).toContain("lose"); // terminal SFX fired
+    expect(audio.registered).toContain("hit"); // event synths registered
     game.update(1000);
     expect(endReasons).toEqual(["lost"]); // never re-reports
+    expect(audio.plays.filter((n) => n === "lose")).toHaveLength(1);
 
     game.destroy();
     game.destroy();

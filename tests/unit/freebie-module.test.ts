@@ -8,7 +8,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameContext, InputBus, RunContext } from "@/shell/contract";
-import { createAudioBus } from "@/shell/audio";
+import {
+  createRecordingAudio,
+  type RecordingAudio,
+} from "../fixtures/recording-audio";
 import { createInputBus } from "@/shell/input";
 import { seededRandom } from "@/shell/rng";
 import { freebieDefinition } from "@/games/freebie/module";
@@ -50,6 +53,7 @@ describe("freebie module — real lifecycle", () => {
   let canvas: HTMLCanvasElement;
   let bus: InputBus;
   let endReasons: string[];
+  let audio: RecordingAudio;
   let ctx: GameContext;
 
   beforeEach(() => {
@@ -60,6 +64,7 @@ describe("freebie module — real lifecycle", () => {
     host.appendChild(canvas);
     bus = createInputBus({ target: canvas, toDesign: (x, y) => ({ x, y }) });
     endReasons = [];
+    audio = createRecordingAudio();
     ctx = {
       host,
       surface: {
@@ -70,7 +75,7 @@ describe("freebie module — real lifecycle", () => {
         designBox: { w: DESIGN_W, h: DESIGN_H },
       },
       input: bus,
-      audio: createAudioBus(),
+      audio,
       t: (key) => key,
       report: {
         score: () => undefined,
@@ -140,6 +145,22 @@ describe("freebie module — real lifecycle", () => {
     expect(probe.state!.time).toBe(0);
     expect(probe.state!.catcher.x).toBe(DESIGN_W / 2);
 
+    // A real catch fires the catch SFX (M4 review P1: behavioral).
+    probe.state!.freebies = [
+      {
+        tier: 0,
+        x: probe.state!.catcher.x,
+        y: 593.8, // inside the catch window
+        vy: 0,
+        size: 46,
+        rot: 0,
+        rotSpeed: 0,
+        wobble: 0,
+      },
+    ];
+    game.update(17);
+    expect(audio.plays).toContain("catch");
+
     // Force the terminal path: last life, one freebie past the floor.
     probe.state!.lives = 1;
     probe.state!.queue = [];
@@ -157,6 +178,7 @@ describe("freebie module — real lifecycle", () => {
     ];
     game.update(50);
     expect(endReasons).toEqual(["lost"]);
+    expect(audio.plays).toContain("lose");
 
     // Ended: further updates never re-report.
     game.update(1000);

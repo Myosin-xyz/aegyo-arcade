@@ -142,6 +142,7 @@ export async function touchSession(
   token: string,
   device: SessionDevice,
   timeZone?: unknown,
+  locale?: string,
 ): Promise<{ expiresAt: Date | null }> {
   const now = new Date();
   const expiresAt = new Date(
@@ -177,6 +178,7 @@ export async function touchSession(
       lastSeenAt: Date;
       timeZone?: string;
       timeZoneChangedAt?: Date;
+      locale?: string;
     } = { lastSeenAt: now };
     if (timeZone !== undefined) {
       const validated = validateTimeZone(timeZone);
@@ -184,6 +186,11 @@ export async function touchSession(
         patch.timeZone = validated;
         patch.timeZoneChangedAt = now;
       }
+    }
+    // §12.1: the client language preference updates the device record.
+    // Caller has already allowlisted the value.
+    if (locale !== undefined && locale !== device.locale) {
+      patch.locale = locale;
     }
     await tx.update(devices).set(patch).where(eq(devices.id, device.deviceId));
     await tx

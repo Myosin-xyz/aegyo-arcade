@@ -6,7 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameContext, RunContext } from "@/shell/contract";
-import { createAudioBus } from "@/shell/audio";
+import { createRecordingAudio } from "../fixtures/recording-audio";
 import { createInputBus } from "@/shell/input";
 import { seededRandom } from "@/shell/rng";
 import { LeakTracker } from "@/shell/conformance";
@@ -68,7 +68,7 @@ describe("snake module lifecycle", () => {
       target: canvas,
       toDesign: (x, y) => ({ x, y }),
     });
-    const audio = createAudioBus();
+    const audio = createRecordingAudio();
     const ctx: GameContext = {
       host,
       surface: {
@@ -133,7 +133,7 @@ describe("snake module lifecycle", () => {
       target: canvas,
       toDesign: (x, y) => ({ x, y }),
     });
-    const audio = createAudioBus();
+    const audio = createRecordingAudio();
     const scores: number[] = [];
     let ends = 0;
     const ctx: GameContext = {
@@ -171,6 +171,9 @@ describe("snake module lifecycle", () => {
       for (let i = 0; i < 15; i++) game.update(140);
     }
     expect(ends).toBe(1);
+    expect(audio.plays).toContain("lose"); // wall death = loss sweep
+    expect(audio.registered).toContain("win"); // completed path registered
+    expect(audio.plays).not.toContain("win");
 
     // Restart in place on the SAME instance (ended → running).
     game.start(makeRun("module-run-2"));

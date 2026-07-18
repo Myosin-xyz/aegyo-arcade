@@ -28,6 +28,7 @@ import {
   type Rng,
 } from "./logic";
 import { renderFrogger, type FroggerImages } from "./render";
+import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
 
 const ASSETS_BASE = "/games/frogger/";
 
@@ -107,6 +108,11 @@ class FroggerGame implements ShellLoopGame {
         guard: loaded[11],
       },
     };
+    this.ctx.audio.register("hop", blip(620, 0.05, "square", 0.04));
+    this.ctx.audio.register("hit", thud(150, 0.16, 0.06));
+    this.ctx.audio.register("level", arp([523, 784], 0.09));
+    this.ctx.audio.register("win", arp([523, 659, 784, 1047, 1319], 0.07));
+    this.ctx.audio.register("lose", sweep(420, 70, 0.32, "sawtooth", 0.045));
     this.unsubscribers.push(
       this.ctx.input.onPointer((p) => this.onPointer(p)),
       this.ctx.input.onKey((k) => {
@@ -143,7 +149,13 @@ class FroggerGame implements ShellLoopGame {
     this.accumulator += dtMs;
     while (this.accumulator >= STEP_MS) {
       this.accumulator -= STEP_MS;
+      const livesBefore = state.lives;
+      const levelBefore = state.level;
       step(state, rng);
+      if (state.lives < livesBefore && state.status === "playing") {
+        this.ctx.audio.play("hit");
+      }
+      if (state.level > levelBefore) this.ctx.audio.play("level");
       if (state.score !== this.lastReportedScore) {
         this.lastReportedScore = state.score;
         this.ctx.report.score(state.score);
@@ -152,6 +164,7 @@ class FroggerGame implements ShellLoopGame {
       if (status === "won" || status === "lost") {
         if (!this.endedReported) {
           this.endedReported = true;
+          this.ctx.audio.play(status === "won" ? "win" : "lose");
           this.ctx.report.end({
             reason: status === "won" ? "completed" : "lost",
           });
@@ -191,7 +204,9 @@ class FroggerGame implements ShellLoopGame {
   private tryMove(delta: -1 | 1): void {
     const state = this.state;
     if (!state || this.paused || this.endedReported) return;
+    const rowBefore = state.row;
     move(state, delta);
+    if (state.row !== rowBefore) this.ctx.audio.play("hop");
   }
 }
 

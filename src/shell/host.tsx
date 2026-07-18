@@ -29,6 +29,7 @@ import { CanvasSurfaceManager } from "./surface";
 import { createInputBus } from "./input";
 import { createAudioBus } from "./audio";
 import { practiceSeed, seededRandom } from "./rng";
+import { bootstrapSession } from "./session";
 import { t } from "@/i18n/t";
 import { getRegistryEntry } from "@/games/registry";
 
@@ -416,13 +417,7 @@ export function GameHostInner({
     issuingRef.current = true;
     setCounted({ kind: "issuing" });
     try {
-      await fetch("/api/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        }),
-      });
+      await bootstrapSession();
       const res = await fetch("/api/runs", {
         method: "POST",
         headers: { "content-type": "application/json" },

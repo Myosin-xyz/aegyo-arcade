@@ -1,9 +1,14 @@
+"use client";
+
+// Client component so t() resolves the CLIENT locale (§12.1) — a server
+// render would pin the page to English forever.
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { listGames } from "@/games/registry";
 import { t } from "@/i18n/t";
 import { StreakStrip } from "./streak-strip";
 import { AegyoLogo } from "./logo";
+import { LocaleToggle } from "./locale-toggle";
 
 /** Per-game accent chips, pulled from the games' own palettes. */
 const GAME_ACCENTS: Record<string, string> = {
@@ -34,14 +39,14 @@ export default function Home() {
           return (
             <li
               key={game.meta.id}
-              className={index === 0 ? "col-span-2" : undefined}
+              className={index === 0 ? "col-span-2" : "min-h-0"}
             >
               <Link
                 href={`/play/${game.meta.id}`}
                 // §15: game-card route prefetch stays OFF — RSC prefetches
                 // were firing on landing (M0 review), paid-traffic transfer.
                 prefetch={false}
-                className="card-arcade block p-4 transition-transform active:scale-95"
+                className="card-arcade block h-full p-4 transition-transform active:scale-95"
                 style={{ "--game-accent": accent } as CSSProperties}
                 data-testid={`game-card-${game.meta.id}`}
               >
@@ -64,9 +69,12 @@ export default function Home() {
           );
         })}
       </ul>
-      <p className="mt-auto pt-4 text-center font-arcade text-[10px] uppercase tracking-wider text-muted">
-        Aegyo Arena
-      </p>
+      <div className="mt-auto flex flex-col items-center gap-2 pt-4">
+        <LocaleToggle />
+        <p className="text-center font-arcade text-[10px] uppercase tracking-wider text-muted">
+          Aegyo Arena
+        </p>
+      </div>
     </main>
   );
 }

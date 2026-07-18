@@ -26,6 +26,7 @@ import {
   type Rng,
 } from "./logic";
 import { renderFreebie, type FreebieImages } from "./render";
+import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
 
 const ASSETS_BASE = "/games/freebie/";
 const TIER_COUNT = 6;
@@ -82,6 +83,12 @@ class FreebieGame implements ShellLoopGame {
       ),
     ]);
     this.images = { bg, hero, tiers };
+    this.ctx.audio.register("catch", blip(740, 0.06, "square", 0.045));
+    this.ctx.audio.register("jackpot", arp([659, 831, 988, 1319], 0.06));
+    this.ctx.audio.register("miss", thud(140, 0.13, 0.06));
+    this.ctx.audio.register("clear", arp([523, 659, 784], 0.08));
+    this.ctx.audio.register("win", arp([523, 659, 784, 1047, 1319], 0.07));
+    this.ctx.audio.register("lose", sweep(440, 75, 0.32, "sawtooth", 0.045));
     this.unsubscribers.push(
       this.ctx.input.onPointer((p) => this.onPointer(p)),
       this.ctx.input.onKey((k) => {
@@ -128,15 +135,33 @@ class FreebieGame implements ShellLoopGame {
     this.accumulator += dtMs;
     while (this.accumulator >= STEP_MS) {
       this.accumulator -= STEP_MS;
+      const livesBefore = state.lives;
+      const statusBefore = state.status;
+      const jackpotBefore = state.callout?.kind === "jackpot";
       step(state, this.input, rng);
       if (state.score !== this.lastReportedScore) {
+        // Level-clear bonus also lands here — the recap jingle covers it.
+        if (state.status === "playing") {
+          this.ctx.audio.play(
+            !jackpotBefore && state.callout?.kind === "jackpot"
+              ? "jackpot"
+              : "catch",
+          );
+        }
         this.lastReportedScore = state.score;
         this.ctx.report.score(state.score);
+      }
+      if (state.lives < livesBefore && state.status === "playing") {
+        this.ctx.audio.play("miss");
+      }
+      if (statusBefore === "playing" && state.status === "recap") {
+        this.ctx.audio.play("clear");
       }
       const status = state.status;
       if (status === "won" || status === "lost") {
         if (!this.endedReported) {
           this.endedReported = true;
+          this.ctx.audio.play(status === "won" ? "win" : "lose");
           this.ctx.report.end({
             reason: status === "won" ? "completed" : "lost",
           });

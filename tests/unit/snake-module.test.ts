@@ -162,6 +162,12 @@ describe("snake module lifecycle", () => {
     game.start(makeRun("module-run-1"));
     expect(scores.at(-1)).toBe(0);
     if (game.loop === "shell") {
+      // M4 start gating: frozen until the first intentional input.
+      for (let i = 0; i < 5; i++) game.update(140);
+      expect(ends).toBe(0);
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { code: "ArrowRight", bubbles: true }),
+      );
       for (let i = 0; i < 15; i++) game.update(140);
     }
     expect(ends).toBe(1);

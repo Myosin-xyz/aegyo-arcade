@@ -41,3 +41,20 @@ export function fixedOutcome(o: Outcome): OutcomeProvider {
 //     return body.outcome;
 //   };
 // }
+
+/**
+ * The server ANSWERED and refused the play (invalid_attempt,
+ * daily_slot_used, cap_reached, promotion inactive, ...). Terminal for
+ * this drop AND this run's claw flow — pressing Drop again can never
+ * succeed, so callers must surface an honest end instead of looping
+ * TRY AGAIN (M4 review P2).
+ */
+export class ClawPlayRefusedError extends Error {
+  constructor(
+    readonly code: string,
+    status: number,
+  ) {
+    super(`claw play rejected: ${status}`);
+    this.name = "ClawPlayRefusedError";
+  }
+}

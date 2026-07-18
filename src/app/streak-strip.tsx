@@ -41,7 +41,10 @@ export function StreakStrip() {
 
   if (!streak || (streak.current === 0 && streak.best === 0)) return null;
   return (
-    <p className="text-center text-sm font-semibold" data-testid="streak-strip">
+    <p
+      className="mx-auto w-fit rounded-full border border-line bg-surface-2 px-4 py-1.5 text-center text-sm font-semibold text-gold shadow-[0_0_16px_rgba(255,209,102,0.12)]"
+      data-testid="streak-strip"
+    >
       {t("portal.streak", { current: streak.current, best: streak.best })}
     </p>
   );

@@ -34,7 +34,13 @@ function fakeManifest(): Manifest {
     trolley: rect(),
     clawOpen: rect(40, 10),
     clawClosed: rect(40, 10),
-    clawPlush: { D: rect(40, 10) },
+    clawPlush: {
+      D: rect(40, 10),
+      A: rect(40, 10),
+      E: rect(40, 10),
+      B: rect(40, 10),
+      K: rect(40, 10),
+    },
     winBoard: rect(20, 20, 60, 20),
     controls: {
       left: rect(5, 130),
@@ -228,6 +234,96 @@ describe("claw counted finale — terminal boundary per forced outcome", () => {
       new KeyboardEvent("keydown", { key, code: key, bubbles: true }),
     );
   }
+
+  it("COUNTED durable replay: dwell timeout → late-committed outcome → next Drop presents it — ONE request, ONE report (M4 review P1)", async () => {
+    const { adapter, machine, endCalls } = await setup("win");
+
+    // Take over /api/claw/plays with a response we control; everything
+    // else (already-loaded manifest, session) keeps the default stub.
+    const baseFetch = global.fetch;
+    let playsRequests = 0;
+    let resolvePlays!: (r: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        if (String(url).includes("/api/claw/plays")) {
+          playsRequests++;
+          return new Promise<Response>((resolve) => {
+            resolvePlays = resolve;
+          });
+        }
+        return baseFetch(url as never, init as never);
+      }),
+    );
+
+    const probe = adapter as unknown as {
+      lateOutcome: string | null;
+      attemptConsumed: boolean;
+    };
+
+    // Drop #1: descent + dwell, server never answers → abort to ready.
+    step();
+    machine.onDrop();
+    await flushAsync();
+    await stepUntil(() => machine.phase === "dropping");
+    expect(playsRequests).toBe(1);
+    await stepUntil(() => machine.phase === "ready", 400); // 6s dwell cap
+    expect(endCalls).toHaveLength(0);
+
+    // The request COMMITS late — the adapter must cache it durably.
+    resolvePlays(new Response(JSON.stringify({ outcome: "win", ordinal: 1 })));
+    await flushAsync();
+    expect(probe.attemptConsumed).toBe(true);
+    expect(probe.lateOutcome).toBe("win");
+
+    // Drop #2 presents the CACHED outcome: no second request/operation.
+    machine.onDrop();
+    await flushAsync();
+    await stepUntil(() => endCalls.length > 0, 800); // win hold + finale
+    expect(endCalls).toEqual(["completed"]);
+    expect(playsRequests).toBe(1); // one durable operation end to end
+    expect(probe.lateOutcome).toBeNull(); // cleared at presentation
+
+    adapter.destroy();
+  });
+
+  it("COUNTED terminal refusal (409) ends the run honestly — no TRY AGAIN loop, no saved receipt (M4 review P2)", async () => {
+    const { adapter, machine, endCalls } = await setup("win");
+    const baseFetch = global.fetch;
+    let playsRequests = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+        if (String(url).includes("/api/claw/plays")) {
+          playsRequests++;
+          return new Response(JSON.stringify({ error: "daily_slot_used" }), {
+            status: 409,
+          });
+        }
+        return baseFetch(url as never, init as never);
+      }),
+    );
+
+    step();
+    machine.onDrop();
+    await flushAsync();
+    await stepUntil(() => endCalls.length > 0, 400);
+    expect(endCalls).toEqual(["quit"]); // honest end — never "completed"
+    expect(playsRequests).toBe(1); // refusal is terminal, no retry mint
+    expect(machine.phase).toBe("ready"); // claw retracted before the end
+
+    // Terminal invariants (M4 review P1): the finale stopped the
+    // module's private frame chain and killed input BEFORE reporting.
+    expect(rafQueue.size).toBe(0);
+    pressKey(" ");
+    machine.onDrop();
+    await flushAsync();
+    expect(playsRequests).toBe(1); // no second request from dead input
+    expect(endCalls).toEqual(["quit"]); // exactly one report
+    expect(rafQueue.size).toBe(0); // chain never restarted
+
+    adapter.destroy();
+  });
 
   for (const outcome of ["win", "drop", "miss"] as Outcome[]) {
     it(`${outcome}: presentation completes input-dead, chain stops, end fires once, restart resumes one chain`, async () => {

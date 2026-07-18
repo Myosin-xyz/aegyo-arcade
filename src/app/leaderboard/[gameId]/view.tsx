@@ -64,7 +64,7 @@ export function LeaderboardView({ gameId }: { gameId: string }) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center gap-4 p-5">
         <p>{t("host.unknownGame")}</p>
-        <Link className="underline" href="/">
+        <Link className="btn-ghost px-5 py-2 text-sm font-semibold" href="/">
           {t("host.back")}
         </Link>
       </main>
@@ -74,25 +74,28 @@ export function LeaderboardView({ gameId }: { gameId: string }) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 p-5">
       <header className="flex items-center justify-between pt-4">
-        <Link className="text-sm underline" href="/">
+        <Link className="text-sm font-bold text-brand" href="/">
           {t("host.back")}
         </Link>
-        <h1 className="text-lg font-extrabold">
+        <h1 className="font-arcade glow-brand text-sm font-bold uppercase text-brand">
           {t(entry.meta.titleKey)} — {t("board.title")}
         </h1>
       </header>
 
       {board.kind === "loading" && (
-        <p className="text-sm opacity-70">{t("host.loading")}</p>
+        <p className="text-sm text-muted">{t("host.loading")}</p>
       )}
       {board.kind === "unavailable" && (
-        <p className="text-sm opacity-70">{t("board.unavailable")}</p>
+        <p className="text-sm text-muted">{t("board.unavailable")}</p>
       )}
       {board.kind === "ready" && (
         <>
-          <p className="text-xs opacity-60">{board.seasonKey}</p>
+          <p className="text-xs text-muted">{board.seasonKey}</p>
           {board.me && (
-            <p className="text-sm font-semibold" data-testid="board-me">
+            <p
+              className="card-arcade px-4 py-2.5 text-sm font-semibold text-gold"
+              data-testid="board-me"
+            >
               {t("board.yourRank", {
                 rank: board.me.rank,
                 score: board.me.score,
@@ -100,28 +103,35 @@ export function LeaderboardView({ gameId }: { gameId: string }) {
             </p>
           )}
           {board.top.length === 0 ? (
-            <p className="text-sm opacity-70">{t("board.empty")}</p>
+            <p className="text-sm text-muted">{t("board.empty")}</p>
           ) : (
-            <table className="w-full text-sm" data-testid="board-table">
+            <table
+              className="card-arcade w-full overflow-hidden text-sm"
+              data-testid="board-table"
+            >
               <thead>
-                <tr className="text-left opacity-60">
-                  <th className="py-1 pr-2">{t("board.rank")}</th>
-                  <th className="py-1 pr-2">{t("board.player")}</th>
-                  <th className="py-1 text-right">{t("board.score")}</th>
+                <tr className="text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="px-3 py-2">{t("board.rank")}</th>
+                  <th className="py-2 pr-2">{t("board.player")}</th>
+                  <th className="py-2 pr-3 text-right">{t("board.score")}</th>
                 </tr>
               </thead>
               <tbody>
                 {board.top.map((row, index) => (
                   <tr
                     key={`${row.rank}-${index}`}
-                    className={row.you ? "font-bold" : undefined}
+                    className={row.you ? "font-bold text-brand" : undefined}
                   >
-                    <td className="py-1 pr-2 tabular-nums">#{row.rank}</td>
-                    <td className="py-1 pr-2">
+                    <td
+                      className={`px-3 py-1.5 tabular-nums ${row.rank <= 3 ? "font-bold text-gold" : ""}`}
+                    >
+                      #{row.rank}
+                    </td>
+                    <td className="py-1.5 pr-2">
                       {row.handle}
                       {row.you ? ` (${t("board.you")})` : ""}
                     </td>
-                    <td className="py-1 text-right tabular-nums">
+                    <td className="py-1.5 pr-3 text-right tabular-nums">
                       {row.score}
                     </td>
                   </tr>

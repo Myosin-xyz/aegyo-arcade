@@ -82,10 +82,19 @@ export function spawnFood(state: SnakeState, rng: () => number): Cell | null {
  * previous cell is rejected at APPLY time so a queued opposite can never
  * slip through.
  */
-export function queueDirection(state: SnakeState, dir: Dir): void {
-  if (state.status !== "running") return;
-  if (dir === state.dir) return;
+/**
+ * Returns whether the input was ACCEPTED for ARMING purposes (M4
+ * review): same-direction presses count as intentional, reversals do
+ * not — a rejected first press must not start the snake moving the
+ * other way. Queue semantics are unchanged from the documented V2
+ * vectors: a reversal still overwrites the queued direction and step()
+ * still discards it.
+ */
+export function queueDirection(state: SnakeState, dir: Dir): boolean {
+  if (state.status !== "running") return false;
+  if (dir === state.dir) return true;
   state.queuedDir = dir;
+  return dir !== OPPOSITE[state.dir];
 }
 
 /** One fixed movement step. No-op after the run ended (end-at-most-once). */

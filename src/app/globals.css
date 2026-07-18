@@ -1,26 +1,117 @@
 @import "tailwindcss";
 
+/*
+ * Aegyo Arcade brand foundation. Dark-only by design: every game surface
+ * is Daidai's dark navy/pink arcade art, so the shell commits to the
+ * same palette instead of flipping with prefers-color-scheme.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #140a26;
+  --surface: #1e1038;
+  --surface-2: #2b1146;
+  --foreground: #f4ecff;
+  --muted: rgba(244, 236, 255, 0.62);
+  --brand: #ff4f8b;
+  --brand-deep: #c22b63;
+  --brand-soft: #ff8fb8;
+  --accent: #2fe6c4;
+  --gold: #ffd166;
+  --violet: #8b7cff;
+  --line: rgba(255, 143, 184, 0.22);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-gold: var(--gold);
+  --color-violet: var(--violet);
+  --color-line: var(--line);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-arcade: var(--font-arcade);
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(
+      1100px 500px at 50% -10%,
+      rgba(139, 124, 255, 0.14),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 420px at 50% 115%,
+      rgba(255, 79, 139, 0.1),
+      transparent 55%
+    ),
+    var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Arcade display face — headings/short labels only (pixel fonts don't
+ * read at body sizes). */
+.font-arcade {
+  font-family: var(--font-arcade), var(--font-geist-sans), sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.glow-brand {
+  text-shadow:
+    0 0 14px rgba(255, 79, 139, 0.55),
+    0 0 42px rgba(255, 79, 139, 0.25);
+}
+
+/* Chunky arcade primary button (shared by host CTAs + cards). */
+.btn-arcade {
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, var(--brand-soft) -40%, var(--brand) 45%);
+  color: #fff;
+  font-weight: 800;
+  box-shadow:
+    0 4px 0 var(--brand-deep),
+    0 8px 24px rgba(255, 79, 139, 0.35);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    filter 120ms ease;
+}
+.btn-arcade:active {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 var(--brand-deep),
+    0 4px 14px rgba(255, 79, 139, 0.25);
+}
+.btn-arcade:disabled {
+  filter: saturate(0.4) brightness(0.7);
+  box-shadow: none;
+}
+
+.btn-ghost {
+  border-radius: 0.9rem;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--foreground);
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+.btn-ghost:active {
+  transform: translateY(2px);
+  border-color: var(--brand);
+}
+
+.card-arcade {
+  border-radius: 1.1rem;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 130%);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 236, 255, 0.05),
+    0 10px 30px rgba(0, 0, 0, 0.35);
 }

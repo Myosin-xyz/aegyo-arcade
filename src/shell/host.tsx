@@ -220,6 +220,11 @@ export function GameHostInner({
         const canvas = document.createElement("canvas");
         canvas.style.touchAction = "none";
         canvas.setAttribute("data-testid", "game-surface");
+        canvas.setAttribute("role", "application");
+        canvas.setAttribute(
+          "aria-label",
+          `${t(entry.meta.titleKey)} \u2014 ${t(`game.${gameId}.controls`)}`,
+        );
         container.appendChild(canvas);
         // Module-loop legacy games (claw) own their canvas sizing/DPR;
         // undefined means shell-managed (the norm — ADR 0005).
@@ -244,6 +249,10 @@ export function GameHostInner({
         root.style.width = "100%";
         root.style.height = "100%";
         root.setAttribute("data-testid", "game-surface");
+        root.setAttribute(
+          "aria-label",
+          `${t(entry.meta.titleKey)} \u2014 ${t(`game.${gameId}.controls`)}`,
+        );
         container.appendChild(root);
         surface = { kind: "dom", root };
         inputTarget = root;
@@ -274,7 +283,7 @@ export function GameHostInner({
             scoreRef.current = Math.floor(value);
             setScore(Math.floor(value));
           },
-          end: () => {
+          end: (result) => {
             const mounted = mountedRef.current;
             if (!mounted || mounted.endedThisRun) return;
             mounted.endedThisRun = true;
@@ -282,7 +291,9 @@ export function GameHostInner({
             mounted.runAbort?.abort();
             transition("ended");
             if (entry.countedCompletion === "game-owned") {
-              void finishOwnedCounted();
+              // A refusal-end ("quit") must NOT render the saved receipt
+              // — only a genuinely completed drop does (M4 review P2).
+              if (result?.reason === "completed") void finishOwnedCounted();
             } else {
               void submitCountedIfNeeded();
             }
@@ -526,8 +537,8 @@ export function GameHostInner({
   if (!entry) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
-        <p>{t("host.unknownGame")}</p>
-        <Link className="underline" href="/">
+        <p className="text-muted">{t("host.unknownGame")}</p>
+        <Link className="btn-ghost px-5 py-2 text-sm font-semibold" href="/">
           {t("host.back")}
         </Link>
       </div>
@@ -536,44 +547,86 @@ export function GameHostInner({
 
   return (
     <div
-      className="flex min-h-dvh flex-col"
+      className="mx-auto flex min-h-dvh w-full max-w-md flex-col"
       data-testid="game-host"
       data-lifecycle={lifecycle}
       data-score={score}
     >
-      <header className="flex items-center justify-between gap-2 p-3">
-        <Link className="text-sm underline" href="/">
-          {t("host.back")}
+      <header className="flex items-center justify-between gap-2 border-b border-line bg-surface/70 px-3 py-2 backdrop-blur">
+        <Link
+          className="shrink-0 px-1 text-xl font-bold leading-none text-brand"
+          href="/"
+          aria-label={t("host.back")}
+        >
+          {"\u2039"}
         </Link>
-        <span className="text-sm font-semibold">{t(entry.meta.titleKey)}</span>
-        <div className="flex items-center gap-3">
-          <span className="text-sm tabular-nums">
-            {t("host.score")}: {score}
-          </span>
+        <span className="min-w-0 truncate font-arcade text-[11px] font-bold">
+          {t(entry.meta.titleKey)}
+        </span>
+        <div className="flex shrink-0 items-center gap-3">
+          {!entry.hasAuthoredHud && (
+            <span
+              className="text-sm font-semibold tabular-nums text-gold"
+              aria-label={t("host.score")}
+            >
+              {score}
+            </span>
+          )}
           <button
             type="button"
-            className="text-sm underline"
+            className="px-1 text-sm font-semibold text-muted"
             onClick={toggleMute}
+            aria-label={muted ? t("host.unmute") : t("host.mute")}
           >
-            {muted ? t("host.unmute") : t("host.mute")}
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M4 9h4l5-4v14l-5-4H4z" />
+              {muted ? (
+                <path
+                  d="M16.5 9.5 21 14m0-4.5L16.5 14"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                />
+              ) : (
+                <path
+                  d="M16 8.5a5 5 0 0 1 0 7"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                />
+              )}
+            </svg>
           </button>
         </div>
       </header>
+
+      <p className="sr-only" aria-live="polite">
+        {lifecycle === "ended" ? `${t("host.score")}: ${score}` : ""}
+      </p>
 
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="absolute inset-0" />
 
         {lifecycle === "initializing" && (
           <Overlay>
-            <p>{t("host.loading")}</p>
+            <p className="font-arcade text-sm text-muted">
+              {t("host.loading")}
+            </p>
           </Overlay>
         )}
         {lifecycle === "failed" && (
           <Overlay>
-            <p>{t("host.loadFailed")}</p>
+            <p className="text-muted">{t("host.loadFailed")}</p>
             <button
               type="button"
-              className="rounded-lg border px-4 py-2"
+              className="btn-ghost px-5 py-2 font-semibold"
               onClick={() => setInitNonce((n) => n + 1)}
               data-testid="retry-init"
             >
@@ -583,11 +636,14 @@ export function GameHostInner({
         )}
         {lifecycle === "ready" && (
           <Overlay>
+            <p className="max-w-[17rem] text-center text-sm text-white/80">
+              {t(`game.${gameId}.controls`)}
+            </p>
             {countedCapable && (
               <>
                 <button
                   type="button"
-                  className="rounded-lg border-2 px-6 py-3 text-lg font-bold"
+                  className="btn-arcade px-8 py-4 text-lg"
                   onClick={() => void startCountedRun()}
                   disabled={counted.kind === "issuing"}
                   data-testid="start-counted"
@@ -612,7 +668,7 @@ export function GameHostInner({
             )}
             <button
               type="button"
-              className="rounded-lg border px-6 py-3 text-lg font-semibold"
+              className="btn-ghost px-7 py-3 text-lg font-semibold"
               onClick={startRun}
               data-testid="start-run"
             >
@@ -622,10 +678,10 @@ export function GameHostInner({
         )}
         {lifecycle === "paused" && (
           <Overlay>
-            <p>{t("host.paused")}</p>
+            <p className="font-arcade text-sm">{t("host.paused")}</p>
             <button
               type="button"
-              className="rounded-lg border px-6 py-3 text-lg font-semibold"
+              className="btn-arcade px-8 py-3 text-lg"
               onClick={resumeRun}
               data-testid="resume-run"
             >
@@ -635,7 +691,7 @@ export function GameHostInner({
         )}
         {lifecycle === "ended" && (
           <Overlay>
-            <p className="text-lg font-semibold">
+            <p className="font-arcade text-xl text-gold">
               {t("host.score")}: {score}
             </p>
             {counted.kind === "submitting" && (
@@ -653,7 +709,10 @@ export function GameHostInner({
                     best: counted.streak.best,
                   })}
                 </p>
-                <Link className="underline" href={`/leaderboard/${gameId}`}>
+                <Link
+                  className="font-semibold text-accent underline underline-offset-4"
+                  href={`/leaderboard/${gameId}`}
+                >
                   {t("host.viewBoard")}
                 </Link>
               </div>
@@ -680,7 +739,7 @@ export function GameHostInner({
                 {counted.retryable && (
                   <button
                     type="button"
-                    className="rounded-lg border px-4 py-2 font-semibold"
+                    className="btn-arcade px-5 py-2.5 text-sm"
                     onClick={() => void attemptCountedSubmit()}
                     data-testid="retry-save"
                   >
@@ -691,7 +750,7 @@ export function GameHostInner({
             )}
             <button
               type="button"
-              className="rounded-lg border px-6 py-3 text-lg font-semibold"
+              className="btn-arcade px-8 py-3 text-lg"
               onClick={startRun}
               disabled={counted.kind === "submitting"}
               data-testid="play-again"
@@ -707,7 +766,7 @@ export function GameHostInner({
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-black/40 text-white">
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-[rgba(12,5,28,0.78)] text-white backdrop-blur-[2px]">
       {children}
     </div>
   );

@@ -102,7 +102,8 @@ export function renderFrogger(
   g.clearRect(0, 0, GAME_W, GAME_H + BAR_H);
   g.drawImage(images.bg, 0, 0, GAME_W, GAME_H);
 
-  // Obstacles.
+  // Obstacles, each grounded by a soft shadow (style pass — the flat
+  // lane art reads floaty without contact shadows).
   for (let laneIdx = 0; laneIdx < state.lanes.length; laneIdx++) {
     const lane = state.lanes[laneIdx];
     const img = images.lanes[lane.spec.key];
@@ -110,6 +111,12 @@ export function renderFrogger(
     const h = lane.spec.targetH;
     const cy = rowCenterY(laneIdx + 1);
     const flip = lane.spec.dir === 1 && FACES_LEFT[lane.spec.key];
+    g.fillStyle = "rgba(6, 2, 14, 0.35)";
+    for (const x of lane.xs) {
+      g.beginPath();
+      g.ellipse(x, cy + h / 2 - 1, w * 0.42, h * 0.14, 0, 0, Math.PI * 2);
+      g.fill();
+    }
     for (const x of lane.xs) {
       g.save();
       g.translate(x, cy);
@@ -123,6 +130,18 @@ export function renderFrogger(
   const blinkHidden =
     state.invuln > 0 && Math.floor(state.invuln / 5) % 2 === 0;
   if (!blinkHidden && state.status !== "won") {
+    g.fillStyle = "rgba(6, 2, 14, 0.4)";
+    g.beginPath();
+    g.ellipse(
+      HERO_X,
+      rowCenterY(state.row) + HERO_TARGET_H / 2 - 1,
+      HERO_TARGET_H * 0.45,
+      HERO_TARGET_H * 0.12,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    g.fill();
     const heroW =
       (HERO_TARGET_H * images.hero.naturalWidth) / images.hero.naturalHeight ||
       HERO_TARGET_H;

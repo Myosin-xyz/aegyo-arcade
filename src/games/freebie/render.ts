@@ -124,13 +124,36 @@ export function renderFreebie(
     );
   }
 
-  // Score popups.
+  // Score popups + a burst of 4-point sparkles while they are fresh.
   g.font = "800 18px Inter, system-ui, sans-serif";
   for (const p of state.popups) {
     const life = 1 - p.age / POPUP_TTL;
     g.globalAlpha = Math.max(0, life);
     g.fillStyle = "#ffffff";
     g.fillText(p.text, p.x, p.y - (1 - life) * 46);
+    if (p.age < 0.35) {
+      const burst = p.age / 0.35;
+      g.fillStyle = "#ffe066";
+      for (let i = 0; i < 5; i++) {
+        const angle = (i / 5) * Math.PI * 2 + p.x * 0.13;
+        const dist = 10 + burst * 26;
+        const sx = p.x + Math.cos(angle) * dist;
+        const sy = p.y + Math.sin(angle) * dist * 0.7;
+        const r = 3.2 * (1 - burst);
+        g.globalAlpha = (1 - burst) * 0.9;
+        g.beginPath();
+        g.moveTo(sx, sy - r);
+        g.lineTo(sx + r * 0.35, sy - r * 0.35);
+        g.lineTo(sx + r, sy);
+        g.lineTo(sx + r * 0.35, sy + r * 0.35);
+        g.lineTo(sx, sy + r);
+        g.lineTo(sx - r * 0.35, sy + r * 0.35);
+        g.lineTo(sx - r, sy);
+        g.lineTo(sx - r * 0.35, sy - r * 0.35);
+        g.closePath();
+        g.fill();
+      }
+    }
   }
   g.globalAlpha = 1;
 

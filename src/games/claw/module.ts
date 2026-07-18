@@ -21,7 +21,11 @@ import type {
 } from "@/shell/contract";
 import { clawMeta } from "./meta";
 import { ClawMachine } from "./engine/engine";
-import { randomOutcome, type OutcomeProvider } from "./engine/outcome";
+import {
+  ClawPlayRefusedError,
+  randomOutcome,
+  type OutcomeProvider,
+} from "./engine/outcome";
 import { serverOutcome } from "./server-outcome";
 import { setAudioEnabled } from "./engine/audio";
 
@@ -36,6 +40,10 @@ class ClawAdapter implements ModuleLoopGame {
   private countedRun = false;
   private attemptConsumed = false;
   private endedReported = false;
+  /** Outcome that resolved AFTER the engine gave up waiting (M4 review
+   * P1): the attempt is committed server-side, so the next drop must
+   * play THIS result instead of opening a new operation. */
+  private lateOutcome: import("./engine/types").Outcome | null = null;
 
   constructor(private readonly ctx: GameContext) {}
 
@@ -53,6 +61,9 @@ class ClawAdapter implements ModuleLoopGame {
       // order (M2 review P1): commit → presentation with input dead →
       // frame chain stops → report.end. Restart resumes exactly one chain.
       onDropComplete: () => {
+        // The outcome the engine just played is no longer "late" — it
+        // was presented; nothing to replay on a future drop.
+        this.lateOutcome = null;
         if (!this.countedRun || !this.attemptConsumed || this.endedReported) {
           return;
         }
@@ -88,6 +99,7 @@ class ClawAdapter implements ModuleLoopGame {
     this.countedRun = run.mode !== "practice";
     this.attemptConsumed = false;
     this.endedReported = false;
+    this.lateOutcome = null;
     if (run.mode === "practice") {
       this.provider = randomOutcome();
     } else {
@@ -101,10 +113,40 @@ class ClawAdapter implements ModuleLoopGame {
       }
       const server = serverOutcome(attemptId, run.signal);
       this.provider = async () => {
-        const outcome = await server();
-        // 200 from /api/claw/plays = the attempt is COMMITTED server-side.
-        this.attemptConsumed = true;
-        return outcome;
+        if (this.lateOutcome !== null) {
+          // A previous drop's outcome landed after its dwell timed out —
+          // committed server-side, so replay it rather than re-request.
+          const outcome = this.lateOutcome;
+          this.lateOutcome = null;
+          return outcome;
+        }
+        try {
+          const outcome = await server();
+          // 200 from /api/claw/plays = the attempt is COMMITTED
+          // server-side.
+          this.attemptConsumed = true;
+          this.lateOutcome = outcome; // engine consumption clears it below
+          return outcome;
+        } catch (error) {
+          if (error instanceof ClawPlayRefusedError && !this.endedReported) {
+            // Terminal refusal (invalid_attempt / daily_slot_used /
+            // cap_reached / promotion inactive): no Drop press can ever
+            // succeed — end the run honestly instead of looping TRY
+            // AGAIN (M4 review P2). Route through the audited counted
+            // finale (M2 P1 terminal boundary): input dies NOW, the
+            // UNAVAILABLE flash completes, the frame chain stops, and
+            // only THEN is "quit" reported — reporting from this catch
+            // would leave the module's private rAF loop and window keys
+            // alive behind the host's ended overlay. reason "quit" also
+            // keeps the host from rendering a false "saved" receipt.
+            this.machine?.beginCountedFinale(() => {
+              if (this.endedReported) return;
+              this.endedReported = true;
+              this.ctx.report.end({ reason: "quit" });
+            });
+          }
+          throw error;
+        }
       };
     }
     if (this.started) {

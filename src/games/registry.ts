@@ -32,6 +32,12 @@ export interface RegistryEntry {
    * reports end when that action resolves.
    */
   countedCompletion?: "generic-submit" | "game-owned";
+  /**
+   * The game draws its own score/HUD inside the surface (delivered art
+   * with baked chrome) — the host hides its header score to avoid the
+   * double-HUD read (M4 review P2).
+   */
+  hasAuthoredHud?: boolean;
   load: () => Promise<GameDefinition>;
 }
 
@@ -60,10 +66,12 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: freebieMeta,
+    hasAuthoredHud: true,
     load: () => import("./freebie/module").then((m) => m.freebieDefinition),
   },
   {
     meta: froggerMeta,
+    hasAuthoredHud: true,
     load: () => import("./frogger/module").then((m) => m.froggerDefinition),
   },
 ];

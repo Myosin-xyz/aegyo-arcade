@@ -1,36 +1,72 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { listGames } from "@/games/registry";
 import { t } from "@/i18n/t";
 import { StreakStrip } from "./streak-strip";
+import { AegyoLogo } from "./logo";
+
+/** Per-game accent chips, pulled from the games' own palettes. */
+const GAME_ACCENTS: Record<string, string> = {
+  claw: "#ff4f8b",
+  snake: "#2fe6c4",
+  flappy: "#ffd166",
+  jumper: "#8b7cff",
+  hangman: "#7dffd9",
+  freebie: "#ff7a3d",
+  frogger: "#ff8fb8",
+};
 
 export default function Home() {
   const games = listGames();
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 p-5">
-      <header className="pt-4 text-center">
-        <h1 className="text-2xl font-extrabold">{t("portal.title")}</h1>
-        <p className="text-sm opacity-70">{t("portal.tagline")}</p>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 px-5 pb-12">
+      <header className="flex flex-col items-center gap-2 pt-10 text-center">
+        <AegyoLogo className="h-16 w-16 drop-shadow-[0_0_18px_rgba(255,79,139,0.45)]" />
+        <h1 className="font-arcade glow-brand text-xl font-bold uppercase text-brand">
+          {t("portal.title")}
+        </h1>
+        <p className="text-sm text-muted">{t("portal.tagline")}</p>
       </header>
       <StreakStrip />
       <ul className="grid grid-cols-2 gap-3">
-        {games.map((game) => (
-          <li key={game.meta.id}>
-            <Link
-              href={`/play/${game.meta.id}`}
-              // §15: game-card route prefetch stays OFF — RSC prefetches
-              // were firing on landing (M0 review), paid-traffic transfer.
-              prefetch={false}
-              className="block rounded-2xl border p-4 shadow-sm transition-transform active:scale-95"
-              data-testid={`game-card-${game.meta.id}`}
+        {games.map((game, index) => {
+          const accent = GAME_ACCENTS[game.meta.id] ?? "#ff4f8b";
+          return (
+            <li
+              key={game.meta.id}
+              className={index === 0 ? "col-span-2" : undefined}
             >
-              <h2 className="font-bold">{t(game.meta.titleKey)}</h2>
-              <p className="mt-1 text-xs opacity-70">
-                {t(game.meta.taglineKey)}
-              </p>
-            </Link>
-          </li>
-        ))}
+              <Link
+                href={`/play/${game.meta.id}`}
+                // §15: game-card route prefetch stays OFF — RSC prefetches
+                // were firing on landing (M0 review), paid-traffic transfer.
+                prefetch={false}
+                className="card-arcade block p-4 transition-transform active:scale-95"
+                style={{ "--game-accent": accent } as CSSProperties}
+                data-testid={`game-card-${game.meta.id}`}
+              >
+                <span
+                  aria-hidden
+                  className="mb-2.5 block h-1.5 w-8 rounded-full"
+                  style={{
+                    background: accent,
+                    boxShadow: `0 0 12px ${accent}`,
+                  }}
+                />
+                <h2 className="font-bold leading-tight">
+                  {t(game.meta.titleKey)}
+                </h2>
+                <p className="mt-1 text-xs leading-snug text-muted">
+                  {t(game.meta.taglineKey)}
+                </p>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
+      <p className="mt-auto pt-4 text-center font-arcade text-[10px] uppercase tracking-wider text-muted">
+        Aegyo Arena
+      </p>
     </main>
   );
 }

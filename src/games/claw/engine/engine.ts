@@ -11,7 +11,11 @@ import {
   easeInOutCubic,
   easeOutBack,
 } from "./easing";
-import { fixedOutcome, type OutcomeProvider } from "./outcome";
+import {
+  fixedOutcome,
+  type OutcomeProvider,
+  ClawPlayRefusedError,
+} from "./outcome";
 import type { Manifest, Outcome, SpriteRect } from "./types";
 
 export interface ClawMachineOptions {
@@ -36,9 +40,23 @@ interface Segment {
   dur: number;
   enter?: () => void;
   apply: (t: number) => void;
+  /** Loop this segment while true (server-outcome dwell gate). */
+  repeat?: () => boolean;
+  /** Takes over when the segment completes (instead of advancing). */
+  next?: () => void;
 }
 
 // --- tunables (design-space fractions, so they scale with export resolution) ---
+/**
+ * Aim → plush mapping (M4 UX P1): the claw's travel divides into fixed
+ * columns, each owning ONE plush variant. Aiming selects the plush; the
+ * server still decides grip (win / slip / miss). Deterministic — the
+ * same column always yields the same plush, never a random one.
+ */
+const TARGET_KEYS = ["D", "A", "E", "B", "K"] as const;
+const PILE_Y_FRAC = 0.72; // pile surface line (target shadow + puffs)
+const DEPTH_FALL_TOP = 40; // slip tumble starts just under the claw tips
+const OUTCOME_WAIT_MS = 6000; // dwell cap while the server resolves
 const HOLE_CX_FRAC = 0.16; // horizontal center of the prize chute (bottom-left)
 const HOLE_DROP_FRAC = 0.26; // how deep the claw dips to sink the plush into the box
 const MOVE_SPEED_FRAC = 0.00085; // design-widths per ms while a direction is held
@@ -71,6 +89,18 @@ export class ClawMachine {
   private dropStartTX = 0;
   private spriteState: SpriteState = "open";
   private heldKey = "D";
+  private pendingOutcome: Outcome | null = null;
+  private dropError = false;
+  /** The server REFUSED the play — terminal, never retryable. */
+  private dropRefused = false;
+  /** Pendulum offset of the claw below the trolley (presentation only). */
+  private swing = 0;
+  /** Falling-plush tween during a slip: -1 idle, else 0..1. */
+  private fallT = -1;
+  private dwellMs = 0;
+  /** Monotonic drop generation: results from superseded drops (after a
+   * timeout/reset) must never cross into a newer drop (M4 review P1). */
+  private dropGen = 0;
 
   // drop timeline
   private segs: Segment[] = [];
@@ -94,6 +124,7 @@ export class ClawMachine {
 
   private readonly crt: boolean;
   private onResize: (() => void) | null = null;
+  private resizeObserver: ResizeObserver | null = null;
   private onCanvasTap: (() => void) | null = null;
   // Counted terminal sequence (M2 review P1): once set, gameplay input is
   // dead, the result presentation runs to completion, then the frame
@@ -124,6 +155,12 @@ export class ClawMachine {
     );
     this.onResize = () => this.renderer.resize();
     window.addEventListener("resize", this.onResize);
+    // Container-only size changes never fire window.resize — observe the
+    // stage directly (M4 review P2). Guarded: jsdom lacks ResizeObserver.
+    if (typeof ResizeObserver !== "undefined") {
+      this.resizeObserver = new ResizeObserver(() => this.renderer.resize());
+      this.resizeObserver.observe(this.opts.stage);
+    }
 
     this.bank = await loadImages(this.opts.assetsBase, this.manifest, (p) => {
       this.loadProgress = p;
@@ -132,6 +169,8 @@ export class ClawMachine {
       // destroy() raced the asset load — release what start() would have owned.
       window.removeEventListener("resize", this.onResize);
       this.onResize = null;
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = null;
       return;
     }
 
@@ -158,6 +197,9 @@ export class ClawMachine {
   /** Start the rAF loop (idempotent while already running). */
   run(): void {
     if (!this.loaded || this.destroyed || this.running) return;
+    // Close the stale-initial-viewport race (M4 review P2): the stage
+    // may have been measured mid-layout; remeasure at start.
+    this.renderer.resize();
     this.running = true;
     this.pausedFlag = false;
     this.last = performance.now();
@@ -191,6 +233,13 @@ export class ClawMachine {
     if (!this.loaded || this.destroyed) return;
     this.finale = null;
     this.input?.setEnabled(true);
+    // Mid-drop bookkeeping must not survive a reset — a stale `awaiting`
+    // would refuse every future drop (caught by the M4 aim vector).
+    this.awaiting = false;
+    this.pendingOutcome = null;
+    this.dropError = false;
+    this.dwellMs = 0;
+    this.dropGen++; // invalidate any in-flight resolution
     this.toReady();
     this.clawTX = 0;
     this.clawTY = 0;
@@ -210,6 +259,8 @@ export class ClawMachine {
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     if (this.onResize) window.removeEventListener("resize", this.onResize);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     if (this.onCanvasTap)
       this.opts.canvas.removeEventListener("pointerdown", this.onCanvasTap);
     this.input?.destroy();
@@ -285,6 +336,19 @@ export class ClawMachine {
       this.segElapsed += dt;
       seg.apply(clamp01(this.segElapsed / seg.dur));
       if (this.segElapsed >= seg.dur) {
+        if (seg.repeat?.()) {
+          // Dwell gate: hold at depth while the server outcome is in
+          // flight (M4 UX P1: descent starts immediately; the outcome is
+          // only needed at the grab moment).
+          this.segElapsed = 0;
+          this.dwellMs += seg.dur;
+          if (this.dwellMs > OUTCOME_WAIT_MS) this.abortDrop();
+          return;
+        }
+        if (seg.next) {
+          seg.next();
+          return;
+        }
         this.segIndex += 1;
         this.segElapsed = 0;
         if (this.segIndex >= this.segs.length) this.finishDrop();
@@ -346,29 +410,45 @@ export class ClawMachine {
     if (this.phase !== "ready" || this.awaiting) return;
     this.heldDir = 0;
     this.awaiting = true;
+    this.pendingOutcome = null;
+    this.dropError = false;
+    this.dropRefused = false;
+    this.dwellMs = 0;
+    const gen = ++this.dropGen;
     sfx.press();
     haptic(12);
     const provider = this.forced
       ? fixedOutcome(this.forced)
       : this.opts.outcome;
+    // Descent begins NOW; the outcome resolves in parallel and is only
+    // consumed at the grab moment (no counted-mode network hesitation).
     provider()
       .then((o) => {
-        this.awaiting = false;
-        // The provider may resolve after navigation/teardown — a destroyed
-        // machine must never start a drop (M1 review B6).
-        if (this.destroyed) return;
-        this.startDrop(o);
+        // Guard BOTH teardown (M1 review B6) and superseded drops
+        // (M4 review P1): a result from an older generation must never
+        // populate a newer drop's outcome. The adapter has already
+        // cached committed results for durable replay.
+        if (this.destroyed || gen !== this.dropGen) return;
+        this.pendingOutcome = o;
       })
-      .catch(() => {
-        this.awaiting = false;
+      .catch((error: unknown) => {
+        if (this.destroyed || gen !== this.dropGen) return;
+        if (error instanceof ClawPlayRefusedError) this.dropRefused = true;
+        this.dropError = true;
       });
+    this.startDescent();
   }
 
   // ---- drop sequence ----
 
-  private pickPlush(): string {
-    const keys = Object.keys(this.manifest.clawPlush);
-    return keys[(Math.random() * keys.length) | 0] ?? "D";
+  /** Aim → column → plush. FIVE EQUAL bins (M4 review P2: rounding four
+   * intervals gave the edge plushes half-width lanes). */
+  private targetKey(): string {
+    const { lo, hi } = this.moveBounds();
+    const span = hi - lo || 1;
+    const index = Math.floor(((this.clawTX - lo) / span) * TARGET_KEYS.length);
+    const key = TARGET_KEYS[clamp(index, 0, TARGET_KEYS.length - 1)];
+    return this.manifest.clawPlush[key] ? key : "D";
   }
 
   private clawDesignX(): number {
@@ -377,20 +457,19 @@ export class ClawMachine {
     );
   }
 
-  private startDrop(outcome: Outcome): void {
-    const M = this.manifest;
-    const { w: dW, h: dH } = M.design;
+  /** Immediate descent + dwell gate; the aimed plush is locked here. */
+  private startDescent(): void {
+    const { h: dH } = this.manifest.design;
     const DEPTH = dH * 0.225;
-    const restCenter = M.clawOpen.x + M.clawOpen.w / 2;
-    const holeTX = dW * HOLE_CX_FRAC - restCenter;
 
-    this.dropOutcome = outcome;
-    this.heldKey = this.pickPlush();
+    this.heldKey = this.targetKey(); // aim decides the plush, not RNG
     this.dropStartTX = this.clawTX;
     this.heldDir = 0;
+    this.swing = 0;
+    this.fallT = -1;
     this.spriteState = "open";
 
-    const segs: Segment[] = [
+    this.segs = [
       {
         name: "descend",
         dur: 720,
@@ -404,6 +483,41 @@ export class ClawMachine {
         },
       },
       {
+        // Grip dwell: micro-jitter at depth until the server outcome
+        // lands (usually already resolved — one loop at most).
+        name: "await",
+        dur: 120,
+        apply: (t) => {
+          this.clawTY = DEPTH * (1 - 0.015 * Math.sin(t * Math.PI * 2));
+        },
+        repeat: () => this.pendingOutcome === null && !this.dropError,
+        next: () => {
+          if (this.dropError || this.pendingOutcome === null) {
+            this.abortDrop();
+          } else {
+            this.beginOutcome(this.pendingOutcome);
+          }
+        },
+      },
+    ];
+    this.segIndex = 0;
+    this.segElapsed = 0;
+    this.phase = "dropping";
+  }
+
+  /** Server said win / slip(drop) / miss — play it on the AIMED plush. */
+  private beginOutcome(outcome: Outcome): void {
+    const M = this.manifest;
+    const { w: dW, h: dH } = M.design;
+    const DEPTH = dH * 0.225;
+    const restCenter = M.clawOpen.x + M.clawOpen.w / 2;
+    const holeTX = dW * HOLE_CX_FRAC - restCenter;
+
+    this.awaiting = false;
+    this.dropOutcome = outcome;
+
+    const segs: Segment[] = [
+      {
         name: "grab",
         dur: 300,
         enter: () => {
@@ -411,6 +525,8 @@ export class ClawMachine {
           sfx.grab();
           haptic(30);
           this.shake(5, 170);
+          // Contact feedback at the aimed column: pile "gives" a little.
+          this.confetti.puff(this.clawDesignX(), dH * PILE_Y_FRAC, 10);
         },
         apply: (t) => {
           this.clawTY = DEPTH * (1 - 0.05 * Math.sin(t * Math.PI));
@@ -426,6 +542,8 @@ export class ClawMachine {
           enter: () => sfx.rise(),
           apply: (t) => {
             this.clawTY = DEPTH * (1 - easeOutCubic(t));
+            // Cable tension: a slight pendulum builds as the load lifts.
+            this.swing = Math.sin(t * Math.PI * 2) * dW * 0.006 * t;
           },
         },
         {
@@ -434,6 +552,9 @@ export class ClawMachine {
           apply: (t) => {
             this.clawTX = lerp(this.dropStartTX, holeTX, easeInOutCubic(t));
             this.clawTY = -dH * 0.012 * Math.sin(t * Math.PI);
+            // Carry swing, damping as the trolley decelerates.
+            this.swing =
+              Math.sin(t * Math.PI * 3) * dW * 0.013 * (1 - 0.55 * t);
           },
         },
         {
@@ -442,6 +563,7 @@ export class ClawMachine {
           apply: (t) => {
             this.clawTX = holeTX;
             this.clawTY = dH * HOLE_DROP_FRAC * easeInCubic(t);
+            this.swing *= 1 - t; // settle over the chute
           },
         },
         {
@@ -478,17 +600,21 @@ export class ClawMachine {
             sfx.drop();
             haptic([20, 40, 20]);
             this.shake(13, 300);
-            // dust puff at the pile line so it reads as a thud, not a swap
-            this.confetti.puff(this.clawDesignX(), dH * 0.72, 16);
           },
           apply: (t) => {
             this.clawTY = DEPTH * (0.55 + 0.08 * Math.sin(t * Math.PI));
+            this.fallT = t; // the aimed plush tumbles back to the pile
           },
         },
         {
           name: "recover",
           dur: 560,
-          enter: () => sfx.rise(),
+          enter: () => {
+            sfx.rise();
+            this.fallT = -1;
+            // dust fires at the LANDING moment, synced with the tumble.
+            this.confetti.puff(this.clawDesignX(), dH * PILE_Y_FRAC, 16);
+          },
           apply: (t) => {
             this.clawTY = DEPTH * 0.55 * (1 - easeOutCubic(t));
           },
@@ -521,7 +647,26 @@ export class ClawMachine {
     this.segs = segs;
     this.segIndex = 0;
     this.segElapsed = 0;
-    this.phase = "dropping";
+  }
+
+  /**
+   * The drop cannot proceed. Two shapes (M4 review P2/P3):
+   * - INDEFINITE (network death / dwell timeout): consumption is
+   *   UNKNOWN — the operation stays durable (same idempotency key, or
+   *   the adapter's cached late outcome), and the next Drop press
+   *   re-attempts it. "TRY AGAIN" is literal.
+   * - REFUSED (server answered 4xx): terminal — the adapter has already
+   *   ended the run honestly; the flash just explains the retract.
+   */
+  private abortDrop(): void {
+    this.awaiting = false;
+    this.pendingOutcome = null;
+    this.dropError = false;
+    this.dropGen++; // a late resolution may not cross into the next drop
+    this.spriteState = "open";
+    this.flash(this.dropRefused ? "UNAVAILABLE" : "TRY AGAIN");
+    this.dropRefused = false;
+    this.toReady();
   }
 
   private finishDrop(): void {
@@ -597,9 +742,129 @@ export class ClawMachine {
     const sway = idle ? Math.sin(now * 0.0016) * dW * 0.0035 : 0;
     r.blit(this.bank.get(M.back), M.back);
     const claw = this.clawRect();
-    r.blit(this.bank.get(claw), claw, this.clawTX + sway, this.clawTY);
+    // Cable: the claw sprite slides down leaving a gap above its top —
+    // bridge it with a line from the ceiling anchor, slanting when the
+    // load swings (presentation physics, M4 style pass).
+    if (this.clawTY > 2) {
+      const anchorX = this.clawDesignX() + sway;
+      const topY = M.clawOpen.y + 3;
+      const clawTopY = M.clawOpen.y + this.clawTY + 4;
+      ctx.strokeStyle = "#161022";
+      ctx.lineWidth = dW * 0.006;
+      ctx.beginPath();
+      ctx.moveTo(anchorX, topY);
+      ctx.lineTo(anchorX + this.swing, clawTopY);
+      ctx.stroke();
+      ctx.strokeStyle = "#3a2c55";
+      ctx.lineWidth = dW * 0.002;
+      ctx.beginPath();
+      ctx.moveTo(anchorX, topY);
+      ctx.lineTo(anchorX + this.swing, clawTopY);
+      ctx.stroke();
+    }
+    r.blit(
+      this.bank.get(claw),
+      claw,
+      this.clawTX + sway + this.swing,
+      this.clawTY,
+    );
     r.blit(this.bank.get(M.trolley), M.trolley, this.clawTX + sway, 0);
+    // Slip tumble: the AIMED plush (bottom crop of its carried sprite)
+    // falls from the claw tips back onto the pile, tipping as it goes.
+    if (this.fallT >= 0) {
+      const plushRect = M.clawPlush[this.heldKey];
+      const img = plushRect ? this.bank.get(plushRect) : null;
+      if (img && img.naturalWidth > 0) {
+        const t = this.fallT;
+        const size = dW * 0.15;
+        const iw = img.naturalWidth;
+        const ih = img.naturalHeight;
+        const cropH = Math.min(iw, ih);
+        const fx = this.clawDesignX();
+        // Start at the claw's CURRENT tips (it slipped at ~55% lift).
+        const tipY = M.clawOpen.y + this.clawTY + M.clawOpen.h - DEPTH_FALL_TOP;
+        const pileY = dH * PILE_Y_FRAC - size * 0.4;
+        const fy = tipY + (pileY - tipY) * (t * t); // gravity-ish
+        const squash = t > 0.85 ? 1 - (t - 0.85) * 1.6 : 1;
+        ctx.save();
+        ctx.translate(fx, fy + size / 2);
+        ctx.rotate((t - 0.15) * 0.5);
+        ctx.scale(1 / squash, squash);
+        ctx.drawImage(
+          img,
+          0,
+          ih - cropH,
+          iw,
+          cropH,
+          -size / 2,
+          -size / 2,
+          size,
+          size,
+        );
+        ctx.restore();
+      }
+    }
     r.blit(this.bank.get(M.frontPlush), M.frontPlush);
+
+    // Aim indicator (M4 UX P1): shadow + ring on the pile at the column
+    // the claw would grab — the visible "what am I aiming at" cue.
+    if (this.phase === "ready" || this.phase === "dropping") {
+      const tx = this.clawDesignX() + sway;
+      const py = dH * PILE_Y_FRAC;
+      const dropping = this.phase === "dropping";
+      ctx.save();
+      // Dark plate: unmistakable against the busy plush pile (M4 review
+      // P2 — the earlier subtle ring vanished at 390px).
+      ctx.globalAlpha = dropping ? 0.55 : 0.45;
+      ctx.fillStyle = "#0a0414";
+      ctx.beginPath();
+      ctx.ellipse(tx, py, dW * 0.07, dW * 0.022, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Two-tone rim: white inner ring on a pink outer ring.
+      const pulse = 1 + (dropping ? 0 : 0.08 * Math.sin(now * 0.005));
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = "#ff5db0";
+      ctx.lineWidth = dW * 0.007;
+      ctx.beginPath();
+      ctx.ellipse(
+        tx,
+        py,
+        dW * 0.072 * pulse,
+        dW * 0.023 * pulse,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.stroke();
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = dW * 0.003;
+      ctx.beginPath();
+      ctx.ellipse(
+        tx,
+        py,
+        dW * 0.058 * pulse,
+        dW * 0.018 * pulse,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.stroke();
+      // Guide line from the claw down to the plate while aiming.
+      if (!dropping) {
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = "#ff8fd0";
+        ctx.lineWidth = dW * 0.0035;
+        ctx.setLineDash([dW * 0.012, dW * 0.014]);
+        ctx.beginPath();
+        ctx.moveTo(tx, dH * 0.52);
+        ctx.lineTo(tx, py - dW * 0.03);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+
     r.blit(this.bank.get(M.frame), M.frame);
 
     // attract: pulse the drop button to invite the first tap

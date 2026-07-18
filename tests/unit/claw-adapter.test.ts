@@ -30,7 +30,13 @@ function fakeManifest(): Manifest {
     trolley: rect(),
     clawOpen: rect(40, 10),
     clawClosed: rect(40, 10),
-    clawPlush: { D: rect(40, 10) },
+    clawPlush: {
+      D: rect(40, 10),
+      A: rect(40, 10),
+      E: rect(40, 10),
+      B: rect(40, 10),
+      K: rect(40, 10),
+    },
     winBoard: rect(20, 20, 60, 20),
     controls: {
       left: rect(5, 130),
@@ -259,8 +265,11 @@ describe("claw adapter — real engine lifecycle", () => {
       new MouseEvent("pointerdown", { ...dropCenter, bubbles: true }),
     );
     expect(outcomeRequests).toBe(1); // proves the coordinates are live
+    // M4 target model: the drop begins descending IMMEDIATELY and the
+    // aim is locked — steering during a drop must be refused.
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
-    expect(machine.heldDir).toBe(-1);
+    expect(machine.heldDir).toBe(0);
+    expect(machine.phase).toBe("dropping");
 
     adapter.destroy();
     cleanup();
@@ -301,6 +310,103 @@ describe("claw adapter — real engine lifecycle", () => {
     cleanup();
   });
 
+  it("aim selects the plush DETERMINISTICALLY: column → same plush every time (M4 P1)", async () => {
+    const { ctx, cleanup } = createClawContext();
+    const adapter = clawDefinition.create(ctx);
+    await adapter.init(new AbortController().signal);
+    adapter.start(practiceRun());
+
+    const machine = (adapter as unknown as { machine: Record<string, unknown> })
+      .machine as {
+      opts: { outcome: () => Promise<string> };
+      onDrop: () => void;
+      resetToReady: () => void;
+      run: () => void;
+      moveBounds: () => { lo: number; hi: number };
+      clawTX: number;
+      heldKey: string;
+    };
+    machine.opts.outcome = async () => "miss";
+    const { lo, hi } = machine.moveBounds();
+
+    const aimAt = (tx: number): string => {
+      machine.resetToReady();
+      machine.run();
+      machine.clawTX = tx;
+      machine.onDrop(); // heldKey locks at drop start
+      return machine.heldKey;
+    };
+
+    expect(aimAt(lo)).toBe("D"); // leftmost column
+    expect(aimAt(hi)).toBe("K"); // rightmost column
+    expect(aimAt((lo + hi) / 2)).toBe("E"); // center column
+    expect(aimAt(lo)).toBe("D"); // repeatable — no RNG in selection
+
+    // FIVE EQUAL bins (M4 review P2): every boundary, both sides.
+    const span = hi - lo;
+    const at = (f: number) => aimAt(lo + span * f);
+    expect(at(0.199)).toBe("D");
+    expect(at(0.201)).toBe("A");
+    expect(at(0.399)).toBe("A");
+    expect(at(0.401)).toBe("E");
+    expect(at(0.599)).toBe("E");
+    expect(at(0.601)).toBe("B");
+    expect(at(0.799)).toBe("B");
+    expect(at(0.801)).toBe("K");
+    expect(at(1)).toBe("K"); // right edge clamps into the last bin
+
+    adapter.destroy();
+    cleanup();
+  });
+
+  it("a SUPERSEDED drop's outcome never crosses generations; the adapter replays late-committed results (M4 review P1)", async () => {
+    const { ctx, cleanup } = createClawContext();
+    const adapter = clawDefinition.create(ctx);
+    await adapter.init(new AbortController().signal);
+    adapter.start(practiceRun());
+
+    const machine = (adapter as unknown as { machine: Record<string, unknown> })
+      .machine as {
+      opts: { outcome: () => Promise<string> };
+      onDrop: () => void;
+      resetToReady: () => void;
+      run: () => void;
+      pendingOutcome: string | null;
+      dropOutcome: string;
+    };
+    let resolveFirst!: (o: string) => void;
+    machine.opts.outcome = () =>
+      new Promise<string>((resolve) => {
+        resolveFirst = resolve;
+      });
+
+    machine.onDrop(); // generation N, provider pending
+    // Timeout/reset path: the drop is superseded before resolution.
+    machine.resetToReady();
+    machine.run();
+
+    // A NEW drop begins (generation N+1) with its own pending provider.
+    let resolveSecond!: (o: string) => void;
+    machine.opts.outcome = () =>
+      new Promise<string>((resolve) => {
+        resolveSecond = resolve;
+      });
+    machine.onDrop();
+
+    // The OLD drop resolves now — it must not leak into the new drop.
+    resolveFirst("win");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(machine.pendingOutcome).toBeNull();
+
+    // The new drop's own outcome still lands normally.
+    resolveSecond("miss");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(machine.pendingOutcome).toBe("miss");
+
+    adapter.destroy();
+    cleanup();
+  });
+
   it("an outcome resolving AFTER destroy never starts a drop", async () => {
     const { ctx, cleanup } = createClawContext();
     const adapter = clawDefinition.create(ctx);
@@ -320,14 +426,22 @@ describe("claw adapter — real engine lifecycle", () => {
         resolveOutcome = resolve;
       });
 
-    machine.onDrop(); // awaiting = true, provider pending
+    machine.onDrop(); // descent begins NOW (M4); provider still pending
+    expect(machine.phase).toBe("dropping");
     adapter.destroy();
     resolveOutcome("win");
     await new Promise((r) => setTimeout(r, 0));
 
-    // Destroyed machine must not have started a drop sequence.
-    expect(machine.phase).not.toBe("dropping");
-    expect(machine.phase).not.toBe("won");
+    // Destroyed machine must stay INERT: the late outcome may not drive
+    // the drop to a win, restart the loop, or run outcome segments.
+    const dead = machine as unknown as {
+      phase: string;
+      running: boolean;
+      pendingOutcome: string | null;
+    };
+    expect(dead.phase).not.toBe("won");
+    expect(dead.running).toBe(false);
+    expect(dead.pendingOutcome).toBeNull(); // .then guard dropped it
     cleanup();
   });
 });

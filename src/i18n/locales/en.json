@@ -89,5 +89,12 @@
   "game.frogger.obstacle.kfood": "A K-food truck",
   "game.frogger.obstacle.guard": "A security guard",
   "game.frogger.toast.hit": "{label} got you! {lives} left",
-  "game.frogger.toast.level": "Try again from level {level}..."
+  "game.frogger.toast.level": "Try again from level {level}...",
+  "game.claw.controls": "Steer with the arrows, then hit DROP over your pick.",
+  "game.snake.controls": "Swipe or tap the arrows to turn — you move on your first input.",
+  "game.flappy.controls": "Tap anywhere to flap your lightstick — your first tap starts the run.",
+  "game.jumper.controls": "Drag left and right (or use the arrow keys) to land your bounces.",
+  "game.hangman.controls": "Tap letters to guess the fan slang before your guesses run out.",
+  "game.freebie.controls": "Drag to catch the falling merch — arrow keys work too.",
+  "game.frogger.controls": "FORWARD and BACK only — cross when the street is clear."
 }

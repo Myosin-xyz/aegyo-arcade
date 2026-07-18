@@ -219,6 +219,7 @@ test("snake: full counted loop — issue, die, submit, receipt, board", async ({
   await expect(host).toHaveAttribute("data-lifecycle", "running", {
     timeout: 10_000,
   });
+  await page.keyboard.press("ArrowDown"); // arm (M4 start gating)
   await expect(host).toHaveAttribute("data-lifecycle", "ended", {
     timeout: 15_000,
   });
@@ -288,6 +289,10 @@ test("lost PUT response → same-attempt Retry save → receipt (§10.1)", async
     timeout: 30_000,
   });
   await page.getByTestId("start-counted").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "running", {
+    timeout: 10_000,
+  });
+  await page.keyboard.press("ArrowDown"); // arm (M4 start gating)
   await expect(host).toHaveAttribute("data-lifecycle", "ended", {
     timeout: 20_000,
   });

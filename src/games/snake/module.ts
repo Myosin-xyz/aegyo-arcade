@@ -46,6 +46,9 @@ class SnakeGame implements ShellLoopGame {
   private rng: (() => number) | null = null;
   private accumulator = 0;
   private paused = false;
+  /** First intentional input starts movement (M4 UX P1: the snake must
+   * not be dying while the player is still orienting). */
+  private armed = false;
   private endedReported = false;
   private swipeStart: { x: number; y: number } | null = null;
   private unsubscribers: (() => void)[] = [];
@@ -58,7 +61,7 @@ class SnakeGame implements ShellLoopGame {
       this.ctx.input.onKey((k) => {
         if (k.action !== "down") return;
         const dir = KEY_DIRS[k.code];
-        if (dir && this.state) queueDirection(this.state, dir);
+        if (dir) this.tryQueue(dir);
       }),
     );
   }
@@ -68,6 +71,7 @@ class SnakeGame implements ShellLoopGame {
     this.state = createSnakeState(run.random);
     this.accumulator = 0;
     this.endedReported = false;
+    this.armed = false; // wait for the first intentional input
     this.swipeStart = null; // no gesture survives a restart
     this.ctx.report.score(0);
   }
@@ -85,6 +89,7 @@ class SnakeGame implements ShellLoopGame {
     const state = this.state;
     const rng = this.rng;
     if (!state || !rng || this.paused || state.status !== "running") return;
+    if (!this.armed) return; // frozen until the first input
     this.accumulator += dtMs;
     while (this.accumulator >= STEP_MS) {
       this.accumulator -= STEP_MS;
@@ -115,33 +120,64 @@ class SnakeGame implements ShellLoopGame {
     g.fillRect(0, 0, designBox.w, designBox.h);
     g.fillStyle = COLORS.board;
     g.fillRect(0, offsetY, boardSize, boardSize);
-    g.strokeStyle = COLORS.gridLine;
-    g.lineWidth = 1;
-    for (let i = 1; i < state.grid; i++) {
-      g.beginPath();
-      g.moveTo(i * cell, offsetY);
-      g.lineTo(i * cell, offsetY + boardSize);
-      g.moveTo(0, offsetY + i * cell);
-      g.lineTo(boardSize, offsetY + i * cell);
-      g.stroke();
+    // Checkerboard tint instead of grid lines — calmer, more "venue
+    // floor" (style pass); same geometry.
+    g.fillStyle = "rgba(255, 255, 255, 0.025)";
+    for (let gy = 0; gy < state.grid; gy++) {
+      for (let gx = gy % 2 === 0 ? 1 : 0; gx < state.grid; gx += 2) {
+        g.fillRect(gx * cell, offsetY + gy * cell, cell, cell);
+      }
     }
+    // Neon frame around the play field.
+    g.strokeStyle = "rgba(255, 79, 139, 0.45)";
+    g.lineWidth = 2;
+    g.strokeRect(1, offsetY + 1, boardSize - 2, boardSize - 2);
+    g.strokeStyle = "rgba(255, 143, 184, 0.12)";
+    g.lineWidth = 6;
+    g.strokeRect(3, offsetY + 3, boardSize - 6, boardSize - 6);
 
     if (state.food) {
+      // Photocard pickup: gold card, pink face, soft pulse (cosmetic
+      // clock only — simulation stays seeded/deterministic).
+      const fx = state.food.x * cell + cell / 2;
+      const fy = offsetY + state.food.y * cell + cell / 2;
+      const pulse = 0.9 + 0.1 * Math.sin(performance.now() * 0.005);
+      const cardW = cell * 0.62 * pulse;
+      const cardH = cell * 0.8 * pulse;
+      g.fillStyle = "rgba(255, 209, 102, 0.25)";
+      g.beginPath();
+      g.arc(fx, fy, cell * 0.55, 0, Math.PI * 2);
+      g.fill();
       g.fillStyle = COLORS.food;
       g.beginPath();
-      g.arc(
-        state.food.x * cell + cell / 2,
-        offsetY + state.food.y * cell + cell / 2,
-        cell * 0.38,
-        0,
-        Math.PI * 2,
+      g.roundRect(fx - cardW / 2, fy - cardH / 2, cardW, cardH, 3);
+      g.fill();
+      g.fillStyle = "#ff8fb8";
+      g.beginPath();
+      g.roundRect(
+        fx - cardW * 0.32,
+        fy - cardH * 0.3,
+        cardW * 0.64,
+        cardH * 0.48,
+        2,
       );
       g.fill();
     }
 
+    // Body: head pink fading to violet down the tail; head gets eyes
+    // looking along the travel direction.
+    const tailLength = Math.max(1, state.body.length - 1);
     for (let i = state.body.length - 1; i >= 0; i--) {
       const segment = state.body[i];
-      g.fillStyle = i === 0 ? COLORS.head : COLORS.body;
+      if (i === 0) {
+        g.fillStyle = COLORS.head;
+      } else {
+        const f = i / tailLength;
+        const r = Math.round(255 + (139 - 255) * f);
+        const gg = Math.round(79 + (124 - 79) * f);
+        const b = Math.round(139 + (255 - 139) * f);
+        g.fillStyle = `rgb(${r}, ${gg}, ${b})`;
+      }
       const pad = 1;
       g.beginPath();
       g.roundRect(
@@ -149,10 +185,65 @@ class SnakeGame implements ShellLoopGame {
         offsetY + segment.y * cell + pad,
         cell - pad * 2,
         cell - pad * 2,
-        4,
+        i === 0 ? 6 : 4,
       );
       g.fill();
     }
+
+    // Soft glow under the head so the leading edge always pops.
+    const glowHead = state.body[0];
+    const ghx = glowHead.x * cell + cell / 2;
+    const ghy = offsetY + glowHead.y * cell + cell / 2;
+    const headGlow = g.createRadialGradient(ghx, ghy, 1, ghx, ghy, cell * 1.4);
+    headGlow.addColorStop(0, "rgba(255, 79, 139, 0.35)");
+    headGlow.addColorStop(1, "rgba(255, 79, 139, 0)");
+    g.fillStyle = headGlow;
+    g.beginPath();
+    g.arc(ghx, ghy, cell * 1.4, 0, Math.PI * 2);
+    g.fill();
+
+    const head = state.body[0];
+    const neck = state.body[1] ?? head;
+    const dx = Math.sign(head.x - neck.x);
+    const dy = Math.sign(head.y - neck.y);
+    const hx = head.x * cell + cell / 2;
+    const hy = offsetY + head.y * cell + cell / 2;
+    const spread = cell * 0.22;
+    const look = cell * 0.16;
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.arc(
+      hx - dy * spread + dx * look,
+      hy - dx * spread + dy * look,
+      cell * 0.13,
+      0,
+      Math.PI * 2,
+    );
+    g.arc(
+      hx + dy * spread + dx * look,
+      hy + dx * spread + dy * look,
+      cell * 0.13,
+      0,
+      Math.PI * 2,
+    );
+    g.fill();
+    g.fillStyle = "#2b1146";
+    g.beginPath();
+    g.arc(
+      hx - dy * spread + dx * (look + 1.5),
+      hy - dx * spread + dy * (look + 1.5),
+      cell * 0.06,
+      0,
+      Math.PI * 2,
+    );
+    g.arc(
+      hx + dy * spread + dx * (look + 1.5),
+      hy + dx * spread + dy * (look + 1.5),
+      cell * 0.06,
+      0,
+      Math.PI * 2,
+    );
+    g.fill();
 
     this.renderControls(g);
   }
@@ -208,7 +299,7 @@ class SnakeGame implements ShellLoopGame {
       const controlDir = hitControl(p.x, p.y);
       if (controlDir) {
         this.swipeStart = null;
-        queueDirection(this.state, controlDir);
+        this.tryQueue(controlDir);
         return;
       }
       this.swipeStart = { x: p.x, y: p.y };
@@ -231,7 +322,15 @@ class SnakeGame implements ShellLoopGame {
         : dy > 0
           ? "down"
           : "up";
-    queueDirection(this.state, dir);
+    this.tryQueue(dir);
+  }
+
+  /** Single arming path: only an ACCEPTED input (same-direction or a
+   * legal turn) starts the run — a rejected reversal as the first press
+   * must not launch the snake the other way (M4 review). */
+  private tryQueue(dir: Dir): void {
+    if (!this.state) return;
+    if (queueDirection(this.state, dir)) this.armed = true;
   }
 }
 

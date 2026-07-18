@@ -267,6 +267,14 @@ describe("registry integrity", () => {
     }
   });
 
+  it("every game has a ready-overlay controls hint (M4 UX P1 — t() falls back to the raw key)", async () => {
+    const { t } = await import("@/i18n/t");
+    for (const entry of listGames()) {
+      const key = `game.${entry.meta.id}.controls`;
+      expect(t(key), key).not.toBe(key);
+    }
+  });
+
   it("registry counted capability ⇔ server COUNTED_GAMES entry (M2.5 review P1)", async () => {
     const { COUNTED_GAMES } = await import("@/server/games-config");
     const registryCounted = listGames()

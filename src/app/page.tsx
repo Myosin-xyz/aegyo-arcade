@@ -70,6 +70,12 @@ export default function Home() {
         })}
       </ul>
       <div className="mt-auto flex flex-col items-center gap-2 pt-4">
+        <Link
+          href="/install"
+          className="text-xs font-semibold text-muted underline-offset-4 hover:underline"
+        >
+          {t("install.link")}
+        </Link>
         <LocaleToggle />
         <p className="text-center font-arcade text-[10px] uppercase tracking-wider text-muted">
           Aegyo Arena

@@ -151,20 +151,20 @@ Claw + Simon's five = six playable games. Photo Chase and Spot the Bias remain f
 
 ## 4. Architecture Decisions
 
-| Area              | Decision                                | Notes                                                                                       |
-| ----------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Repository        | Standalone single app                   | No monorepo/workspace overhead                                                              |
-| Framework         | Next.js 16 App Router on Vercel         | Locked upstream; home remains mostly Server Components                                      |
-| Game technology   | Vanilla Canvas 2D or DOM + TypeScript   | No Phaser/Pixi; new canvas games use shell loop                                             |
-| Runtime boundary  | Versioned factory contract (§6)         | Frozen only after conformance spikes                                                        |
-| Styling           | Tailwind CSS 4 for portal chrome        | Games use canvas or scoped CSS                                                              |
-| Database          | Railway PostgreSQL + Drizzle (ADR 0004) | Correctness constraints live in Postgres; app uses PgBouncer URL, migrations use direct URL |
-| Identity          | Host-only pseudonymous session          | `__Host-aegyo_device`; no `Domain`, no localStorage mirror                                  |
-| i18n              | Small typed `t()` layer over JSON       | Locale order remains `LOCALE-1`                                                             |
-| Analytics         | Provider-neutral `AnalyticsSink`        | PostHog is a candidate, not an unconditional dependency                                     |
-| PWA               | Manifest/installability only in V1      | Service worker/offline features deferred                                                    |
-| Package/runtime   | pnpm, Node 22 LTS                       | Team standard                                                                               |
-| Hosting ownership | Myosin Vercel/Railway organizations     | No personal-account production infrastructure                                               |
+| Area              | Decision                                | Notes                                                                                                                                                                             |
+| ----------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository        | Standalone single app                   | No monorepo/workspace overhead                                                                                                                                                    |
+| Framework         | Next.js 16 App Router on Vercel         | Locked upstream; home remains mostly Server Components                                                                                                                            |
+| Game technology   | Vanilla Canvas 2D or DOM + TypeScript   | No Phaser/Pixi; new canvas games use shell loop                                                                                                                                   |
+| Runtime boundary  | Versioned factory contract (§6)         | Frozen only after conformance spikes                                                                                                                                              |
+| Styling           | Tailwind CSS 4 for portal chrome        | Games use canvas or scoped CSS                                                                                                                                                    |
+| Database          | Railway PostgreSQL + Drizzle (ADR 0004) | Correctness constraints live in Postgres; no managed PgBouncer on the provisioned template — app + migrations use the external URL with `attachDatabasePool` (ADR 0004 amendment) |
+| Identity          | Host-only pseudonymous session          | `__Host-aegyo_device`; no `Domain`, no localStorage mirror                                                                                                                        |
+| i18n              | Small typed `t()` layer over JSON       | Locale order remains `LOCALE-1`                                                                                                                                                   |
+| Analytics         | Provider-neutral `AnalyticsSink`        | PostHog is a candidate, not an unconditional dependency                                                                                                                           |
+| PWA               | Manifest/installability only in V1      | Service worker/offline features deferred                                                                                                                                          |
+| Package/runtime   | pnpm, Node 22 LTS                       | Team standard                                                                                                                                                                     |
+| Hosting ownership | Myosin Vercel/Railway organizations     | No personal-account production infrastructure                                                                                                                                     |
 
 The arcade does not import Daebak code. Campaign attribution uses allowlisted link parameters, not a shared identity cookie.
 

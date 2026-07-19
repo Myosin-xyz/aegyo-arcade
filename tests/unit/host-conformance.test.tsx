@@ -184,6 +184,114 @@ describe("GameHostInner lifecycle enforcement", () => {
     vi.unstubAllGlobals();
   });
 
+  for (const mode of ["shell", "authored", "none"] as const) {
+    it(`scorePresentation matrix — "${mode}" (M4.5 review P2, enum-complete)`, async () => {
+      const { definition } = createHostileDefinition({ endAfterTicks: 2 });
+      const entry: RegistryEntry = {
+        meta: hostileMeta,
+        ...(mode === "shell" ? {} : { scorePresentation: mode }),
+        load: async () => definition,
+      };
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      await act(async () => {
+        root.render(<GameHostInner entry={entry} gameId={hostileMeta.id} />);
+      });
+      await act(async () => {});
+
+      // Header score span (aria-labelled) follows the mode.
+      const headerScore = container.querySelector(
+        'header [aria-label="Score"]',
+      );
+      if (mode === "shell") expect(headerScore).toBeTruthy();
+      else expect(headerScore).toBeNull();
+
+      // Run to the generic ended overlay.
+      const startButton = container.querySelector(
+        '[data-testid="start-run"]',
+      ) as HTMLButtonElement;
+      await act(async () => {
+        startButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 120));
+      });
+      expect(lifecycleOf(container)).toBe("ended");
+
+      const endedScore = container.querySelector('[data-testid="ended-score"]');
+      const announcement =
+        container.querySelector(".sr-only")?.textContent ?? "";
+      if (mode === "none") {
+        // No score concept: nothing visible, nothing announced.
+        expect(endedScore).toBeNull();
+        expect(announcement).toBe("");
+      } else {
+        expect(endedScore).toBeTruthy();
+        expect(announcement).toContain("Score");
+      }
+
+      await act(async () => {
+        root.unmount();
+      });
+    });
+  }
+
+  it("game-authored end: host Play Again restarts with a FRESH RunContext (M4.5 review P2)", async () => {
+    const { definition, probe } = createHostileDefinition({
+      endAfterTicks: 2, // ends almost immediately after start
+    });
+    const entry: RegistryEntry = {
+      meta: hostileMeta,
+      endPresentation: "game-authored",
+      scorePresentation: "none",
+      load: async () => definition,
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<GameHostInner entry={entry} gameId={hostileMeta.id} />);
+    });
+    await act(async () => {});
+    expect(lifecycleOf(container)).toBe("ready");
+
+    const startButton = container.querySelector(
+      '[data-testid="start-run"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      startButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    // Drive the loop until the game self-ends.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+    expect(lifecycleOf(container)).toBe("ended");
+    const firstRun = probe.lastRun!;
+    expect(firstRun).toBeTruthy();
+
+    // The authored-end presentation renders the HOST Play Again (no
+    // dark overlay markup); clicking it must mint a NEW RunContext.
+    const playAgain = container.querySelector(
+      '[data-testid="play-again"]',
+    ) as HTMLButtonElement;
+    expect(playAgain).toBeTruthy();
+    await act(async () => {
+      playAgain.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await act(async () => {});
+    expect(lifecycleOf(container)).toBe("running");
+    expect(probe.startCalls).toBe(2);
+    const secondRun = probe.lastRun!;
+    expect(secondRun).not.toBe(firstRun); // fresh RunContext object
+    expect(secondRun.signal).not.toBe(firstRun.signal); // fresh abort
+    expect(secondRun.seed).not.toBe(firstRun.seed); // fresh practice seed
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
   it("?seed= pins PRACTICE only — counted runs keep the server seed (M3 review P2)", async () => {
     // Hostile visitor lands with a chosen seed in the URL.
     window.history.replaceState(null, "", "/play/hostile?seed=attacker");

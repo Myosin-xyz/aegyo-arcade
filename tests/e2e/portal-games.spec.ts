@@ -77,6 +77,20 @@ const SMOKE_ACTIONS: Record<
     },
     terminal: false,
   },
+  thisorthat: {
+    // Nine picks reach the result → the run ends through the FROZEN
+    // lifecycle; the game-authored end presentation keeps the in-DOM
+    // result visible while the generic loop asserts ended + the host's
+    // Play Again control (M4.5 review P1).
+    act: async (page) => {
+      for (let i = 0; i < 9; i++) {
+        await page.getByTestId(`tot-card-${i % 2}`).click();
+        await page.waitForTimeout(340); // double-tap lock window
+      }
+      await page.getByTestId("tot-result").waitFor({ state: "visible" }); // result stays visible at ended
+    },
+    terminal: true,
+  },
   freebie: {
     // OBSERVABLE input proof (M2.5 review P2): hold ArrowLeft and require
     // pixels to change in the far-left strip of the catcher band — static
@@ -259,6 +273,26 @@ test("claw: GAME-OWNED counted loop — issue, drop, committed end, receipt", as
   await expect(receipt).toBeVisible({ timeout: 10_000 });
   await expect(receipt).toContainText("saved");
   expect(pageErrors).toEqual([]);
+});
+
+test("thisorthat: host Play Again restarts the authored-end game (M4.5 review P2)", async ({
+  page,
+}) => {
+  await page.goto("/play/thisorthat");
+  const host = page.getByTestId("game-host");
+  await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("start-run").click();
+  for (let i = 0; i < 9; i++) {
+    await page.getByTestId(`tot-card-${i % 2}`).click();
+    await page.waitForTimeout(340);
+  }
+  await expect(host).toHaveAttribute("data-lifecycle", "ended");
+  await expect(page.getByTestId("tot-result")).toBeVisible(); // no overlay
+  await page.getByTestId("play-again").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "running");
+  await expect(page.getByTestId("tot-progress")).toHaveText("1 / 9");
 });
 
 test("fresh es device: home load fires EXACTLY ONE session bootstrap, already es-419 (M4 review P1)", async ({

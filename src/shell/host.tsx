@@ -559,7 +559,7 @@ export function GameHostInner({
           {t(entry.meta.titleKey)}
         </span>
         <div className="flex shrink-0 items-center gap-3">
-          {!entry.hasAuthoredHud && (
+          {(entry.scorePresentation ?? "shell") === "shell" && (
             <span
               className="text-sm font-semibold tabular-nums text-gold"
               aria-label={t("host.score")}
@@ -603,7 +603,10 @@ export function GameHostInner({
       </header>
 
       <p className="sr-only" aria-live="polite">
-        {lifecycle === "ended" ? `${t("host.score")}: ${score}` : ""}
+        {lifecycle === "ended" &&
+        (entry.scorePresentation ?? "shell") !== "none"
+          ? `${t("host.score")}: ${score}`
+          : ""}
       </p>
 
       <div className="relative min-h-0 flex-1">
@@ -684,11 +687,34 @@ export function GameHostInner({
             </button>
           </Overlay>
         )}
-        {lifecycle === "ended" && (
+        {lifecycle === "ended" && entry.endPresentation === "game-authored" && (
+          // The game's own in-DOM result stays visible (M4.5 review P1):
+          // no dark overlay — just the host-owned restart (fresh
+          // RunContext through the normal startRun path).
+          <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center p-4">
+            <button
+              type="button"
+              className="btn-arcade px-8 py-3 text-lg"
+              onClick={startRun}
+              data-testid="play-again"
+            >
+              {t("host.playAgain")}
+            </button>
+          </div>
+        )}
+        {lifecycle === "ended" && entry.endPresentation !== "game-authored" && (
           <Overlay>
-            <p className="font-arcade text-xl text-gold">
-              {t("host.score")}: {score}
-            </p>
+            {(entry.scorePresentation ?? "shell") !== "none" && (
+              // A "none" game has NO score concept — a fictional
+              // "Score: 0" may not appear anywhere, visible or
+              // accessible (M4.5 review P2, enum-complete).
+              <p
+                className="font-arcade text-xl text-gold"
+                data-testid="ended-score"
+              >
+                {t("host.score")}: {score}
+              </p>
+            )}
             {counted.kind === "submitting" && (
               <p className="text-sm">{t("host.submitting")}</p>
             )}

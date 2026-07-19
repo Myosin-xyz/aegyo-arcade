@@ -13,6 +13,7 @@ import { jumperMeta } from "./jumper/meta";
 import { hangmanMeta } from "./hangman/meta";
 import { freebieMeta } from "./freebie/meta";
 import { froggerMeta } from "./frogger/meta";
+import { thisorthatMeta } from "./thisorthat/meta";
 
 export interface RegistryEntry {
   meta: GameMeta;
@@ -33,11 +34,25 @@ export interface RegistryEntry {
    */
   countedCompletion?: "generic-submit" | "game-owned";
   /**
-   * The game draws its own score/HUD inside the surface (delivered art
-   * with baked chrome) — the host hides its header score to avoid the
-   * double-HUD read (M4 review P2).
+   * Where the score presents (M4 review P2 + M4.5 review P2):
+   * - "shell" (default): host header shows it, ended announcement
+   *   includes it;
+   * - "authored": the game draws its own score/HUD inside the surface
+   *   (delivered art with baked chrome) — host header hides it but the
+   *   ended announcement still speaks it;
+   * - "none": the game HAS no score concept — header hides it AND the
+   *   screen-reader ended announcement stays silent about it (a
+   *   nonexistent "Score: 0" is a lie to assistive tech).
    */
-  hasAuthoredHud?: boolean;
+  scorePresentation?: "shell" | "authored" | "none";
+  /**
+   * PRESENTATION-ONLY end variant (M4.5 review P1): "game-authored"
+   * keeps the game's own in-DOM result visible after report.end — the
+   * host skips its dark ended overlay and renders just a minimal Play
+   * Again control (still the host's startRun: fresh RunContext,
+   * lifecycle, abort — no lifecycle exception).
+   */
+  endPresentation?: "game-authored";
   load: () => Promise<GameDefinition>;
 }
 
@@ -66,13 +81,23 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: freebieMeta,
-    hasAuthoredHud: true,
+    scorePresentation: "authored",
     load: () => import("./freebie/module").then((m) => m.freebieDefinition),
   },
   {
     meta: froggerMeta,
-    hasAuthoredHud: true,
+    scorePresentation: "authored",
     load: () => import("./frogger/module").then((m) => m.froggerDefinition),
+  },
+  {
+    meta: thisorthatMeta,
+    // No score concept at all (prototype).
+    scorePresentation: "none",
+    // The vibe result is the payoff — keep it visible after the run
+    // ends instead of dimming it under the host overlay.
+    endPresentation: "game-authored",
+    load: () =>
+      import("./thisorthat/module").then((m) => m.thisorthatDefinition),
   },
 ];
 

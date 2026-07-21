@@ -224,12 +224,14 @@ export function GameHostInner({
         canvas.setAttribute("role", "application");
         // Focusable so keyboard users can tab INTO the game (audit A7):
         // role="application" forwards keystrokes, but only once the
-        // element can receive focus. No auto-focus \u2014 tabbing in is the
+        // element can receive focus. No auto-focus: tabbing in is the
         // user's choice, not a focus steal.
         canvas.setAttribute("tabindex", "0");
+        // Sentence break, not an em dash \u2014 screen readers announce dashes
+        // inconsistently, and a period reads as two clean sentences.
         canvas.setAttribute(
           "aria-label",
-          `${t(entry.meta.titleKey)} \u2014 ${t(`game.${gameId}.controls`)}`,
+          `${t(entry.meta.titleKey)}. ${t(`game.${gameId}.controls`)}`,
         );
         container.appendChild(canvas);
         // Module-loop legacy games (claw) own their canvas sizing/DPR;
@@ -257,7 +259,7 @@ export function GameHostInner({
         root.setAttribute("data-testid", "game-surface");
         root.setAttribute(
           "aria-label",
-          `${t(entry.meta.titleKey)} \u2014 ${t(`game.${gameId}.controls`)}`,
+          `${t(entry.meta.titleKey)}. ${t(`game.${gameId}.controls`)}`,
         );
         container.appendChild(root);
         surface = { kind: "dom", root };

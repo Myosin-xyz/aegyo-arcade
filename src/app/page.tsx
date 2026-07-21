@@ -36,7 +36,7 @@ export default function Home() {
                 // §15: game-card route prefetch stays OFF — RSC prefetches
                 // were firing on landing (M0 review), paid-traffic transfer.
                 prefetch={false}
-                className="card-arcade block h-full p-4 transition-transform active:scale-95"
+                className="card-arcade block h-full p-4 transition-[transform,border-color] active:scale-95"
                 style={{ "--game-accent": accent } as CSSProperties}
                 data-testid={`game-card-${game.meta.id}`}
               >
@@ -62,7 +62,7 @@ export default function Home() {
       <div className="mt-auto flex flex-col items-center gap-2 pt-4">
         <Link
           href="/install"
-          className="text-xs font-semibold text-muted underline-offset-4 hover:underline"
+          className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-muted underline-offset-4 hover:underline"
         >
           {t("install.link")}
         </Link>

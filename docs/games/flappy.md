@@ -7,7 +7,9 @@
 
 ## Product baseline
 
-- Framing: guide a lightstick through concert barricade gaps.
+- Framing: guide a winged idol flyer through concert barricade gaps
+  (2026-07-19: player art changed from a lightstick to a winged bias per
+  Simon's request — see CONTENT_REGISTER for the likeness gate).
 - Recovered feel: gravity **≈0.45**, flap impulse **≈−7.5**, gap **≈180 logical px**.
 - Input: tap anywhere on the game surface; keyboard is an enhancement.
 - Score: one point after the player completely passes a barricade pair.

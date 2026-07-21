@@ -184,8 +184,10 @@ class JumperGame implements ShellLoopGame {
       }
     }
 
-    // The climber: bunny-eared bounce blob (hitbox rect unchanged),
-    // squashed by vertical velocity for landing/launch feel.
+    // The climber: an idol in a rose-quartz + serenity stage jacket with
+    // a diamond chest motif (team feedback 2026-07-19 — Seventeen-
+    // inspired theme; see CONTENT_REGISTER for the gate). Hitbox rect
+    // unchanged; squash by vertical velocity for landing/launch feel.
     const px = state.x;
     const py = state.y - state.cameraY;
     const vy = (state as { vy?: number }).vy ?? 0;
@@ -193,25 +195,51 @@ class JumperGame implements ShellLoopGame {
     g.save();
     g.translate(px + PLAYER_W / 2, py + PLAYER_H);
     g.scale(2 - squash, squash);
-    g.fillStyle = COLORS.player;
+    // Jacket: rose quartz / serenity split (the duo-tone stage fit).
+    const jacket = g.createLinearGradient(-PLAYER_W / 2, 0, PLAYER_W / 2, 0);
+    jacket.addColorStop(0, "#f7cac9");
+    jacket.addColorStop(0.5, "#f7cac9");
+    jacket.addColorStop(0.5, "#92a8d1");
+    jacket.addColorStop(1, "#92a8d1");
+    g.fillStyle = jacket;
     g.beginPath();
-    g.roundRect(-PLAYER_W / 2, -PLAYER_H, PLAYER_W, PLAYER_H, 9);
+    g.roundRect(-PLAYER_W / 2, -PLAYER_H * 0.72, PLAYER_W, PLAYER_H * 0.72, 7);
     g.fill();
-    // ears
+    // Diamond chest motif.
+    g.fillStyle = "#fff6ff";
+    g.save();
+    g.translate(0, -PLAYER_H * 0.38);
+    g.rotate(Math.PI / 4);
+    g.fillRect(-3.4, -3.4, 6.8, 6.8);
+    g.restore();
+    g.strokeStyle = "rgba(43, 17, 70, 0.4)";
+    g.lineWidth = 1;
+    g.strokeRect(-0.5, -PLAYER_H * 0.72, 1, PLAYER_H * 0.72);
+    // Head: soft face + dark side-part hair.
+    g.fillStyle = "#f6d0ab";
     g.beginPath();
-    g.roundRect(-PLAYER_W * 0.32, -PLAYER_H - 9, 7, 12, 3.5);
-    g.roundRect(PLAYER_W * 0.32 - 7, -PLAYER_H - 9, 7, 12, 3.5);
+    g.arc(0, -PLAYER_H * 0.82, PLAYER_W * 0.28, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#241430";
+    g.beginPath();
+    g.arc(0, -PLAYER_H * 0.9, PLAYER_W * 0.28, Math.PI * 0.85, Math.PI * 2.05);
+    g.fill();
+    g.beginPath();
+    g.ellipse(
+      -PLAYER_W * 0.1,
+      -PLAYER_H * 0.98,
+      PLAYER_W * 0.14,
+      PLAYER_W * 0.1,
+      0.6,
+      0,
+      Math.PI * 2,
+    );
     g.fill();
     // eyes
-    g.fillStyle = "#f4ecff";
+    g.fillStyle = "#241430";
     g.beginPath();
-    g.arc(-6, -PLAYER_H * 0.55, 4, 0, Math.PI * 2);
-    g.arc(6, -PLAYER_H * 0.55, 4, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = "#2b1146";
-    g.beginPath();
-    g.arc(-6, -PLAYER_H * 0.55, 1.8, 0, Math.PI * 2);
-    g.arc(6, -PLAYER_H * 0.55, 1.8, 0, Math.PI * 2);
+    g.arc(-5, -PLAYER_H * 0.8, 1.8, 0, Math.PI * 2);
+    g.arc(5, -PLAYER_H * 0.8, 1.8, 0, Math.PI * 2);
     g.fill();
     g.restore();
 

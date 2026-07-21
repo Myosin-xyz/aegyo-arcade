@@ -35,3 +35,13 @@ original design (we flagged them as "probably generic — confirm").
 Updated `crossed_the_street.psd` + a flattened PNG export at 480×622.
 We re-encode and run a full visual/device QA pass after swap (also
 regenerating any thumbnails/screenshots made from the old art).
+
+## Theming note (2026-07-19, from Simon)
+
+Simon requested the crossing be themed around **LE SSERAFIM** instead
+of neutral fictional branding. That request is rights-gated (see
+docs/CONTENT_REGISTER.md) and does NOT change the core job here:
+remove the baked BTS logo / tour text / bus marks. Deliver the reskin
+with FICTIONAL stage branding as briefed; if EXT-LEGAL clears the
+nominative Le Sserafim reference later, a themed variant can follow as
+a separate pass. Do not bake any real-group marks into the new art.

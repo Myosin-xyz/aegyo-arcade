@@ -115,7 +115,7 @@ Launch catalog means **playable catalog**, not automatic authorization to run pr
 | #   | Game            | Working title   | Source                         | Path                     |
 | --- | --------------- | --------------- | ------------------------------ | ------------------------ |
 | 0   | Claw machine    | Aegyo Claw      | Existing Vite/vanilla-TS app   | Migrate and adapt (§7.1) |
-| 1   | Snake           | Aegyo Snake     | Nicole mock                    | Rebuild against shell    |
+| 1   | Snake           | POCA Snake      | Nicole mock                    | Rebuild against shell    |
 | 2   | Flappy          | Bias Flap       | Nicole mock                    | Rebuild against shell    |
 | 3   | Infinite jumper | Comeback Climb  | Nicole mock                    | Rebuild against shell    |
 | 4   | Hangman         | Guess the Slang | Nicole mock                    | DOM module               |

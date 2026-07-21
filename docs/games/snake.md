@@ -1,4 +1,4 @@
-# Game Rules Seed — Aegyo Snake
+# Game Rules Seed — POCA Snake (né Aegyo Snake, renamed 2026-07-19)
 
 **Status**: Recovered v0.1 design baseline; finalize test vectors before M2 implementation
 **Source**: Nicole's playable mock and v0.1 keep/change review

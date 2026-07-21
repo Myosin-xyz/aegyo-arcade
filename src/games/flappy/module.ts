@@ -175,16 +175,16 @@ class FlappyGame implements ShellLoopGame {
       g.fillRect(pipe.x, botY, PIPE_WIDTH, 4);
     }
 
-    // Glow trail behind the lightstick (render-only history).
+    // Feather trail behind the flyer (render-only history).
     for (let i = 0; i < this.trail.length; i++) {
-      const a = ((i + 1) / this.trail.length) * 0.22;
+      const a = ((i + 1) / this.trail.length) * 0.18;
       g.globalAlpha = a;
-      g.fillStyle = "#ffd166";
+      g.fillStyle = "#fff6ee";
       g.beginPath();
       g.arc(
         PLAYER_X - (this.trail.length - i) * 7,
-        this.trail[i] - 4,
-        PLAYER_RADIUS * 0.5,
+        this.trail[i] - 2,
+        PLAYER_RADIUS * 0.4,
         0,
         Math.PI * 2,
       );
@@ -192,34 +192,111 @@ class FlappyGame implements ShellLoopGame {
     }
     g.globalAlpha = 1;
 
-    // The bias lightstick: tilted handle + glowing gold head (hitbox
-    // stays the PLAYER_RADIUS circle — this is draw-only).
+    // The flyer: a winged idol cartoon (team feedback 2026-07-19 —
+    // shirtless, tattooed arm, lip ring; see CONTENT_REGISTER for the
+    // likeness gate). Hitbox stays the PLAYER_RADIUS circle — draw-only.
+    const R = PLAYER_RADIUS;
     const tilt = Math.max(-0.5, Math.min(0.6, state.vy * 0.045));
+    // Wings flap with vertical velocity: up-beat right after a flap.
+    const flapBeat = Math.max(-0.9, Math.min(0.9, -state.vy * 0.08));
     g.save();
     g.translate(PLAYER_X, state.y);
     g.rotate(tilt);
-    g.fillStyle = "#52307a";
+
+    // Wings (behind the body): two feathered arcs, angle driven by vy.
+    for (const side of [-1, 1] as const) {
+      g.save();
+      g.scale(side, 1);
+      g.translate(-R * 0.45, -R * 0.15);
+      g.rotate(-0.55 - flapBeat * 0.55);
+      const wing = g.createLinearGradient(0, 0, -R * 1.7, 0);
+      wing.addColorStop(0, "#fff6ee");
+      wing.addColorStop(1, "#ffd9ec");
+      g.fillStyle = wing;
+      g.beginPath();
+      g.ellipse(-R * 0.85, 0, R * 1.05, R * 0.42, 0.12, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "rgba(255, 143, 184, 0.45)";
+      for (let f = 0; f < 3; f++) {
+        g.beginPath();
+        g.ellipse(
+          -R * (0.55 + f * 0.45),
+          R * 0.16,
+          R * 0.3,
+          R * 0.12,
+          0.1,
+          0,
+          Math.PI * 2,
+        );
+        g.fill();
+      }
+      g.restore();
+    }
+
+    // Torso: shirtless, warm skin tone.
+    g.fillStyle = "#f2c49b";
     g.beginPath();
-    g.roundRect(-3.5, 0, 7, PLAYER_RADIUS * 1.7, 3.5);
+    g.roundRect(-R * 0.5, -R * 0.35, R, R * 1.05, R * 0.3);
     g.fill();
-    g.fillStyle = "#8b5cf6";
-    g.fillRect(-3.5, PLAYER_RADIUS * 0.5, 7, 2);
-    const glow = g.createRadialGradient(0, -4, 1, 0, -4, PLAYER_RADIUS * 1.9);
-    glow.addColorStop(0, "rgba(255, 227, 140, 0.95)");
-    glow.addColorStop(0.45, "rgba(255, 209, 102, 0.5)");
-    glow.addColorStop(1, "rgba(255, 209, 102, 0)");
-    g.fillStyle = glow;
+    // Chest line + navel (cartoon shading).
+    g.strokeStyle = "rgba(146, 90, 51, 0.5)";
+    g.lineWidth = 1;
     g.beginPath();
-    g.arc(0, -4, PLAYER_RADIUS * 1.9, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = COLORS.lightstick;
+    g.moveTo(-R * 0.18, R * 0.05);
+    g.lineTo(R * 0.18, R * 0.05);
+    g.stroke();
+    // Shorts.
+    g.fillStyle = "#2b1146";
     g.beginPath();
-    g.arc(0, -4, PLAYER_RADIUS * 0.85, 0, Math.PI * 2);
+    g.roundRect(-R * 0.5, R * 0.55, R, R * 0.4, R * 0.14);
     g.fill();
-    g.fillStyle = "#fff6dd";
+    // Arms: trailing arm carries the tattoo sleeve (dark ink marks).
+    g.fillStyle = "#f2c49b";
     g.beginPath();
-    g.arc(-2, -6, PLAYER_RADIUS * 0.32, 0, Math.PI * 2);
+    g.roundRect(-R * 0.92, -R * 0.3, R * 0.42, R * 0.95, R * 0.2);
+    g.roundRect(R * 0.5, -R * 0.3, R * 0.42, R * 0.95, R * 0.2);
     g.fill();
+    g.strokeStyle = "rgba(43, 17, 70, 0.75)";
+    g.lineWidth = 1.4;
+    for (let m = 0; m < 3; m++) {
+      g.beginPath();
+      g.moveTo(-R * 0.88, -R * 0.12 + m * R * 0.26);
+      g.lineTo(-R * 0.54, -R * 0.02 + m * R * 0.26);
+      g.stroke();
+    }
+
+    // Head: dark shaggy hair, soft face, lip ring glint.
+    g.fillStyle = "#f6d0ab";
+    g.beginPath();
+    g.arc(0, -R * 0.85, R * 0.62, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#241430";
+    g.beginPath();
+    g.arc(0, -R * 1.0, R * 0.62, Math.PI * 0.92, Math.PI * 2.08);
+    g.fill();
+    // Fringe strands.
+    g.beginPath();
+    g.ellipse(-R * 0.22, -R * 1.02, R * 0.24, R * 0.34, 0.5, 0, Math.PI * 2);
+    g.ellipse(R * 0.2, -R * 1.04, R * 0.22, R * 0.3, -0.4, 0, Math.PI * 2);
+    g.fill();
+    // Eyes + tiny smile.
+    g.fillStyle = "#241430";
+    g.beginPath();
+    g.arc(-R * 0.22, -R * 0.82, R * 0.07, 0, Math.PI * 2);
+    g.arc(R * 0.22, -R * 0.82, R * 0.07, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "#a4553a";
+    g.lineWidth = 1.2;
+    g.beginPath();
+    g.arc(0, -R * 0.62, R * 0.16, 0.25, Math.PI - 0.25);
+    g.stroke();
+    // Lip ring: a tiny silver hoop at the lower lip.
+    g.strokeStyle = "#dfe6f2";
+    g.lineWidth = 1.1;
+    g.beginPath();
+    g.arc(R * 0.11, -R * 0.5, R * 0.06, 0, Math.PI * 2);
+    g.stroke();
+
     g.restore();
   }
 

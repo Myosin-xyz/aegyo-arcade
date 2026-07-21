@@ -41,7 +41,9 @@ describe("i18n — locale parity", () => {
 
   it("fan lexicon stays in community-standard English (§12.1)", () => {
     const es = DICTS["es-419"];
-    expect(es["game.flappy.controls"]).toContain("lightstick");
+    // "bias" replaced "lightstick" here when the flyer art changed
+    // (2026-07-19) — the lexicon rule is the same: fan terms stay English.
+    expect(es["game.flappy.controls"]).toContain("bias");
     expect(es["game.snake.tagline"]).toContain("photocard");
     expect(es["game.freebie.controls"]).toContain("merch");
     expect(es["game.freebie.rank.3"]).toBe("Bias Wrecker");

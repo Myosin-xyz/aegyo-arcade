@@ -36,6 +36,7 @@ function fakeManifest(): Manifest {
       E: rect(40, 10),
       B: rect(40, 10),
       K: rect(40, 10),
+      A2: rect(40, 10),
     },
     winBoard: rect(20, 20, 60, 20),
     controls: {
@@ -354,6 +355,109 @@ describe("claw adapter — real engine lifecycle", () => {
     expect(at(0.799)).toBe("B");
     expect(at(0.801)).toBe("K");
     expect(at(1)).toBe("K"); // right edge clamps into the last bin
+
+    adapter.destroy();
+    cleanup();
+  });
+
+  it("depth axis picks the BACK row deterministically; reset restores center depth (team feedback 2026-07-19)", async () => {
+    const { ctx, cleanup } = createClawContext();
+    const adapter = clawDefinition.create(ctx);
+    await adapter.init(new AbortController().signal);
+    adapter.start(practiceRun());
+
+    const machine = (adapter as unknown as { machine: Record<string, unknown> })
+      .machine as {
+      opts: { outcome: () => Promise<string> };
+      onDrop: () => void;
+      resetToReady: () => void;
+      run: () => void;
+      moveBounds: () => { lo: number; hi: number };
+      clawTX: number;
+      clawTZ: number;
+      heldKey: string;
+    };
+    machine.opts.outcome = async () => "miss";
+    const { lo, hi } = machine.moveBounds();
+
+    const aimAt = (tx: number, tz: number): string => {
+      machine.resetToReady();
+      machine.run();
+      machine.clawTX = tx;
+      machine.clawTZ = tz;
+      machine.onDrop(); // (column, depth) lock at drop start
+      return machine.heldKey;
+    };
+
+    // Back row (tz < 0.5) = ["K","E","A2","D","B"] — distinct plushes.
+    expect(aimAt(lo, 0.2)).toBe("K");
+    expect(aimAt((lo + hi) / 2, 0.2)).toBe("A2");
+    expect(aimAt(hi, 0.2)).toBe("B");
+    expect(aimAt(lo, 0.2)).toBe("K"); // repeatable — no RNG
+
+    // Row boundary: exactly 0.5 is the FRONT row (the rest default), so
+    // the original single-axis mapping is preserved untouched.
+    expect(aimAt(lo, 0.5)).toBe("D");
+    expect(aimAt(lo, 0.499)).toBe("K");
+
+    // resetToReady returns the claw to center depth.
+    machine.resetToReady();
+    expect(machine.clawTZ).toBe(0.5);
+
+    adapter.destroy();
+    cleanup();
+  });
+
+  it("depth moves through the REAL input path: key hold glides, pause clears, drop locks (review P2)", async () => {
+    const { ctx, cleanup } = createClawContext();
+    const adapter = clawDefinition.create(ctx);
+    await adapter.init(new AbortController().signal);
+    adapter.start(practiceRun());
+
+    const machine = (adapter as unknown as { machine: Record<string, unknown> })
+      .machine as {
+      opts: { outcome: () => Promise<string> };
+      run: () => void;
+      pause: () => void;
+      resume: () => void;
+      onDrop: () => void;
+      update: (dt: number) => void;
+      clawTZ: number;
+      phase: string;
+    };
+    machine.opts.outcome = async () => "miss";
+    machine.run();
+
+    // ArrowDown (backward = toward the glass) through the REAL window
+    // keyboard listener — not a private-field write.
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    machine.update(400);
+    expect(machine.clawTZ).toBeGreaterThan(0.5);
+    const held = machine.clawTZ;
+
+    // Pause clears the held glide: no drift while frozen.
+    machine.pause();
+    machine.update(400);
+    expect(machine.clawTZ).toBe(held);
+    machine.resume();
+
+    // The stale keyup is inert (pause drained holds); a fresh ArrowUp
+    // hold glides back toward the rear.
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown" }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
+    machine.update(300);
+    expect(machine.clawTZ).toBeLessThan(held);
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp" }));
+
+    // Drop LOCKS depth: held keys during the descent change nothing.
+    const atDrop = machine.clawTZ;
+    machine.onDrop();
+    expect(machine.phase).toBe("dropping");
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    machine.update(200);
+    machine.update(200);
+    expect(machine.clawTZ).toBe(atDrop);
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown" }));
 
     adapter.destroy();
     cleanup();

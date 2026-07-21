@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FixedLoop } from "@/shell/loop";
 import { LeakTracker } from "@/shell/conformance";
 import { createInput } from "@/games/claw/engine/input";
+import { REQUIRED_CONTROLS, REQUIRED_PLUSH } from "@/games/claw/engine/assets";
 import type { Manifest } from "@/games/claw/engine/types";
+import realManifest from "../../public/games/claw/manifest.json";
 
 describe("FixedLoop stop semantics", () => {
   afterEach(() => {
@@ -195,6 +197,140 @@ describe("claw input teardown (drop-light timer)", () => {
 
     input.destroy();
     canvas.remove();
+  });
+
+  // A d-pad control layout with the manifest's real geometry, so the
+  // overlap-corner + axis vectors above can't silently pass against
+  // stale copied rects if the art reflows (test-analyzer gap #3).
+  function realControlManifest(): Manifest {
+    return { ...fakeManifest(), controls: realManifest.controls };
+  }
+
+  function harness(manifest: Manifest) {
+    const canvas = document.createElement("canvas");
+    document.body.appendChild(canvas);
+    const dir: number[] = [];
+    const depth: number[] = [];
+    let dirUps = 0;
+    let depthUps = 0;
+    const input = createInput({
+      canvas,
+      manifest,
+      toDesign: (x, y) => ({ x, y }),
+      onDirDown: (d) => dir.push(d),
+      onDirUp: () => {
+        dirUps += 1;
+      },
+      onDepthDown: (d) => depth.push(d),
+      onDepthUp: () => {
+        depthUps += 1;
+      },
+      onDrop: () => undefined,
+    });
+    const centerOf = (k: "left" | "right" | "forward" | "backward") => {
+      const r = realManifest.controls[k];
+      return [r.x + r.w / 2, r.y + r.h / 2] as const;
+    };
+    const tap = (x: number, y: number, id: number) => {
+      const down = new MouseEvent("pointerdown", {
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+      });
+      Object.defineProperty(down, "pointerId", { value: id });
+      canvas.dispatchEvent(down);
+    };
+    const lift = (id: number) => {
+      const up = new MouseEvent("pointerup", { bubbles: true });
+      Object.defineProperty(up, "pointerId", { value: id });
+      window.dispatchEvent(up);
+    };
+    return {
+      input,
+      canvas,
+      dir,
+      depth,
+      centerOf,
+      tap,
+      lift,
+      get dirUps() {
+        return dirUps;
+      },
+      get depthUps() {
+        return depthUps;
+      },
+    };
+  }
+
+  it("the two axes hold SIMULTANEOUSLY: steer + depth glide at once, releasing one leaves the other live (test-analyzer gap #1)", () => {
+    const h = harness(realControlManifest());
+    const [lx, ly] = h.centerOf("left");
+    h.tap(lx, ly, 1); // hold Left (pointer)
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" })); // + forward (key)
+    expect(h.dir).toEqual([-1]); // X axis: left
+    expect(h.depth).toEqual([-1]); // Z axis: forward — independent, both live
+    expect(h.input.state.pressed.has("left")).toBe(true);
+    expect(h.input.state.pressed.has("forward")).toBe(true);
+
+    // Release the DEPTH key: X (left) must stay live and lit, no dir Up.
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp" }));
+    expect(h.depthUps).toBe(1);
+    expect(h.dirUps).toBe(0);
+    expect(h.dir).toEqual([-1]); // no spurious X re-emit
+    expect(h.input.state.pressed.has("left")).toBe(true);
+    h.lift(1);
+    expect(h.dirUps).toBe(1);
+
+    h.input.destroy();
+    h.canvas.remove();
+  });
+
+  it("SAME-direction, DIFFERENT sources never collapse: pointer+key on one control, releasing either keeps it live and lit (review P2 round 2)", () => {
+    const h = harness(realControlManifest());
+    const [lx, ly] = h.centerOf("left");
+    h.tap(lx, ly, 5); // Left via pointer
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" })); // Left via key
+    expect(h.dir).toEqual([-1]); // same effective dir — one emit, no re-emit
+    // Release the KEY: the pointer still holds Left.
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowLeft" }));
+    expect(h.dirUps).toBe(0);
+    expect(h.input.state.pressed.has("left")).toBe(true);
+    h.lift(5);
+    expect(h.dirUps).toBe(1);
+    expect(h.input.state.pressed.has("left")).toBe(false);
+
+    h.input.destroy();
+    h.canvas.remove();
+  });
+
+  it("post-pause (setEnabled toggle) re-press of the SAME direction re-emits — the axis state resets on disable (test-analyzer gap #2)", () => {
+    const h = harness(realControlManifest());
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(h.depth).toEqual([1]);
+    // Host pauses → setEnabled(false) drains holds and emits the Up.
+    h.input.setEnabled(false);
+    expect(h.depthUps).toBe(1);
+    expect(h.input.state.pressed.has("backward")).toBe(false);
+    // The stale keyup after disable is inert.
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown" }));
+    // Resume, then re-press the SAME direction: must re-emit (would be
+    // dead if lastZ stayed 1 across the disable — the bug this pins).
+    h.input.setEnabled(true);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(h.depth).toEqual([1, 1]);
+    expect(h.input.state.pressed.has("backward")).toBe(true);
+
+    h.input.destroy();
+    h.canvas.remove();
+  });
+
+  it("the shipped manifest satisfies the fetchManifest contract (every required control + plush key present)", () => {
+    for (const k of REQUIRED_CONTROLS) {
+      expect(realManifest.controls, k).toHaveProperty(k);
+    }
+    for (const k of REQUIRED_PLUSH) {
+      expect(realManifest.clawPlush, k).toHaveProperty(k);
+    }
   });
 
   it("SAME-direction holds from different sources never collapse: releasing one keeps the other moving and lit (review P2 round 2)", () => {

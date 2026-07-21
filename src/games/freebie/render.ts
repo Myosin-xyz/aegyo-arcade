@@ -104,7 +104,7 @@ export function renderFreebie(
   // HUD values over the baked chrome.
   g.textBaseline = "middle";
   g.fillStyle = "#f4ecff";
-  g.font = "700 17px Inter, system-ui, sans-serif";
+  g.font = "700 17px system-ui, sans-serif";
   g.textAlign = "left";
   g.fillText(String(state.score), SCORE_X, HUD_Y);
   g.textAlign = "center";
@@ -115,7 +115,7 @@ export function renderFreebie(
 
   // Combo tag (delivery shows it from combo 3).
   if (state.combo >= 3 && state.status === "playing") {
-    g.font = "700 14px Inter, system-ui, sans-serif";
+    g.font = "700 14px system-ui, sans-serif";
     g.fillStyle = "#ffe066";
     g.fillText(
       t("game.freebie.combo", { count: String(state.combo) }),
@@ -125,7 +125,7 @@ export function renderFreebie(
   }
 
   // Score popups + a burst of 4-point sparkles while they are fresh.
-  g.font = "800 18px Inter, system-ui, sans-serif";
+  g.font = "800 18px system-ui, sans-serif";
   for (const p of state.popups) {
     const life = 1 - p.age / POPUP_TTL;
     g.globalAlpha = Math.max(0, life);
@@ -159,7 +159,7 @@ export function renderFreebie(
 
   // Catch callout.
   if (state.callout) {
-    g.font = "800 22px Inter, system-ui, sans-serif";
+    g.font = "800 22px system-ui, sans-serif";
     g.fillStyle = state.callout.kind === "jackpot" ? "#ffe066" : "#7dffd9";
     g.fillText(
       t(`game.freebie.callout.${state.callout.kind}.${state.callout.variant}`),
@@ -174,13 +174,13 @@ export function renderFreebie(
     g.fillRect(0, 0, DESIGN_W, DESIGN_H);
     g.fillStyle = "#ffffff";
     g.textAlign = "center";
-    g.font = "800 26px Inter, system-ui, sans-serif";
+    g.font = "800 26px system-ui, sans-serif";
     g.fillText(
       t("game.freebie.recap.cleared", { level: String(state.level) }),
       DESIGN_W / 2,
       DESIGN_H * 0.36,
     );
-    g.font = "600 17px Inter, system-ui, sans-serif";
+    g.font = "600 17px system-ui, sans-serif";
     g.fillStyle = "#ffe066";
     g.fillText(
       t("game.freebie.recap.bonus", { bonus: String(state.lastBonus) }),
@@ -199,7 +199,7 @@ export function renderFreebie(
       DESIGN_W / 2,
       DESIGN_H * 0.36 + 92,
     );
-    g.font = "700 16px Inter, system-ui, sans-serif";
+    g.font = "700 16px system-ui, sans-serif";
     g.fillStyle = "#7dffd9";
     g.fillText(
       t("game.freebie.recap.continue"),

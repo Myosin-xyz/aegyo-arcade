@@ -222,6 +222,11 @@ export function GameHostInner({
         canvas.style.touchAction = "none";
         canvas.setAttribute("data-testid", "game-surface");
         canvas.setAttribute("role", "application");
+        // Focusable so keyboard users can tab INTO the game (audit A7):
+        // role="application" forwards keystrokes, but only once the
+        // element can receive focus. No auto-focus \u2014 tabbing in is the
+        // user's choice, not a focus steal.
+        canvas.setAttribute("tabindex", "0");
         canvas.setAttribute(
           "aria-label",
           `${t(entry.meta.titleKey)} \u2014 ${t(`game.${gameId}.controls`)}`,
@@ -547,7 +552,7 @@ export function GameHostInner({
       data-lifecycle={lifecycle}
       data-score={score}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-line bg-surface/70 px-3 py-2 backdrop-blur">
+      <header className="flex items-center justify-between gap-2 border-b border-line bg-surface pb-2 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))]">
         <Link
           className="shrink-0 px-1 text-xl font-bold leading-none text-brand"
           href="/"
@@ -555,14 +560,19 @@ export function GameHostInner({
         >
           {"\u2039"}
         </Link>
-        <span className="min-w-0 truncate font-arcade text-[11px] font-bold">
+        <h1 className="min-w-0 truncate font-arcade text-[0.6875rem] font-bold">
           {t(entry.meta.titleKey)}
-        </span>
+        </h1>
         <div className="flex shrink-0 items-center gap-3">
           {(entry.scorePresentation ?? "shell") === "shell" && (
+            // Include the number in the accessible name (audit A6) — a
+            // bare aria-label="Score" hid the value from screen readers.
+            // No aria-live: per-point announcements would be spammy; the
+            // final score is spoken by the ended announcement.
             <span
               className="text-sm font-semibold tabular-nums text-gold"
-              aria-label={t("host.score")}
+              aria-label={`${t("host.score")}: ${score}`}
+              data-testid="header-score"
             >
               {score}
             </span>
@@ -691,7 +701,7 @@ export function GameHostInner({
           // The game's own in-DOM result stays visible (M4.5 review P1):
           // no dark overlay — just the host-owned restart (fresh
           // RunContext through the normal startRun path).
-          <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center p-4">
+          <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               className="btn-arcade px-8 py-3 text-lg"

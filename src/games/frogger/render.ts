@@ -161,7 +161,7 @@ export function renderFrogger(
   // HUD values over the baked chrome.
   g.textBaseline = "middle";
   g.fillStyle = "#f4ecff";
-  g.font = "700 11px Inter, system-ui, sans-serif";
+  g.font = "700 11px system-ui, sans-serif";
   g.textAlign = "right";
   g.fillText(String(state.score), SCORE_X, HUD_Y);
   g.fillText(String(state.level), LEVEL_X, HUD_Y);
@@ -178,7 +178,7 @@ export function renderFrogger(
       ? t(state.toast.params.labelKey)
       : "";
     const text = t(state.toast.key, { ...state.toast.params, label });
-    g.font = "700 13px Inter, system-ui, sans-serif";
+    g.font = "700 13px system-ui, sans-serif";
     const w = g.measureText(text).width + 24;
     g.fillStyle = "rgba(12, 4, 28, 0.85)";
     g.beginPath();

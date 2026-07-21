@@ -31,6 +31,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#140a26",
+  // Draw edge-to-edge in installed/standalone mode so env(safe-area-*)
+  // resolves to real notch/home-indicator insets (audit B1); without
+  // this the insets are always 0.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

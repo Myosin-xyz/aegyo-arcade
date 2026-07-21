@@ -46,6 +46,10 @@ class FlappyGame implements ShellLoopGame {
   private armed = false;
   /** Render-only glow trail of recent player positions (style pass). */
   private trail: number[] = [];
+  /** Constant draw-only gradients, built once (lazy) — see render(). */
+  private skyGradient: CanvasGradient | null = null;
+  private pipeGradient: CanvasGradient | null = null;
+  private wingGradient: CanvasGradient | null = null;
   private unsubscribers: (() => void)[] = [];
 
   constructor(private readonly ctx: GameContext) {}
@@ -114,10 +118,45 @@ class FlappyGame implements ShellLoopGame {
     }
   }
 
+  /**
+   * Build the constant (position-independent) gradients once. Their stops
+   * and coordinates never change, so rebuilding them every frame was pure
+   * waste. The pipe gradient spans 0..PIPE_WIDTH and is translated to each
+   * pipe at fill time; the wing gradient's coords are transformed by the
+   * CTM at paint — both stay draw-identical. Local vars let the compiler
+   * narrow away the null without an assertion.
+   */
+  private ensureGradients(g: CanvasRenderingContext2D): {
+    sky: CanvasGradient;
+    pipe: CanvasGradient;
+    wing: CanvasGradient;
+  } {
+    let sky = this.skyGradient;
+    let pipe = this.pipeGradient;
+    let wing = this.wingGradient;
+    if (!sky || !pipe || !wing) {
+      sky = g.createLinearGradient(0, 0, 0, FLOOR_Y);
+      sky.addColorStop(0, "#150a2b");
+      sky.addColorStop(1, "#341457");
+      pipe = g.createLinearGradient(0, 0, PIPE_WIDTH, 0);
+      pipe.addColorStop(0, "#5b21c9");
+      pipe.addColorStop(0.5, "#7b2ff7");
+      pipe.addColorStop(1, "#4a18a8");
+      wing = g.createLinearGradient(0, 0, -PLAYER_RADIUS * 1.7, 0);
+      wing.addColorStop(0, "#fff6ee");
+      wing.addColorStop(1, "#ffd9ec");
+      this.skyGradient = sky;
+      this.pipeGradient = pipe;
+      this.wingGradient = wing;
+    }
+    return { sky, pipe, wing };
+  }
+
   render(): void {
     if (this.ctx.surface.kind !== "canvas" || !this.state) return;
     const { context2d: g } = this.ctx.surface;
     const state = this.state;
+    const grad = this.ensureGradients(g);
 
     // Render-only trail bookkeeping (never touches the simulation).
     if (this.armed && state.status === "running") {
@@ -129,10 +168,7 @@ class FlappyGame implements ShellLoopGame {
 
     // Concert night sky + deterministic crowd-lightstick specks (hash
     // scatter — render stays allocation-light and RNG-free).
-    const sky = g.createLinearGradient(0, 0, 0, FLOOR_Y);
-    sky.addColorStop(0, "#150a2b");
-    sky.addColorStop(1, "#341457");
-    g.fillStyle = sky;
+    g.fillStyle = grad.sky;
     g.fillRect(0, 0, DESIGN.w, DESIGN.h);
     for (let i = 0; i < 42; i++) {
       const px = (i * 97 + 23) % DESIGN.w;
@@ -161,18 +197,19 @@ class FlappyGame implements ShellLoopGame {
     for (const pipe of state.pipes) {
       const topH = pipe.gapCenter - GAP_HALF;
       const botY = pipe.gapCenter + GAP_HALF;
-      const body = g.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
-      body.addColorStop(0, "#5b21c9");
-      body.addColorStop(0.5, "#7b2ff7");
-      body.addColorStop(1, "#4a18a8");
-      g.fillStyle = body;
+      // Cached gradient spans 0..PIPE_WIDTH; translate places it per pipe
+      // (identical to the old per-pipe createLinearGradient at pipe.x).
+      g.save();
+      g.translate(pipe.x, 0);
+      g.fillStyle = grad.pipe;
       g.beginPath();
-      g.roundRect(pipe.x, -8, PIPE_WIDTH, topH + 8, 6);
-      g.roundRect(pipe.x, botY, PIPE_WIDTH, FLOOR_Y - botY + 8, 6);
+      g.roundRect(0, -8, PIPE_WIDTH, topH + 8, 6);
+      g.roundRect(0, botY, PIPE_WIDTH, FLOOR_Y - botY + 8, 6);
       g.fill();
       g.fillStyle = "#ff8fb8";
-      g.fillRect(pipe.x, topH - 4, PIPE_WIDTH, 4);
-      g.fillRect(pipe.x, botY, PIPE_WIDTH, 4);
+      g.fillRect(0, topH - 4, PIPE_WIDTH, 4);
+      g.fillRect(0, botY, PIPE_WIDTH, 4);
+      g.restore();
     }
 
     // Feather trail behind the flyer (render-only history).
@@ -209,10 +246,9 @@ class FlappyGame implements ShellLoopGame {
       g.scale(side, 1);
       g.translate(-R * 0.45, -R * 0.15);
       g.rotate(-0.55 - flapBeat * 0.55);
-      const wing = g.createLinearGradient(0, 0, -R * 1.7, 0);
-      wing.addColorStop(0, "#fff6ee");
-      wing.addColorStop(1, "#ffd9ec");
-      g.fillStyle = wing;
+      // Cached constant gradient; its coords are mapped by the current
+      // CTM at paint, so the per-side scale/rotate still applies.
+      g.fillStyle = grad.wing;
       g.beginPath();
       g.ellipse(-R * 0.85, 0, R * 1.05, R * 0.42, 0.12, 0, Math.PI * 2);
       g.fill();

@@ -20,9 +20,16 @@ const ROOT = path.resolve(
 const OUT = path.join(ROOT, "docs/l10n-review-es-419.md");
 
 export function buildReviewDoc(en, es) {
+  const enOnly = Object.keys(en).filter((k) => !(k in es));
+  const esOnly = Object.keys(es).filter((k) => !(k in en));
+  if (enOnly.length || esOnly.length) {
+    throw new Error(
+      `locale key drift — missing in es-419: [${enOnly}] · orphaned in es-419: [${esOnly}]`,
+    );
+  }
   const keys = Object.keys(en).sort();
   for (const key of keys) {
-    for (const value of [en[key], es[key] ?? ""]) {
+    for (const value of [en[key], es[key]]) {
       if (value.includes("|") || value.includes("`")) {
         throw new Error(
           `locale value for ${key} contains a table-breaking character`,
@@ -30,9 +37,7 @@ export function buildReviewDoc(en, es) {
       }
     }
   }
-  const rows = keys.map(
-    (key) => `| \`${key}\` | ${en[key]} | ${es[key] ?? "(MISSING)"} |`,
-  );
+  const rows = keys.map((key) => `| \`${key}\` | ${en[key]} | ${es[key]} |`);
   return [
     "# es-419 Native Review Pack (EXT-LOCALE gate)",
     "",

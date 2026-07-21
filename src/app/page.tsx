@@ -5,26 +5,16 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { listGames } from "@/games/registry";
+import { GAME_ACCENTS, PALETTE } from "@/shell/palette";
 import { t } from "@/i18n/t";
 import { StreakStrip } from "./streak-strip";
 import { AegyoLogo } from "./logo";
 import { LocaleToggle } from "./locale-toggle";
 
-/** Per-game accent chips, pulled from the games' own palettes. */
-const GAME_ACCENTS: Record<string, string> = {
-  claw: "#ff4f8b",
-  snake: "#2fe6c4",
-  flappy: "#ffd166",
-  jumper: "#8b7cff",
-  hangman: "#7dffd9",
-  freebie: "#ff7a3d",
-  frogger: "#ff8fb8",
-};
-
 export default function Home() {
   const games = listGames();
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 px-5 pb-12">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 px-5 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)]">
       <header className="flex flex-col items-center gap-2 pt-10 text-center">
         <AegyoLogo className="h-16 w-16 drop-shadow-[0_0_18px_rgba(255,79,139,0.45)]" />
         <h1 className="font-arcade glow-brand text-xl font-bold uppercase text-brand">
@@ -35,7 +25,7 @@ export default function Home() {
       <StreakStrip />
       <ul className="grid grid-cols-2 gap-3">
         {games.map((game, index) => {
-          const accent = GAME_ACCENTS[game.meta.id] ?? "#ff4f8b";
+          const accent = GAME_ACCENTS[game.meta.id] ?? PALETTE.brand;
           return (
             <li
               key={game.meta.id}
@@ -77,8 +67,8 @@ export default function Home() {
           {t("install.link")}
         </Link>
         <LocaleToggle />
-        <p className="text-center font-arcade text-[10px] uppercase tracking-wider text-muted">
-          Aegyo Arena
+        <p className="text-center font-arcade text-[0.625rem] uppercase tracking-wider text-muted">
+          {t("portal.title")}
         </p>
       </div>
     </main>

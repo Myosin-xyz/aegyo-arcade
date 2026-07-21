@@ -55,6 +55,31 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/* Visible keyboard focus everywhere (audit A2/H2): the UA default ring
+ * is near-invisible on this dark palette. Accent (#2fe6c4) is ~12:1 on
+ * the background — a high-contrast indicator. Only for keyboard focus,
+ * so pointer users never see it. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Respect reduced-motion (audit A9): kill the CSS transitions/glow for
+ * vestibular-sensitive users. Canvas games drive their own motion in JS
+ * and are gated separately (a reduced-motion engine flag is a tracked
+ * follow-up). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Arcade display face — headings/short labels only (pixel fonts don't
  * read at body sizes). */
 .font-arcade {
@@ -68,11 +93,15 @@ body {
     0 0 42px rgba(255, 79, 139, 0.25);
 }
 
-/* Chunky arcade primary button (shared by host CTAs + cards). */
+/* Chunky arcade primary button (shared by host CTAs + cards). Label is
+ * dark, not white: white on the bright brand pink is only ~2-3:1 and
+ * fails WCAG AA on the primary action (audit H1). A dark brand-tinted
+ * label keeps the vibrant pink (the designer's chosen brand color)
+ * while reaching ~6:1. */
 .btn-arcade {
   border-radius: 0.9rem;
   background: linear-gradient(180deg, var(--brand-soft) -40%, var(--brand) 45%);
-  color: #fff;
+  color: #2a0713;
   font-weight: 800;
   box-shadow:
     0 4px 0 var(--brand-deep),

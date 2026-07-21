@@ -1,6 +1,6 @@
 # es-419 Native Review Pack (EXT-LOCALE gate)
 
-> Generated from src/i18n/locales (148 strings) by
+> Generated from src/i18n/locales (149 strings) by
 > scripts/ops/generate-l10n-review.mjs — regenerate after ANY copy
 > change; a unit test pins this document to the JSON values.
 > LOCALE-1 requires a native/fan-fluent review before es-419 is
@@ -162,7 +162,8 @@
 | `install.ios.title`                      | iPhone / iPad (Safari)                                                                | iPhone / iPad (Safari)                                                                   |
 | `install.link`                           | Add to your home screen                                                               | Agrega el arcade a tu pantalla de inicio                                                 |
 | `install.title`                          | Play from your home screen                                                            | Juega desde tu pantalla de inicio                                                        |
+| `portal.language`                        | Language                                                                              | Idioma                                                                                   |
 | `portal.play`                            | Play                                                                                  | Jugar                                                                                    |
 | `portal.streak`                          | Daily streak: {current} · Best {best}                                                 | Racha diaria: {current} · Mejor {best}                                                   |
 | `portal.tagline`                         | K-pop mini-games. Light, fast, one hand.                                              | Minijuegos K-pop. Ligeros, rápidos, con una mano.                                        |
-| `portal.title`                           | Aegyo Arena Arcade                                                                    | Aegyo Arena Arcade                                                                       |
+| `portal.title`                           | Aegyo Arcade                                                                          | Aegyo Arcade                                                                             |

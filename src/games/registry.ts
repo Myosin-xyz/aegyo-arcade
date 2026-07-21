@@ -61,6 +61,12 @@ const entries: RegistryEntry[] = [
     meta: clawMeta,
     hostManagedCanvas: false,
     countedCompletion: "game-owned",
+    // The claw has no score concept (capabilities = counted + prize, no
+    // score) — like This-or-That, it must not present a fictional
+    // "Score: 0" in the header, the ended overlay, or the screen-reader
+    // announcement (audit A5, 2026-07-21). Its counted rank/streak
+    // receipt is a separate host branch and is unaffected.
+    scorePresentation: "none",
     load: () => import("./claw/module").then((m) => m.clawDefinition),
   },
   {

@@ -13,12 +13,21 @@ export interface DesignBox {
 
 export class CanvasSurfaceManager {
   private readonly onResize: () => void;
+  private readonly onScroll: () => void;
   private cssWidth = 0;
   private cssHeight = 0;
   private offsetX = 0;
   private offsetY = 0;
   private scale = 1;
   private destroyed = false;
+  /**
+   * Cached canvas viewport rect for toDesign(): getBoundingClientRect()
+   * forces a synchronous layout, and toDesign() runs on every pointer
+   * event (including `move` during a drag). The rect only changes on
+   * layout (resize) or when the page/viewport scrolls, so we refresh it on
+   * exactly those signals instead of reading it per event.
+   */
+  private canvasRect: DOMRect | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -26,7 +35,19 @@ export class CanvasSurfaceManager {
     private readonly designBox: DesignBox,
   ) {
     this.onResize = () => this.resize();
+    this.onScroll = () => this.refreshCanvasRect();
     window.addEventListener("resize", this.onResize);
+    // Scrolling shifts the canvas's viewport-relative rect without firing
+    // a resize, so the cached rect must be refreshed on scroll too or
+    // pointer mapping drifts. Passive: we only read layout, never block.
+    window.addEventListener("scroll", this.onScroll, { passive: true });
+    // visualViewport is the robust signal on mobile (pinch-zoom, URL-bar
+    // collapse) where window scroll/resize can miss the change.
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener("resize", this.onScroll, { passive: true });
+      vv.addEventListener("scroll", this.onScroll, { passive: true });
+    }
     this.resize();
   }
 
@@ -66,11 +87,22 @@ export class CanvasSurfaceManager {
         0,
       );
     }
+
+    // The canvas box/position just changed — refresh the cached rect so
+    // toDesign() maps against the new layout.
+    this.refreshCanvasRect();
+  }
+
+  /** Re-read and cache the canvas viewport rect (the one forced-layout
+   * read, now bounded to resize/scroll instead of every pointer event). */
+  private refreshCanvasRect(): void {
+    if (this.destroyed) return;
+    this.canvasRect = this.canvas.getBoundingClientRect();
   }
 
   /** Map viewport client coordinates into design-box coordinates. */
   toDesign(clientX: number, clientY: number): { x: number; y: number } {
-    const rect = this.canvas.getBoundingClientRect();
+    const rect = this.canvasRect ?? this.canvas.getBoundingClientRect();
     return {
       x: ((clientX - rect.left) / (rect.width || 1)) * this.designBox.w,
       y: ((clientY - rect.top) / (rect.height || 1)) * this.designBox.h,
@@ -81,5 +113,11 @@ export class CanvasSurfaceManager {
     if (this.destroyed) return;
     this.destroyed = true;
     window.removeEventListener("resize", this.onResize);
+    window.removeEventListener("scroll", this.onScroll);
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.removeEventListener("resize", this.onScroll);
+      vv.removeEventListener("scroll", this.onScroll);
+    }
   }
 }

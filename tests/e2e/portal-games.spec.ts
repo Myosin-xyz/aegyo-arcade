@@ -71,8 +71,9 @@ const SMOKE_ACTIONS: Record<
     terminal: true,
   },
   claw: {
-    // Rail glide + a DEPTH hold via keyboard (input proof for both
-    // axes, review P2 2026-07-19); practice never terminates.
+    // Rail tap (ArrowLeft, ~0ms) + a real 250ms DEPTH hold via keyboard
+    // (input proof for both axes, review P2 2026-07-19); practice never
+    // terminates.
     act: async (page) => {
       await page.keyboard.press("ArrowLeft");
       await page.keyboard.down("ArrowDown");

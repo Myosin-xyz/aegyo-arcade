@@ -48,6 +48,10 @@ class JumperGame implements ShellLoopGame {
   /** First steer input starts the run (M4 UX P1: drag steering is
    * invisible — nothing should move before the player engages). */
   private armed = false;
+  /** Constant draw-only gradients, built once (lazy) — see render(). */
+  private skyGradient: CanvasGradient | null = null;
+  private jacketGradient: CanvasGradient | null = null;
+  private vignetteGradient: CanvasGradient | null = null;
   private unsubscribers: (() => void)[] = [];
 
   constructor(private readonly ctx: GameContext) {}
@@ -120,16 +124,51 @@ class JumperGame implements ShellLoopGame {
     }
   }
 
+  /**
+   * Build the three constant (position-independent) gradients once. Stops
+   * and coords never change, so per-frame rebuilds were waste. The jacket
+   * and vignette coords are mapped by the CTM at paint (the jacket under
+   * the player translate/scale), so caching stays draw-identical. Local
+   * vars let the compiler narrow away the null without an assertion.
+   */
+  private ensureGradients(g: CanvasRenderingContext2D): {
+    sky: CanvasGradient;
+    jacket: CanvasGradient;
+    vignette: CanvasGradient;
+  } {
+    let sky = this.skyGradient;
+    let jacket = this.jacketGradient;
+    let vignette = this.vignetteGradient;
+    if (!sky || !jacket || !vignette) {
+      sky = g.createLinearGradient(0, 0, 0, DESIGN.h);
+      sky.addColorStop(0, "#1a0c33");
+      sky.addColorStop(1, "#2b1146");
+      // Rose quartz / serenity duo-tone with a hard split at 0.5.
+      jacket = g.createLinearGradient(-PLAYER_W / 2, 0, PLAYER_W / 2, 0);
+      jacket.addColorStop(0, "#f7cac9");
+      jacket.addColorStop(0.5, "#f7cac9");
+      jacket.addColorStop(0.5, "#92a8d1");
+      jacket.addColorStop(1, "#92a8d1");
+      vignette = g.createLinearGradient(0, 0, DESIGN.w, 0);
+      vignette.addColorStop(0, "rgba(10, 4, 20, 0.35)");
+      vignette.addColorStop(0.18, "rgba(10, 4, 20, 0)");
+      vignette.addColorStop(0.82, "rgba(10, 4, 20, 0)");
+      vignette.addColorStop(1, "rgba(10, 4, 20, 0.35)");
+      this.skyGradient = sky;
+      this.jacketGradient = jacket;
+      this.vignetteGradient = vignette;
+    }
+    return { sky, jacket, vignette };
+  }
+
   render(): void {
     if (this.ctx.surface.kind !== "canvas" || !this.state) return;
     const { context2d: g } = this.ctx.surface;
     const state = this.state;
+    const grad = this.ensureGradients(g);
 
     // Venue depth: gradient + two parallax speck layers keyed to camera.
-    const sky = g.createLinearGradient(0, 0, 0, DESIGN.h);
-    sky.addColorStop(0, "#1a0c33");
-    sky.addColorStop(1, "#2b1146");
-    g.fillStyle = sky;
+    g.fillStyle = grad.sky;
     g.fillRect(0, 0, DESIGN.w, DESIGN.h);
     for (let layer = 0; layer < 2; layer++) {
       const speed = layer === 0 ? 0.25 : 0.55;
@@ -196,12 +235,8 @@ class JumperGame implements ShellLoopGame {
     g.translate(px + PLAYER_W / 2, py + PLAYER_H);
     g.scale(2 - squash, squash);
     // Jacket: rose quartz / serenity split (the duo-tone stage fit).
-    const jacket = g.createLinearGradient(-PLAYER_W / 2, 0, PLAYER_W / 2, 0);
-    jacket.addColorStop(0, "#f7cac9");
-    jacket.addColorStop(0.5, "#f7cac9");
-    jacket.addColorStop(0.5, "#92a8d1");
-    jacket.addColorStop(1, "#92a8d1");
-    g.fillStyle = jacket;
+    // Cached gradient; the player translate/scale maps it at paint time.
+    g.fillStyle = grad.jacket;
     g.beginPath();
     g.roundRect(-PLAYER_W / 2, -PLAYER_H * 0.72, PLAYER_W, PLAYER_H * 0.72, 7);
     g.fill();
@@ -244,12 +279,7 @@ class JumperGame implements ShellLoopGame {
     g.restore();
 
     // Side vignette: pulls the eye toward the climb column.
-    const vignette = g.createLinearGradient(0, 0, DESIGN.w, 0);
-    vignette.addColorStop(0, "rgba(10, 4, 20, 0.35)");
-    vignette.addColorStop(0.18, "rgba(10, 4, 20, 0)");
-    vignette.addColorStop(0.82, "rgba(10, 4, 20, 0)");
-    vignette.addColorStop(1, "rgba(10, 4, 20, 0.35)");
-    g.fillStyle = vignette;
+    g.fillStyle = grad.vignette;
     g.fillRect(0, 0, DESIGN.w, DESIGN.h);
 
     // Chart-position HUD — the progression hook (docs: visible rank).

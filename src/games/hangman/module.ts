@@ -75,9 +75,13 @@ class HangmanGame implements ShellLoopGame {
     const hint = document.createElement("p");
     hint.style.cssText = "font-size:15px;text-align:center;margin:0;";
     const word = document.createElement("div");
+    // Responsive so long words (COMEBACK, ULZZANG) don't overflow the
+    // ~288px content box at 320px (audit B4); clamp + em spacing scale
+    // together, break-word wraps if it still can't fit.
     word.style.cssText =
-      "font-size:28px;font-weight:800;letter-spacing:8px;text-align:center;" +
-      "min-height:40px;";
+      "font-size:clamp(20px, 6.5vw, 28px);font-weight:800;" +
+      "letter-spacing:0.25em;text-align:center;min-height:40px;" +
+      "max-width:100%;overflow-wrap:break-word;word-break:break-word;";
     const lives = document.createElement("p");
     lives.style.cssText = "font-size:14px;margin:0;";
     const status = document.createElement("p");

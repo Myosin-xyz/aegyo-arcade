@@ -200,9 +200,9 @@ describe("GameHostInner lifecycle enforcement", () => {
       });
       await act(async () => {});
 
-      // Header score span (aria-labelled) follows the mode.
+      // Header score span (aria-labelled with the value now) follows the mode.
       const headerScore = container.querySelector(
-        'header [aria-label="Score"]',
+        'header [data-testid="header-score"]',
       );
       if (mode === "shell") expect(headerScore).toBeTruthy();
       else expect(headerScore).toBeNull();

@@ -143,8 +143,9 @@
   "install.ios.title": "iPhone / iPad (Safari)",
   "install.link": "Add to your home screen",
   "install.title": "Play from your home screen",
+  "portal.language": "Language",
   "portal.play": "Play",
   "portal.streak": "Daily streak: {current} · Best {best}",
   "portal.tagline": "K-pop mini-games. Light, fast, one hand.",
-  "portal.title": "Aegyo Arena Arcade"
+  "portal.title": "Aegyo Arcade"
 }

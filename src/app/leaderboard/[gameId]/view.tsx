@@ -104,14 +104,16 @@ export function LeaderboardView({ gameId }: { gameId: string }) {
             <p className="text-sm text-muted">{t("board.empty")}</p>
           ) : (
             <table
-              className="card-arcade w-full overflow-hidden text-sm"
+              className="card-arcade w-full table-fixed overflow-hidden text-sm"
               data-testid="board-table"
             >
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-3 py-2">{t("board.rank")}</th>
+                  <th className="w-14 px-3 py-2">{t("board.rank")}</th>
                   <th className="py-2 pr-2">{t("board.player")}</th>
-                  <th className="py-2 pr-3 text-right">{t("board.score")}</th>
+                  <th className="w-20 py-2 pr-3 text-right">
+                    {t("board.score")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -125,7 +127,9 @@ export function LeaderboardView({ gameId }: { gameId: string }) {
                     >
                       #{row.rank}
                     </td>
-                    <td className="py-1.5 pr-2">
+                    {/* Curated handles can be long — truncate so one
+                        never widens the phone column (audit B6). */}
+                    <td className="truncate py-1.5 pr-2">
                       {row.handle}
                       {row.you ? ` (${t("board.you")})` : ""}
                     </td>

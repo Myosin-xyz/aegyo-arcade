@@ -17,6 +17,7 @@ import {
   ClawPlayRefusedError,
 } from "./outcome";
 import type { Manifest, Outcome, SpriteRect } from "./types";
+import { PALETTE } from "@/shell/palette";
 
 export interface ClawMachineOptions {
   canvas: HTMLCanvasElement;
@@ -51,16 +52,19 @@ interface Segment {
  * Aim → plush mapping (M4 UX P1 + depth axis, team feedback 2026-07-19):
  * the claw's travel divides into fixed columns AND two depth rows —
  * front (closer to the glass) and back. Aiming selects the plush from a
- * 2×5 grid; the server still decides grip (win / slip / miss).
+ * 2×5 grid; the server still decides grip (win / slip(drop) / miss).
  * Deterministic — the same (column, depth) always yields the same
  * plush, never a random one. The default depth (0.5) is the FRONT row,
  * which preserves the original single-axis mapping.
  */
 const FRONT_ROW = ["D", "A", "E", "B", "K"] as const;
 const BACK_ROW = ["K", "E", "A2", "D", "B"] as const;
+// pile surface shift across full depth (of dH) — drives the aim shadow,
+// the slip-tumble landing row, the contact puffs, AND descentDepth();
+// tuning it moves those presentation landings, not just the shadow.
 const PILE_Y_FRAC = 0.72; // pile surface line at center depth
-const PILE_DEPTH_SPAN = 0.1; // aim shadow travel across the pile (of dH)
-const GANTRY_DEPTH_FRAC = 0.04; // gantry y-shift across full depth (of dH)
+const PILE_DEPTH_SPAN = 0.1;
+const GANTRY_DEPTH_FRAC = 0.04; // claw/cable y-shift across full depth (of dH); trolley stays on rail
 const DEPTH_SPEED = 0.0011; // depth units per ms while forward/back held
 const DEPTH_FALL_TOP = 40; // slip tumble starts just under the claw tips
 const OUTCOME_WAIT_MS = 6000; // dwell cap while the server resolves
@@ -474,6 +478,11 @@ export class ClawMachine {
       })
       .catch((error: unknown) => {
         if (this.destroyed || gen !== this.dropGen) return;
+        // Leave a breadcrumb: the "TRY AGAIN"/"UNAVAILABLE" flash is
+        // honest for the user, but a plays-endpoint outage or a
+        // deterministic client bug would otherwise vanish with zero
+        // logging anywhere in the claw code (audit silent-failure #3).
+        console.error(`[claw] drop outcome failed (gen ${gen})`, error);
         if (error instanceof ClawPlayRefusedError) this.dropRefused = true;
         this.dropError = true;
       });
@@ -491,8 +500,10 @@ export class ClawMachine {
     const span = hi - lo || 1;
     const row = this.clawTZ >= 0.5 ? FRONT_ROW : BACK_ROW;
     const index = Math.floor(((this.clawTX - lo) / span) * row.length);
-    const key = row[clamp(index, 0, row.length - 1)];
-    return this.manifest.clawPlush[key] ? key : "D";
+    // fetchManifest validates every FRONT_ROW/BACK_ROW key exists, so
+    // this is always a real plush — no silent "D" redirect (audit
+    // silent-failure #4).
+    return row[clamp(index, 0, row.length - 1)];
   }
 
   /** Pile surface line at the CURRENT depth (front = lower on screen). */
@@ -501,7 +512,8 @@ export class ClawMachine {
     return dH * (PILE_Y_FRAC + (this.clawTZ - 0.5) * PILE_DEPTH_SPAN);
   }
 
-  /** Pseudo-perspective gantry shift: closer to the glass rides lower. */
+  /** Pseudo-perspective depth shift: the claw/cable hang lower closer to
+   * the glass (the trolley itself stays on its rail). */
   private gantryY(): number {
     return (this.clawTZ - 0.5) * this.manifest.design.h * GANTRY_DEPTH_FRAC;
   }
@@ -647,9 +659,11 @@ export class ClawMachine {
             this.clawTX = holeTX;
             this.clawTY = dH * HOLE_DROP_FRAC * (1 - 0.25 * t);
             this.winFallT = t;
-            if (t >= 0.72 && !this.winFallPuffed) {
+            // Fire at the landing (t*t easing puts the plush near the
+            // chute here + the impact squash begins at t>0.82), not the
+            // earlier release moment (audit comment #2).
+            if (t >= 0.85 && !this.winFallPuffed) {
               this.winFallPuffed = true;
-              // sparkle at the LANDING moment, not the release moment
               this.confetti.burst(dW * HOLE_CX_FRAC, dH * 0.82, 26, 1.0);
             }
           },
@@ -1001,16 +1015,16 @@ export class ClawMachine {
     ctx.fillRect(0, 0, dW, dH);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "#ff5db0";
+    ctx.fillStyle = PALETTE.brand;
     ctx.font = `700 ${Math.round(dW * 0.05)}px ui-monospace, monospace`;
-    ctx.fillText("AEGYO ARENA", dW / 2, dH * 0.44);
+    ctx.fillText("AEGYO ARCADE", dW / 2, dH * 0.44);
     const bw = dW * 0.5;
     const bh = dH * 0.012;
     const bx = (dW - bw) / 2;
     const by = dH * 0.5;
     ctx.fillStyle = "#2a2140";
     ctx.fillRect(bx, by, bw, bh);
-    ctx.fillStyle = "#ff5db0";
+    ctx.fillStyle = PALETTE.brand;
     ctx.fillRect(bx, by, bw * this.loadProgress, bh);
   }
 

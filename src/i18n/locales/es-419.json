@@ -143,8 +143,9 @@
   "install.ios.title": "iPhone / iPad (Safari)",
   "install.link": "Agrega el arcade a tu pantalla de inicio",
   "install.title": "Juega desde tu pantalla de inicio",
+  "portal.language": "Idioma",
   "portal.play": "Jugar",
   "portal.streak": "Racha diaria: {current} · Mejor {best}",
   "portal.tagline": "Minijuegos K-pop. Ligeros, rápidos, con una mano.",
-  "portal.title": "Aegyo Arena Arcade"
+  "portal.title": "Aegyo Arcade"
 }

@@ -28,8 +28,9 @@ const DROP_LIT_MS = 150;
 
 // All four directions are live (team feedback, 2026-07-19): forward/backward
 // restore the original machine's depth axis as a pseudo-perspective glide —
-// the gantry rides slightly lower "closer" to the glass and the aim shadow
-// travels down the pile. Assets for the lit arrows shipped with the port.
+// the claw hangs slightly lower (cable lengthens) "closer" to the glass while
+// the trolley stays on its rail, and the aim shadow travels down the pile.
+// Assets for the lit arrows shipped with the port.
 const ZONES: ControlKey[] = ["left", "right", "forward", "backward", "drop"];
 
 /** forward = away from the viewer (up-screen), backward = toward it. */

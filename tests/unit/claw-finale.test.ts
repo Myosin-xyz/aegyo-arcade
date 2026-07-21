@@ -40,6 +40,7 @@ function fakeManifest(): Manifest {
       E: rect(40, 10),
       B: rect(40, 10),
       K: rect(40, 10),
+      A2: rect(40, 10), // BACK_ROW key — fetchManifest now validates it exists
     },
     winBoard: rect(20, 20, 60, 20),
     controls: {
@@ -92,6 +93,7 @@ interface EngineProbe {
   flashT: number;
   heldDir: number;
   clawTX: number;
+  winFallT: number;
   onDrop(): void;
 }
 
@@ -345,6 +347,10 @@ describe("claw counted finale — terminal boundary per forced outcome", () => {
       await stepUntil(presenting);
       const presentationStart = clock;
       expect(endCalls).toHaveLength(0); // end must NOT fire at drop-complete
+      // The win-fall tween is cleared by settleOpen before "won" — no
+      // ghost plush may render over the chute past the release
+      // (test-analyzer gap #5).
+      if (outcome === "win") expect(machine.winFallT).toBe(-1);
 
       // Gameplay input is dead during the presentation.
       const clawXBefore = machine.clawTX;

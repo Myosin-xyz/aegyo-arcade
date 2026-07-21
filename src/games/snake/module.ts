@@ -41,6 +41,23 @@ const COLORS = {
   controlArrow: "rgba(255, 255, 255, 0.85)",
 } as const;
 
+// Tail gradient (head-pink → violet) precomputed into fixed buckets so the
+// per-segment colour is an array lookup instead of an `rgb(...)` string
+// built for every body segment every frame. Endpoints match the previous
+// inline interpolation — (255,79,139) at f=0 → (139,124,255) at f=1; 16
+// buckets is visually indistinguishable from the continuous ramp.
+const TAIL_BUCKET_COUNT = 16;
+const TAIL_COLORS: readonly string[] = Array.from(
+  { length: TAIL_BUCKET_COUNT },
+  (_, k) => {
+    const f = k / (TAIL_BUCKET_COUNT - 1);
+    const r = Math.round(255 + (139 - 255) * f);
+    const g = Math.round(79 + (124 - 79) * f);
+    const b = Math.round(139 + (255 - 139) * f);
+    return `rgb(${r}, ${g}, ${b})`;
+  },
+);
+
 class SnakeGame implements ShellLoopGame {
   readonly loop = "shell" as const;
   private state: SnakeState | null = null;
@@ -52,6 +69,10 @@ class SnakeGame implements ShellLoopGame {
   private armed = false;
   private endedReported = false;
   private swipeStart: { x: number; y: number } | null = null;
+  /** Head-glow radial gradient built once at the origin and translated to
+   * the head each frame (rebuilt only if `cell` changes). */
+  private headGlow: CanvasGradient | null = null;
+  private headGlowCell = 0;
   private unsubscribers: (() => void)[] = [];
 
   constructor(private readonly ctx: GameContext) {}
@@ -181,10 +202,11 @@ class SnakeGame implements ShellLoopGame {
         g.fillStyle = COLORS.head;
       } else {
         const f = i / tailLength;
-        const r = Math.round(255 + (139 - 255) * f);
-        const gg = Math.round(79 + (124 - 79) * f);
-        const b = Math.round(139 + (255 - 139) * f);
-        g.fillStyle = `rgb(${r}, ${gg}, ${b})`;
+        const bucket = Math.min(
+          TAIL_BUCKET_COUNT - 1,
+          Math.max(0, Math.round(f * (TAIL_BUCKET_COUNT - 1))),
+        );
+        g.fillStyle = TAIL_COLORS[bucket];
       }
       const pad = 1;
       g.beginPath();
@@ -198,17 +220,27 @@ class SnakeGame implements ShellLoopGame {
       g.fill();
     }
 
-    // Soft glow under the head so the leading edge always pops.
+    // Soft glow under the head so the leading edge always pops. Gradient
+    // is built once at the origin and translated to the head (rebuilt only
+    // if `cell` changes) — draw-identical to the old per-frame build.
     const glowHead = state.body[0];
     const ghx = glowHead.x * cell + cell / 2;
     const ghy = offsetY + glowHead.y * cell + cell / 2;
-    const headGlow = g.createRadialGradient(ghx, ghy, 1, ghx, ghy, cell * 1.4);
-    headGlow.addColorStop(0, "rgba(255, 79, 139, 0.35)");
-    headGlow.addColorStop(1, "rgba(255, 79, 139, 0)");
+    let headGlow = this.headGlow;
+    if (!headGlow || this.headGlowCell !== cell) {
+      headGlow = g.createRadialGradient(0, 0, 1, 0, 0, cell * 1.4);
+      headGlow.addColorStop(0, "rgba(255, 79, 139, 0.35)");
+      headGlow.addColorStop(1, "rgba(255, 79, 139, 0)");
+      this.headGlow = headGlow;
+      this.headGlowCell = cell;
+    }
+    g.save();
+    g.translate(ghx, ghy);
     g.fillStyle = headGlow;
     g.beginPath();
-    g.arc(ghx, ghy, cell * 1.4, 0, Math.PI * 2);
+    g.arc(0, 0, cell * 1.4, 0, Math.PI * 2);
     g.fill();
+    g.restore();
 
     const head = state.body[0];
     const neck = state.body[1] ?? head;

@@ -13,10 +13,32 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
+/** Controls the input layer + render blit unconditionally. */
+export const REQUIRED_CONTROLS = [
+  "left",
+  "right",
+  "forward",
+  "backward",
+  "drop",
+] as const;
+/** Union of engine.ts FRONT_ROW + BACK_ROW — every aimable plush. Keep
+ * in sync if those rows change (validated here so a drifted/stale-cached
+ * manifest fails LOUD at load instead of silently redirecting aim to a
+ * different plush or throwing deep inside the rAF frame — audit
+ * silent-failure #4, 2026-07-21). */
+export const REQUIRED_PLUSH = ["D", "A", "E", "B", "K", "A2"] as const;
+
 export async function fetchManifest(base: string): Promise<Manifest> {
   const res = await fetch(`${base}manifest.json`);
   if (!res.ok) throw new Error(`manifest ${res.status}`);
-  return (await res.json()) as Manifest;
+  const m = (await res.json()) as Manifest;
+  for (const k of REQUIRED_CONTROLS) {
+    if (!m.controls?.[k]) throw new Error(`manifest missing control "${k}"`);
+  }
+  for (const k of REQUIRED_PLUSH) {
+    if (!m.clawPlush?.[k]) throw new Error(`manifest missing plush "${k}"`);
+  }
+  return m;
 }
 
 export async function loadImages(

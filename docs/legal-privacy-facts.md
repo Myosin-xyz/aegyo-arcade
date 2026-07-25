@@ -1,4 +1,4 @@
-# Privacy Facts — EXT-LEGAL counsel briefing (Aegyo Arcade)
+# Privacy Facts — EXT-LEGAL counsel briefing (Aegyo Arena)
 
 > Prepared 2026-07-19 to accelerate the EXT-LEGAL gate (TECH_SPEC §3.1):
 > counsel confirms audience classification, privacy/consent posture,

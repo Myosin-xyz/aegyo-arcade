@@ -2,7 +2,7 @@
 
 **Version**: 1.0
 **Audience**: Daidai and future external game contributors
-**Purpose**: Make a game easy to integrate into Aegyo Arcade without asking the contributor to reproduce Myosin's runtime or QA process.
+**Purpose**: Make a game easy to integrate into Aegyo Arena without asking the contributor to reproduce Myosin's runtime or QA process.
 **Delivery cutoff (Frogger)**: end of day **Friday, July 31, 2026** (any timezone). This date is fixed regardless of when you receive this document. If a delivery hasn't been received and accepted by then, Myosin builds an internal version so the launch date holds — a late delivery can still replace it later if it clears intake.
 
 ## What to send
@@ -36,7 +36,7 @@ Please do not spend time producing bundle-size, decoded-memory, or device-perfor
 - Timers, animation frames, global listeners, audio contexts, and mounted DOM are identified so Myosin can adapt and tear them down.
 - Score and end conditions are deterministic enough to test from written examples.
 
-You do not need to implement Aegyo Arcade's `GameDefinition`, `InputBus`, or `AudioBus`. Deliver honest standalone source; Myosin will adapt or refactor it at the integration boundary.
+You do not need to implement Aegyo Arena's `GameDefinition`, `InputBus`, or `AudioBus`. Deliver honest standalone source; Myosin will adapt or refactor it at the integration boundary.
 
 ## Strings and content
 

@@ -81,13 +81,17 @@ describe("claw input teardown (drop-light timer)", () => {
       scale: 1,
       design: { w: 100, h: 100 },
       back: zero,
+      midPlush: zero,
       frontPlush: zero,
       frame: zero,
       trolley: zero,
       clawOpen: zero,
       clawClosed: zero,
+      clawRelease: zero,
       clawPlush: {},
       winBoard: zero,
+      fallFrames: [zero, zero, zero, zero, zero, zero], // exactly 6 required
+      tryAgain: zero,
       controls: {
         left: { ...zero },
         right: { ...zero },

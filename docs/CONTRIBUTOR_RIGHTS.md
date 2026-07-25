@@ -4,9 +4,9 @@
 
 ## Send-ready message
 
-Hi [NAME] — for the Aegyo Arcade files you contributed, please review the paragraph below, fill any exclusions, and reply **“I confirm”** from your usual email or team account.
+Hi [NAME] — for the Aegyo Arena files you contributed, please review the paragraph below, fill any exclusions, and reply **“I confirm”** from your usual email or team account.
 
-> I confirm that I created, or have authority to license, the code, art, copy, audio, and other materials I delivered for **[GAME / DELIVERY]**. Except for the items listed below, the delivery does not include third-party material that prevents Myosin from using it. I grant Myosin a perpetual, worldwide, royalty-free license to use, copy, modify, adapt, display, distribute, sublicense, and commercially operate the delivery as part of Aegyo Arcade and related Myosin products. I understand Myosin may refactor, translate, combine, or choose not to use the delivery. Excluded or third-party items and their terms: **[NONE / LIST ITEMS AND LICENSES]**.
+> I confirm that I created, or have authority to license, the code, art, copy, audio, and other materials I delivered for **[GAME / DELIVERY]**. Except for the items listed below, the delivery does not include third-party material that prevents Myosin from using it. I grant Myosin a perpetual, worldwide, royalty-free license to use, copy, modify, adapt, display, distribute, sublicense, and commercially operate the delivery as part of Aegyo Arena and related Myosin products. I understand Myosin may refactor, translate, combine, or choose not to use the delivery. Excluded or third-party items and their terms: **[NONE / LIST ITEMS AND LICENSES]**.
 
 Thank you — this gives us a clean provenance record before anything ships.
 

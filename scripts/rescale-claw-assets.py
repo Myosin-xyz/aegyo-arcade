@@ -11,12 +11,30 @@ Requires: Pillow
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from PIL import Image
 
-ASSET_DIR = Path(__file__).resolve().parent.parent / "public" / "games" / "claw"
+ASSET_DIR = Path(
+    os.environ.get(
+        "ASSET_DIR",
+        str(Path(__file__).resolve().parent.parent / "public" / "games" / "claw"),
+    )
+)
+
+# Dense full-bleed cabinet art compresses harder with no visible loss (A/B'd
+# at 2x zoom: plush faces, DAEBAK lettering and shelf edges are identical at
+# q58 vs q74). Sprites, overlay TEXT (WINNER / TRY AGAIN) and the small
+# controls keep the high quality where crispness actually reads.
+BACKGROUND_QUALITY = 58
+BACKGROUND_SRCS = {
+    "back.png",
+    "mid-plush.png",
+    "front-plush.png",
+    "frame.png",
+}
 
 
 def scale_rect(rect: dict, f: float, dims: dict) -> None:
@@ -48,6 +66,13 @@ def main() -> int:
             else:
                 for value in node.values():
                     walk(value)
+        elif isinstance(node, list):
+            # e.g. manifest.fallFrames — a LIST of rects. Without this the
+            # frames silently shipped at full resolution (caught by
+            # check-claw-assets.mjs, which measures the directory, not the
+            # manifest).
+            for value in node:
+                walk(value)
 
     walk(manifest)
 
@@ -61,7 +86,10 @@ def main() -> int:
         new_size = (max(1, round(img.width * f)), max(1, round(img.height * f)))
         resized = img.resize(new_size, Image.LANCZOS)
         webp_path = png_path.with_suffix(".webp")
-        resized.save(webp_path, "WEBP", quality=args.quality, method=6)
+        quality = (
+            BACKGROUND_QUALITY if src in BACKGROUND_SRCS else args.quality
+        )
+        resized.save(webp_path, "WEBP", quality=quality, method=6)
         dims[src] = new_size
         decoded_bytes += new_size[0] * new_size[1] * 4
         transfer_bytes += webp_path.stat().st_size

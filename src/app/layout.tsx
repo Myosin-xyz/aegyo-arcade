@@ -23,7 +23,7 @@ const silkscreen = Silkscreen({
 });
 
 export const metadata: Metadata = {
-  title: "Aegyo Arcade",
+  title: "Aegyo Arena",
   description:
     "K-pop mini-games: play daily, keep your streak, top the boards.",
   icons: { apple: "/icons/apple-icon.png" },

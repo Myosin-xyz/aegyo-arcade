@@ -1,4 +1,4 @@
-# Aegyo Arcade
+# Aegyo Arena
 
 Mobile-first K-pop mini-game portal for `arcade.aegyoarena.com`. Turns social
 traffic into repeat visits via lightweight canvas/DOM games behind a shared

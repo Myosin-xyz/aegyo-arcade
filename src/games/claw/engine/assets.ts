@@ -28,6 +28,23 @@ export const REQUIRED_CONTROLS = [
  * silent-failure #4, 2026-07-21). */
 export const REQUIRED_PLUSH = ["D", "A", "E", "B", "K", "A2"] as const;
 
+/** Daidai's V3 prize-fall animation is authored as exactly six frames. */
+export const FALL_FRAME_COUNT = 6;
+
+/** V3 sprites the engine dereferences unconditionally while drawing. */
+const REQUIRED_SPRITES = [
+  "back",
+  "midPlush",
+  "frontPlush",
+  "frame",
+  "trolley",
+  "clawOpen",
+  "clawClosed",
+  "clawRelease",
+  "winBoard",
+  "tryAgain",
+] as const;
+
 export async function fetchManifest(base: string): Promise<Manifest> {
   const res = await fetch(`${base}manifest.json`);
   if (!res.ok) throw new Error(`manifest ${res.status}`);
@@ -38,6 +55,32 @@ export async function fetchManifest(base: string): Promise<Manifest> {
   for (const k of REQUIRED_PLUSH) {
     if (!m.clawPlush?.[k]) throw new Error(`manifest missing plush "${k}"`);
   }
+  for (const k of REQUIRED_SPRITES) {
+    if (!m[k]?.src) throw new Error(`manifest missing sprite "${k}"`);
+  }
+  // The V3 delivery authors EXACTLY six prize-fall frames; the engine
+  // indexes them by progress, so a truncated/malformed array must fail at
+  // load rather than mid-render (review P2).
+  if (
+    !Array.isArray(m.fallFrames) ||
+    m.fallFrames.length !== FALL_FRAME_COUNT
+  ) {
+    throw new Error(
+      `manifest needs exactly ${FALL_FRAME_COUNT} fallFrames, got ${
+        Array.isArray(m.fallFrames) ? m.fallFrames.length : "none"
+      }`,
+    );
+  }
+  m.fallFrames.forEach((f, i) => {
+    const ok =
+      typeof f?.src === "string" &&
+      f.src.length > 0 &&
+      Number.isFinite(f.x) &&
+      Number.isFinite(f.y) &&
+      f.w > 0 &&
+      f.h > 0;
+    if (!ok) throw new Error(`manifest fallFrames[${i}] is malformed`);
+  });
   return m;
 }
 
@@ -48,12 +91,16 @@ export async function loadImages(
 ): Promise<ImageBank> {
   const rects: SpriteRect[] = [
     m.back,
+    m.midPlush,
     m.frontPlush,
     m.frame,
     m.trolley,
     m.clawOpen,
     m.clawClosed,
+    m.clawRelease,
     m.winBoard,
+    m.tryAgain,
+    ...m.fallFrames,
     ...Object.values(m.clawPlush),
     ...Object.values(m.controls),
   ];

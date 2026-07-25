@@ -1,4 +1,4 @@
-# TECH_SPEC — Aegyo Arcade
+# TECH_SPEC — Aegyo Arena
 
 **Version**: 0.2.1-DRAFT (counter-review fixes; safe product defaults adopted)
 **Date**: 2026-07-17
@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-Aegyo Arcade is a mobile-first K-pop-themed mini-game portal intended to turn short-lived social traffic into repeat visits. It ships the existing claw machine plus Simon's required five games: Snake, Frogger, infinite jumper, Flappy, and Hangman.
+Aegyo Arena is a mobile-first K-pop-themed mini-game portal intended to turn short-lived social traffic into repeat visits. It ships the existing claw machine plus Simon's required five games: Snake, Frogger, infinite jumper, Flappy, and Hangman.
 
 The high-level architecture remains locked: standalone Next.js 16 PWA on Vercel, Railway PostgreSQL + Drizzle (ADR 0004; originally Neon), no game engine, and framework-free TypeScript game modules behind a shared runtime shell.
 

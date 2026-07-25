@@ -115,7 +115,7 @@
   "game.thisorthat.vibe.energetic.name": "Energetic",
   "game.thisorthat.vibe.social.blurb": "Karaoke, group chats, shared fries. Your fan day is better with everyone in it.",
   "game.thisorthat.vibe.social.name": "Social",
-  "host.back": "Back to arcade",
+  "host.back": "Back to Aegyo Arena",
   "host.countedBlocked": "Today's run is done. Next one after {time}.",
   "host.countedIssuing": "Getting today's run...",
   "host.countedUnavailable": "Today's run isn't available right now. Practice is.",
@@ -144,11 +144,11 @@
   "install.android.step2": "Tap \"Add to Home screen\" or \"Install app\".",
   "install.android.step3": "Confirm. Launch it like any other app.",
   "install.android.title": "Android (Chrome)",
-  "install.back": "Back to arcade",
+  "install.back": "Back to Aegyo Arena",
   "install.desktop.step1": "Click the install icon at the right end of the address bar.",
-  "install.desktop.step2": "Click \"Install\". The arcade opens in its own window.",
+  "install.desktop.step2": "Click \"Install\". Aegyo Arena opens in its own window.",
   "install.desktop.title": "Computer (Chrome / Edge)",
-  "install.intro": "Aegyo Arcade installs like an app: full screen, one tap away, no store needed.",
+  "install.intro": "Aegyo Arena installs like an app: full screen, one tap away, no store needed.",
   "install.ios.step1": "Tap the Share button (the square with an arrow).",
   "install.ios.step2": "Scroll down and tap \"Add to Home Screen\".",
   "install.ios.step3": "Tap \"Add\". The bunny appears on your home screen.",
@@ -159,5 +159,5 @@
   "portal.play": "Play",
   "portal.streak": "Daily streak: {current} · Best {best}",
   "portal.tagline": "K-pop mini-games. Light, fast, one hand.",
-  "portal.title": "Aegyo Arcade"
+  "portal.title": "Aegyo Arena"
 }

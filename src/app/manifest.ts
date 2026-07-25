@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
  * prompt user-invoked — this only declares identity + icons). */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Aegyo Arcade",
+    name: "Aegyo Arena",
     short_name: "Aegyo",
     description:
       "K-pop mini-games: play daily, keep your streak, top the boards.",

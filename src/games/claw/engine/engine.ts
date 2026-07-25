@@ -34,7 +34,7 @@ export interface ClawMachineOptions {
 }
 
 type Phase = "loading" | "ready" | "dropping" | "won";
-type SpriteState = "open" | "closed" | "plush";
+type SpriteState = "open" | "closed" | "plush" | "release";
 
 interface Segment {
   name: string;
@@ -67,6 +67,8 @@ const PILE_DEPTH_SPAN = 0.1;
 const GANTRY_DEPTH_FRAC = 0.04; // claw/cable y-shift across full depth (of dH); trolley stays on rail
 const DEPTH_SPEED = 0.0011; // depth units per ms while forward/back held
 const DEPTH_FALL_TOP = 40; // slip tumble starts just under the claw tips
+// Beat the claw holds motionless over the chute before opening (DaiDai).
+const HOLD_OVER_CHUTE_MS = 300;
 const OUTCOME_WAIT_MS = 6000; // dwell cap while the server resolves
 const HOLE_CX_FRAC = 0.16; // horizontal center of the prize chute (bottom-left)
 const HOLE_DROP_FRAC = 0.26; // how deep the claw dips to sink the plush into the box
@@ -115,6 +117,11 @@ export class ClawMachine {
    * realism note): the claw opens and the plush visibly drops in. */
   private winFallT = -1;
   private winFallPuffed = false;
+  /** True from the chute hold through the release: the claw is posed by
+   * the AUTHORED release geometry, not by clawTX/clawTY (V3 — the
+   * release sprite and fall frames are authored over the chute already,
+   * so applying the synthetic offsets pushed them off-canvas). */
+  private overChute = false;
   private dwellMs = 0;
   /** Monotonic drop generation: results from superseded drops (after a
    * timeout/reset) must never cross into a newer drop (M4 review P1). */
@@ -138,6 +145,8 @@ export class ClawMachine {
   private shakeTime = 0;
   private shakeDur = 1;
   private flashText = "";
+  /** "tryAgain" draws Daidai's authored sprite; "text" draws flashText. */
+  private flashKind: "text" | "tryAgain" = "text";
   private flashT = 0;
 
   private readonly crt: boolean;
@@ -266,6 +275,7 @@ export class ClawMachine {
     this.clawTY = 0;
     this.clawTZ = 0.5;
     this.winFallT = -1;
+    this.overChute = false;
     this.segs = [];
     this.segIndex = 0;
     this.segElapsed = 0;
@@ -512,6 +522,26 @@ export class ClawMachine {
     return dH * (PILE_Y_FRAC + (this.clawTZ - 0.5) * PILE_DEPTH_SPAN);
   }
 
+  /** Design-space X the authored release claw is centred on (the chute). */
+  private chuteCenterX(): number {
+    const cr = this.manifest.clawRelease;
+    return cr.x + cr.w / 2;
+  }
+
+  /**
+   * Blit offset that poses ANY claw sprite at the authored release spot:
+   * centres it on the chute and aligns its top with the release art, so
+   * the held-plush claw, the open claw and the release claw all occupy
+   * the same place and the swap is seamless (review P1).
+   */
+  private chuteOffset(rect: SpriteRect): { dx: number; dy: number } {
+    const cr = this.manifest.clawRelease;
+    return {
+      dx: this.chuteCenterX() - (rect.x + rect.w / 2),
+      dy: cr.y - rect.y,
+    };
+  }
+
   /** Pseudo-perspective depth shift: the claw/cable hang lower closer to
    * the glass (the trolley itself stays on its rail). */
   private gantryY(): number {
@@ -546,6 +576,7 @@ export class ClawMachine {
     this.fallT = -1;
     this.winFallT = -1;
     this.winFallPuffed = false;
+    this.overChute = false;
     this.spriteState = "open";
 
     this.segs = [
@@ -590,7 +621,11 @@ export class ClawMachine {
     const { w: dW, h: dH } = M.design;
     const DEPTH = this.descentDepth();
     const restCenter = M.clawOpen.x + M.clawOpen.w / 2;
-    const holeTX = dW * HOLE_CX_FRAC - restCenter;
+    // Travel target derived from the AUTHORED release art (V3), not a
+    // guessed fraction: the release claw + fall frames are drawn where
+    // Daidai authored them, so the carry must end at that same centre or
+    // the sprite swap jumps (review P1).
+    const holeTX = this.chuteCenterX() - restCenter;
 
     this.awaiting = false;
     this.dropOutcome = outcome;
@@ -637,34 +672,43 @@ export class ClawMachine {
           },
         },
         {
-          name: "lower",
-          dur: 360,
-          apply: (t) => {
+          // Stationary beat over the hole (DaiDai): the claw arrives,
+          // STOPS dead-centre above the chute and holds before opening,
+          // so the prize reads as dropping straight down rather than
+          // being flung mid-swing. From here the pose comes from the
+          // AUTHORED release geometry (see chuteOffset in render).
+          name: "holdOverChute",
+          dur: HOLD_OVER_CHUTE_MS,
+          enter: () => {
+            this.swing = 0; // fully settled — no residual pendulum
+            this.overChute = true;
+          },
+          apply: () => {
             this.clawTX = holeTX;
-            this.clawTY = dH * HOLE_DROP_FRAC * easeInCubic(t);
-            this.swing *= 1 - t; // settle over the chute
           },
         },
         {
           name: "release",
-          dur: 520,
+          dur: 620,
           enter: () => {
-            // The claw OPENS over the chute and the plush visibly falls
-            // in (DaiDai realism note) — no teleporting prizes.
-            this.spriteState = "open";
+            // Authored wide-open claw + Daidai's fall frames: the prize
+            // falls vertically into the box, no teleporting prizes.
+            this.spriteState = "release";
             sfx.drop();
             haptic(40);
           },
           apply: (t) => {
-            this.clawTX = holeTX;
-            this.clawTY = dH * HOLE_DROP_FRAC * (1 - 0.25 * t);
             this.winFallT = t;
-            // Fire at the landing (t*t easing puts the plush near the
-            // chute here + the impact squash begins at t>0.82), not the
-            // earlier release moment (audit comment #2).
+            // Land near the end of the frame sequence, not at release.
             if (t >= 0.85 && !this.winFallPuffed) {
               this.winFallPuffed = true;
-              this.confetti.burst(dW * HOLE_CX_FRAC, dH * 0.82, 26, 1.0);
+              const last = M.fallFrames[M.fallFrames.length - 1];
+              this.confetti.burst(
+                last.x + last.w / 2,
+                last.y + last.h / 2,
+                26,
+                1.0,
+              );
             }
           },
         },
@@ -674,9 +718,8 @@ export class ClawMachine {
           enter: () => {
             this.winFallT = -1;
           },
-          apply: (t) => {
-            this.clawTX = holeTX;
-            this.clawTY = dH * HOLE_DROP_FRAC * 0.75 * (1 - easeOutCubic(t));
+          apply: () => {
+            // Hold the authored open pose while the win board arrives.
           },
         },
       );
@@ -762,7 +805,8 @@ export class ClawMachine {
     this.dropError = false;
     this.dropGen++; // a late resolution may not cross into the next drop
     this.spriteState = "open";
-    this.flash(this.dropRefused ? "UNAVAILABLE" : "TRY AGAIN");
+    if (this.dropRefused) this.flash("UNAVAILABLE");
+    else this.flash("TRY AGAIN", "tryAgain");
     this.dropRefused = false;
     this.toReady();
   }
@@ -778,7 +822,8 @@ export class ClawMachine {
       this.confetti.burst(dW * 0.5, dH * 0.42, 120, 1.7);
       this.shake(7, 320);
     } else {
-      this.flash(this.dropOutcome === "drop" ? "SO CLOSE!" : "TRY AGAIN");
+      if (this.dropOutcome === "drop") this.flash("SO CLOSE!");
+      else this.flash("TRY AGAIN", "tryAgain");
       this.toReady();
     }
     this.opts.onDropComplete?.(this.dropOutcome);
@@ -790,6 +835,11 @@ export class ClawMachine {
     this.heldDepth = 0;
     this.spriteState = "open";
     this.awaiting = false;
+    // Drop the win-presentation pose (review P1): a practice replay comes
+    // back through here, and leaving these set would keep rendering the
+    // claw locked over the chute while steering moved clawTX invisibly.
+    this.overChute = false;
+    this.winFallT = -1;
   }
 
   private replay(): void {
@@ -797,8 +847,9 @@ export class ClawMachine {
     this.toReady();
   }
 
-  private flash(text: string): void {
+  private flash(text: string, kind: "text" | "tryAgain" = "text"): void {
     this.flashText = text;
+    this.flashKind = kind;
     this.flashT = FLASH_MS;
   }
 
@@ -816,6 +867,8 @@ export class ClawMachine {
     if (this.spriteState === "plush")
       return M.clawPlush[this.heldKey] ?? M.clawClosed;
     if (this.spriteState === "closed") return M.clawClosed;
+    // Authored wide-open claw, used only for the win release.
+    if (this.spriteState === "release") return M.clawRelease;
     return M.clawOpen;
   }
 
@@ -842,6 +895,13 @@ export class ClawMachine {
     const sway = idle ? Math.sin(now * 0.0016) * dW * 0.0035 : 0;
     r.blit(this.bank.get(M.back), M.back);
     const claw = this.clawRect();
+    // DEPTH OCCLUSION (DaiDai): the middle plush rows are always part of
+    // the scene — only their Z relative to the claw changes. Aiming at
+    // the FRONT row puts the claw in front of them; aiming at the BACK
+    // row sinks it behind them (drawn after the claw, below), hiding
+    // whether it grabbed anything until it lifts clear.
+    const clawBehindMid = this.clawTZ < 0.5;
+    if (!clawBehindMid) r.blit(this.bank.get(M.midPlush), M.midPlush);
     // Depth reads as cable length: the trolley stays on its rail; the
     // claw hangs lower when "closer" to the glass (pseudo-perspective).
     const gY = this.gantryY();
@@ -865,12 +925,14 @@ export class ClawMachine {
       ctx.lineTo(anchorX + this.swing, clawTopY);
       ctx.stroke();
     }
-    r.blit(
-      this.bank.get(claw),
-      claw,
-      this.clawTX + sway + this.swing,
-      this.clawTY + gY,
-    );
+    // Over the chute the pose comes from the AUTHORED release geometry
+    // (review P1) — the synthetic clawTX/clawTY would push the authored
+    // sprite off-canvas and misalign it from the fall frames.
+    const pose = this.overChute
+      ? this.chuteOffset(claw)
+      : { dx: this.clawTX + sway + this.swing, dy: this.clawTY + gY };
+    r.blit(this.bank.get(claw), claw, pose.dx, pose.dy);
+    if (clawBehindMid) r.blit(this.bank.get(M.midPlush), M.midPlush);
     r.blit(this.bank.get(M.trolley), M.trolley, this.clawTX + sway, 0);
     // Slip tumble: the AIMED plush (bottom crop of its carried sprite)
     // falls from the claw tips back onto the pile, tipping as it goes.
@@ -912,75 +974,29 @@ export class ClawMachine {
         ctx.restore();
       }
     }
-    // Win release: the plush visibly FALLS from the open claw into the
-    // prize chute (DaiDai realism note) — drawn behind the front pile so
-    // it disappears "into" the box mouth.
-    if (this.winFallT >= 0) {
-      const plushRect = M.clawPlush[this.heldKey];
-      const img = plushRect ? this.bank.get(plushRect) : null;
-      if (img && img.naturalWidth > 0) {
-        const t = this.winFallT;
-        const size = dW * 0.14;
-        const iw = img.naturalWidth;
-        const ih = img.naturalHeight;
-        const cropH = Math.min(iw, ih);
-        const fx = this.clawDesignX();
-        const tipY =
-          M.clawOpen.y +
-          this.clawTY +
-          this.gantryY() +
-          M.clawOpen.h -
-          DEPTH_FALL_TOP;
-        const chuteY = dH * 0.84 - size * 0.4;
-        const fy = tipY + (chuteY - tipY) * (t * t); // gravity-ish
-        const squash = t > 0.82 ? 1 - (t - 0.82) * 1.4 : 1;
-        ctx.save();
-        ctx.globalAlpha = t > 0.9 ? 1 - (t - 0.9) * 8 : 1; // sinks in
-        ctx.translate(fx, fy + size / 2);
-        ctx.rotate((t - 0.1) * 0.35);
-        ctx.scale(1 / squash, squash);
-        ctx.drawImage(
-          img,
-          0,
-          ih - cropH,
-          iw,
-          cropH,
-          -size / 2,
-          -size / 2,
-          size,
-          size,
-        );
-        ctx.restore();
+    // Win release: Daidai's AUTHORED fall frames play in sequence so the
+    // prize drops straight down into the chute (V3). Drawn behind the
+    // front pile so it disappears "into" the box mouth.
+    if (this.winFallT >= 0 && M.fallFrames.length > 0) {
+      const frames = M.fallFrames;
+      const index = clamp(
+        Math.floor(this.winFallT * frames.length),
+        0,
+        frames.length - 1,
+      );
+      const rect = frames[index];
+      const img = this.bank.get(rect);
+      if (img.naturalWidth > 0) {
+        // The frames are authored in cabinet space: blit at the authored
+        // offset, no synthetic physics needed.
+        r.blit(img, rect);
       }
     }
     r.blit(this.bank.get(M.frontPlush), M.frontPlush);
 
-    // Aim indicator (M4 UX P1, revised per DaiDai): a soft contact
-    // shadow on the pile at the (column, depth) the claw would grab —
-    // the pink target ring is retired; the shadow tracks BOTH axes so
-    // aim stays legible without reading as a bullseye overlay.
-    if (this.phase === "ready" || this.phase === "dropping") {
-      const tx = this.clawDesignX() + sway;
-      const py = this.pileY();
-      const dropping = this.phase === "dropping";
-      // Perspective: the shadow grows slightly as the claw comes closer.
-      const depthScale = 1 + (this.clawTZ - 0.5) * 0.35;
-      ctx.save();
-      ctx.globalAlpha = dropping ? 0.6 : 0.5;
-      ctx.fillStyle = "#0a0414";
-      ctx.beginPath();
-      ctx.ellipse(
-        tx,
-        py,
-        dW * 0.07 * depthScale,
-        dW * 0.023 * depthScale,
-        0,
-        0,
-        Math.PI * 2,
-      );
-      ctx.fill();
-      ctx.restore();
-    }
+    // NO aim shadow under the claw (DaiDai, V3): the claw renders with no
+    // shadow element at all. Aim stays readable from the claw's own
+    // position over the pile plus the lit direction buttons.
 
     r.blit(this.bank.get(M.frame), M.frame);
 
@@ -1017,7 +1033,7 @@ export class ClawMachine {
     ctx.textBaseline = "middle";
     ctx.fillStyle = PALETTE.brand;
     ctx.font = `700 ${Math.round(dW * 0.05)}px ui-monospace, monospace`;
-    ctx.fillText("AEGYO ARCADE", dW / 2, dH * 0.44);
+    ctx.fillText("AEGYO ARENA", dW / 2, dH * 0.44);
     const bw = dW * 0.5;
     const bh = dH * 0.012;
     const bx = (dW - bw) / 2;
@@ -1059,15 +1075,23 @@ export class ClawMachine {
   ): void {
     ctx.save();
     ctx.globalAlpha = clamp01(this.flashT / 300);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.lineJoin = "round";
-    ctx.font = `800 ${Math.round(dW * 0.06)}px ui-monospace, monospace`;
-    ctx.lineWidth = dW * 0.006;
-    ctx.strokeStyle = "#1a0f2e";
-    ctx.fillStyle = "#fff";
-    ctx.strokeText(this.flashText, dW * 0.5, dH * 0.4);
-    ctx.fillText(this.flashText, dW * 0.5, dH * 0.4);
+    // Daidai's authored TRY AGAIN! art replaces the canvas text for the
+    // retry outcome (V3). "SO CLOSE!" / "UNAVAILABLE" have no delivered
+    // art, so they stay as drawn text in the same slot.
+    if (this.flashKind === "tryAgain") {
+      const ta = this.manifest.tryAgain;
+      ctx.drawImage(this.bank.get(ta), ta.x, ta.y, ta.w, ta.h);
+    } else {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      ctx.font = `800 ${Math.round(dW * 0.06)}px ui-monospace, monospace`;
+      ctx.lineWidth = dW * 0.006;
+      ctx.strokeStyle = "#1a0f2e";
+      ctx.fillStyle = "#fff";
+      ctx.strokeText(this.flashText, dW * 0.5, dH * 0.4);
+      ctx.fillText(this.flashText, dW * 0.5, dH * 0.4);
+    }
     ctx.restore();
   }
 

@@ -15,13 +15,22 @@ export interface Manifest {
   scale: number;
   design: { w: number; h: number };
   back: SpriteRect;
+  /** Plush rows between the two aim depths — occludes a BACK-row claw. */
+  midPlush: SpriteRect;
+  /** Front plush rows — occlude the claw at either aim depth. */
   frontPlush: SpriteRect;
   frame: SpriteRect;
   trolley: SpriteRect;
   clawOpen: SpriteRect;
   clawClosed: SpriteRect;
-  /** keyed by letter: D A E B A2 K excl */
+  /** Authored wide-open claw for the win release (prize falls straight down). */
+  clawRelease: SpriteRect;
+  /** keyed by letter: D A E B A2 K (the aimable rows) */
   clawPlush: Record<string, SpriteRect>;
+  /** Authored prize-fall frames, chute-top -> settled in the box. */
+  fallFrames: SpriteRect[];
   winBoard: SpriteRect;
+  /** TRY AGAIN! overlay for miss/slip outcomes. */
+  tryAgain: SpriteRect;
   controls: Record<ControlKey, SpriteRect>;
 }

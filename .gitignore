@@ -52,3 +52,6 @@ playwright-report/
 /files_freebie_frenzy/
 /cross-to-the-concert/
 /intake/
+
+# Source art for the claw pipeline (read by scripts/export-claw-layers.py; only built webp ships)
+intake/

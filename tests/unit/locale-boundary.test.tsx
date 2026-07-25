@@ -47,7 +47,7 @@ describe("LocaleBoundary", () => {
     });
     const probe = container.querySelector("button")!;
     expect(probe.textContent).toBe("Práctica");
-    expect(probe.getAttribute("aria-label")).toBe("Volver al arcade");
+    expect(probe.getAttribute("aria-label")).toBe("Volver a Aegyo Arena");
     expect(document.documentElement.lang).toBe("es-419");
   });
 
@@ -61,7 +61,7 @@ describe("LocaleBoundary", () => {
     });
     const probe = container.querySelector("button")!;
     expect(probe.textContent).toBe("Practice");
-    expect(probe.getAttribute("aria-label")).toBe("Back to arcade");
+    expect(probe.getAttribute("aria-label")).toBe("Back to Aegyo Arena");
     expect(document.documentElement.lang).toBe("en");
   });
 });

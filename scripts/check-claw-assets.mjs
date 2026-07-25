@@ -9,7 +9,7 @@
  * Run in CI after build; exit 1 on violation.
  */
 
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -58,6 +58,19 @@ for (const rect of rects) {
   }
 }
 
+// Stale generated sprites (review P2): the exporter/rescaler never delete
+// files a NEWER manifest stopped referencing (e.g. claw-plush-excl.webp
+// after the V3 export dropped it), so they would keep shipping while
+// staying invisible to the budget above. Fail on any unreferenced image.
+const stale = readdirSync(ASSET_DIR)
+  .filter((f) => /\.(webp|png)$/i.test(f))
+  .filter((f) => !seen.has(f));
+for (const file of stale) {
+  console.error(
+    `STALE unreferenced asset (delete it or re-export cleanly): ${file}`,
+  );
+}
+
 const designOk =
   manifest.design?.w === EXPECTED_DESIGN.w &&
   manifest.design?.h === EXPECTED_DESIGN.h;
@@ -70,6 +83,7 @@ console.log(
 
 if (
   missing > 0 ||
+  stale.length > 0 ||
   decoded > DECODED_BUDGET ||
   transfer > TRANSFER_BUDGET ||
   !designOk

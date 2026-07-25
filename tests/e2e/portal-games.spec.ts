@@ -342,7 +342,7 @@ test("es device: direct game route is fully Spanish — text, ARIA, lang — wit
   // ATTRIBUTES must localize too — the old client-init approach left
   // hydration-mismatched English aria labels behind.
   await expect(
-    page.getByRole("link", { name: "Volver al arcade" }),
+    page.getByRole("link", { name: "Volver a Aegyo Arena" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Silenciar" })).toBeVisible();
   expect(consoleErrors.filter((text) => /hydrat/i.test(text))).toEqual([]);

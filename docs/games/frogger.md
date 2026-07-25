@@ -97,8 +97,14 @@ shell-measured active-duration design.
   guard `0.58 → L→R, 34, 83×128`. **2 instances/lane, always** at
   `180·i + seeded·40` jitter (the delivery's ONLY RNG), re-rolled each
   level. Independent wrap at `±drawW` past the edges.
-- Eased curve `speedMult(L) = 1 + ((L−1)/9)^1.6` — 1.0 at L1, ~1.09 at
-  L3, exactly 2.0 at L10.
+- Linear ramp `speedMult(L) = 1 + (L−1)/9` — 1.0× at L1 → 2.0× at L10,
+  +1/9 per level (L1–5 = 1.00, 1.11, 1.22, 1.33, 1.44). **Team tuning
+  2026-07-24**: replaced the delivery's eased `1 + ((L−1)/9)^1.6` curve,
+  which was flat over the early levels so players never felt the
+  difficulty climb (Daidai feedback). This is a deliberate design change
+  from delivery parity, not a port bug; portal ranking stays
+  progress-based (fastest time cosmetic — the intro must not claim
+  "fastest time wins").
 - Collision: 1-D on the hero's row, hit iff `|x − 180| < 9 + 0.3·drawW`;
   90-tick invuln with blink; hit → hero to start row of CURRENT level,
   obstacles NOT reset, bestRow retained (no re-earning), stopwatch keeps

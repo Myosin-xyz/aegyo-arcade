@@ -4,7 +4,9 @@
  * Ported verbatim from Daidai's delivered build (M3 acceptance rubric):
  * 360×467 playfield, 7 rows (goal, 5 hazard lanes, start), two obstacle
  * instances per lane at 180·i + seeded 0–40px jitter, per-frame speeds ×
- * the eased curve `1 + ((level−1)/9)^1.6`, 1-D collision on the hero's
+ * a LINEAR ramp `1 + (level−1)/9` (1.0× at L1 → 2.0× at L10; team tuning
+ * 2026-07-24 — the delivery's eased `^1.6` curve was flat early and
+ * players didn't feel the difficulty climb), 1-D collision on the hero's
  * row with `|x−180| < 9 + 0.3·drawW`, 90-tick invulnerability, 105-tick
  * frozen checkpoint beats, monotonic new-best-row scoring (6 per level,
  * hard max 60 across 10 levels).
@@ -108,9 +110,13 @@ export function laneDrawWidth(lane: LaneSpec): number {
   return (lane.targetH * lane.nativeW) / lane.nativeH;
 }
 
-/** Eased difficulty curve: flat early, ~2× by level 10 (delivery). */
+/**
+ * Linear difficulty ramp: 1.0× at L1 → 2.0× at L10, +1/9 per level so the
+ * climb is felt on every advance (team tuning 2026-07-24; replaced the
+ * delivery's flat-early `^1.6` eased curve — see docs/games/frogger.md).
+ */
 export function speedMult(level: number): number {
-  return 1 + Math.pow((level - 1) / 9, 1.6);
+  return 1 + (level - 1) / 9;
 }
 
 export function rowCenterY(row: number): number {

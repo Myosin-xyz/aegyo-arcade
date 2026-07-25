@@ -21,6 +21,7 @@ import {
   LIVES_PER_LEVEL,
   STEP_MS,
   TIER_POINTS,
+  MISS_FLASH_SEC,
   TOTAL_LEVELS,
   buildLevelQueue,
   comboMultiplier,
@@ -28,6 +29,7 @@ import {
   continueFromRecap,
   createFreebieState,
   fanRank,
+  fitFontPx,
   freebieDrawX,
   scoreCatch,
   step,
@@ -205,6 +207,35 @@ describe("freebie — lives, misses, end (V4)", () => {
     drop();
     expect(state.lives).toBe(0);
     expect(state.status).toBe("lost");
+  });
+
+  it("a miss arms the red flash to full, and it decays deterministically with DT (Daidai)", () => {
+    const state = quietState();
+    const rng = seededRandom("v4-flash");
+    expect(state.missFlash).toBe(0);
+    state.freebies = [makeFreebie({ y: DESIGN_H + 24, x: 60 })];
+    step(state, IDLE, rng); // resolves the miss
+    expect(state.missFlash).toBe(MISS_FLASH_SEC); // full brightness this step
+    const after = state.missFlash;
+    step(state, IDLE, rng); // no miss → decays
+    expect(state.missFlash).toBeLessThan(after);
+    expect(state.missFlash).toBeGreaterThan(0);
+    for (let i = 0; i < 60; i++) step(state, IDLE, rng);
+    expect(state.missFlash).toBe(0); // fully faded, never negative
+  });
+});
+
+describe("freebie — fitFontPx helper math (V4b; production widths proven in the real-metrics e2e)", () => {
+  it("base while it fits; shrinks proportionally past the box; floors at min; wider never renders bigger", () => {
+    expect(fitFontPx(24, 30, 17)).toBe(17); // fits → base
+    expect(fitFontPx(30, 30, 17)).toBe(17); // exactly fits → base
+    expect(fitFontPx(40, 30, 17)).toBe(12); // over → floor(17*30/40)
+    // Flooring the size guarantees the rendered width is always ≤ box.
+    expect((40 * fitFontPx(40, 30, 17)) / 17).toBeLessThanOrEqual(30);
+    expect(fitFontPx(30, 30, 17)).toBeGreaterThanOrEqual(fitFontPx(40, 30, 17));
+    expect(fitFontPx(999, 30, 17)).toBe(10); // default min floor
+    expect(fitFontPx(999, 30, 17, 9)).toBe(9); // Daidai: 9px permitted
+    expect(fitFontPx(0, 30, 17)).toBe(17); // no-measure (jsdom) → base
   });
 });
 

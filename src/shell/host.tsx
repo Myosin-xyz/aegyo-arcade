@@ -646,9 +646,29 @@ export function GameHostInner({
         )}
         {lifecycle === "ready" && (
           <Overlay>
-            <p className="max-w-[17rem] text-center text-sm text-white/80">
-              {t(`game.${gameId}.controls`)}
-            </p>
+            {entry.introKeys && entry.introKeys.length > 0 ? (
+              // Pregame "how to play" (Daidai): shown BEFORE a mode is
+              // chosen — no run is issued or started here.
+              <div className="max-w-xs">
+                <p className="mb-2 text-center font-arcade text-xs uppercase tracking-wide text-gold">
+                  {t("host.howToPlay")}
+                </p>
+                <ul className="flex flex-col gap-1.5 text-left text-sm text-white/85">
+                  {entry.introKeys.map((key) => (
+                    <li key={key} className="flex gap-2">
+                      <span aria-hidden className="text-brand">
+                        {"•"}
+                      </span>
+                      <span>{t(key)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="max-w-[17rem] text-center text-sm text-white/80">
+                {t(`game.${gameId}.controls`)}
+              </p>
+            )}
             {countedCapable && (
               <>
                 <button

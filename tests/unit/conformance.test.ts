@@ -275,6 +275,15 @@ describe("registry integrity", () => {
     }
   });
 
+  it("every registry introKey resolves to real copy — a typo can't render a raw key on the ready card", async () => {
+    const { t } = await import("@/i18n/t");
+    for (const entry of listGames()) {
+      for (const key of entry.introKeys ?? []) {
+        expect(t(key), key).not.toBe(key);
+      }
+    }
+  });
+
   it("registry counted capability ⇔ server COUNTED_GAMES entry (M2.5 review P1)", async () => {
     const { COUNTED_GAMES } = await import("@/server/games-config");
     const registryCounted = listGames()

@@ -1,6 +1,6 @@
 # es-419 Native Review Pack (EXT-LOCALE gate)
 
-> Generated from src/i18n/locales (149 strings) by
+> Generated from src/i18n/locales (161 strings) by
 > scripts/ops/generate-l10n-review.mjs — regenerate after ANY copy
 > change; a unit test pins this document to the JSON values.
 > LOCALE-1 requires a native/fan-fluent review before es-419 is
@@ -41,6 +41,10 @@
 | `game.freebie.callout.nice.2`            | Fan reflexes!                                                                         | ¡Reflejos de fan!                                                                        |
 | `game.freebie.combo`                     | Combo x{count}                                                                        | Combo x{count}                                                                           |
 | `game.freebie.controls`                  | Drag to catch the falling merch. Arrow keys work too.                                 | Arrastra para atrapar el merch que cae. También sirven las flechas.                      |
+| `game.freebie.intro.1`                   | Drag left and right to move your catcher.                                             | Arrastra a la izquierda y derecha para mover tu atrapador.                               |
+| `game.freebie.intro.2`                   | Catch the falling merch. Miss three times in a level and the run ends.                | Atrapa el merch que cae. Falla tres veces en un nivel y se acaba la partida.             |
+| `game.freebie.intro.3`                   | Chain catches to build a combo for bonus points.                                      | Encadena atrapadas para armar un combo y sumar bonus.                                    |
+| `game.freebie.intro.4`                   | Clear all 5 levels and chain combos to rank higher.                                   | Supera los 5 niveles y encadena combos para subir de rango.                              |
 | `game.freebie.rank.0`                    | Baby Fan                                                                              | Fan Bebé                                                                                 |
 | `game.freebie.rank.1`                    | Casual Listener                                                                       | Oyente Casual                                                                            |
 | `game.freebie.rank.2`                    | Certified Stan                                                                        | Stan con Credencial                                                                      |
@@ -48,13 +52,20 @@
 | `game.freebie.rank.4`                    | Ultimate Fan                                                                          | Fan Total                                                                                |
 | `game.freebie.rank.5`                    | Fandom Royalty                                                                        | Realeza del Fandom                                                                       |
 | `game.freebie.rank.6`                    | Legend Status                                                                         | Estatus Leyenda                                                                          |
-| `game.freebie.recap.bonus`               | Clean clear bonus +{bonus} pts                                                        | Bono por ronda limpia +{bonus} pts                                                       |
-| `game.freebie.recap.cleared`             | Level {level} cleared!                                                                | ¡Nivel {level} superado!                                                                 |
-| `game.freebie.recap.continue`            | Tap to continue                                                                       | Toca para continuar                                                                      |
-| `game.freebie.recap.total`               | Total: {score}                                                                        | Total: {score}                                                                           |
+| `game.freebie.recap.badge`               | Level {level} cleared                                                                 | Nivel {level} superado                                                                   |
+| `game.freebie.recap.bonus`               | Level clear bonus +{bonus} pts                                                        | Bono por completar nivel +{bonus} pts                                                    |
+| `game.freebie.recap.continueTo`          | Continue to level {level}                                                             | Continuar al nivel {level}                                                               |
+| `game.freebie.recap.headline`            | Nice clearing!                                                                        | ¡Bien despejado!                                                                         |
+| `game.freebie.recap.headlineClean`       | Flawless level!                                                                       | ¡Nivel perfecto!                                                                         |
+| `game.freebie.recap.levelScoreLabel`     | Level score                                                                           | Puntaje del nivel                                                                        |
+| `game.freebie.recap.totalLabel`          | Total                                                                                 | Total                                                                                    |
 | `game.freebie.tagline`                   | Catch the swag before it drops.                                                       | Atrapa el merch antes de que toque el piso.                                              |
 | `game.freebie.title`                     | Freebie Frenzy                                                                        | Freebie Frenzy                                                                           |
 | `game.frogger.controls`                  | FORWARD and BACK only. Cross when the street is clear.                                | Solo FORWARD y BACK. Cruza cuando la calle esté libre.                                   |
+| `game.frogger.intro.1`                   | Tap forward and back to cross the street.                                             | Toca adelante y atrás para cruzar la calle.                                              |
+| `game.frogger.intro.2`                   | Dodge carts, trucks, scalpers, and security.                                          | Esquiva carritos, camiones, revendedores y seguridad.                                    |
+| `game.frogger.intro.3`                   | Reach the top to clear each level. 3 lives.                                           | Llega arriba para superar cada nivel. 3 vidas.                                           |
+| `game.frogger.intro.4`                   | 10 levels, and they get faster as you climb.                                          | 10 niveles, y se aceleran a medida que avanzas.                                          |
 | `game.frogger.obstacle.golf`             | A golf cart                                                                           | Un carrito de golf                                                                       |
 | `game.frogger.obstacle.guard`            | A security guard                                                                      | Un guardia de seguridad                                                                  |
 | `game.frogger.obstacle.kfood`            | A K-food truck                                                                        | Un food truck coreano                                                                    |
@@ -127,6 +138,7 @@
 | `host.countedBlocked`                    | Today's run is done. Next one after {time}.                                           | La partida de hoy ya está. La próxima después de las {time}.                             |
 | `host.countedIssuing`                    | Getting today's run...                                                                | Preparando la partida de hoy...                                                          |
 | `host.countedUnavailable`                | Today's run isn't available right now. Practice is.                                   | La partida de hoy no está disponible. Practica mientras tanto.                           |
+| `host.howToPlay`                         | How to play                                                                           | Cómo jugar                                                                               |
 | `host.loadFailed`                        | This game couldn't load.                                                              | Este juego no pudo cargar.                                                               |
 | `host.loading`                           | Loading...                                                                            | Cargando...                                                                              |
 | `host.mute`                              | Sound off                                                                             | Silenciar                                                                                |

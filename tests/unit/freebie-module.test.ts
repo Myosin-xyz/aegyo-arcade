@@ -18,6 +18,7 @@ import { freebieDefinition } from "@/games/freebie/module";
 import {
   DESIGN_H,
   DESIGN_W,
+  MISS_FLASH_SEC,
   type FreebieInput,
   type FreebieState,
 } from "@/games/freebie/logic";
@@ -176,9 +177,22 @@ describe("freebie module — real lifecycle", () => {
         wobble: 0,
       },
     ];
+    // The fatal miss does NOT end immediately: the run holds open so the
+    // red miss flash paints (the delivery delayed game-over ~300ms —
+    // review P1). The jingle plays and the flash is armed to render.
     game.update(50);
-    expect(endReasons).toEqual(["lost"]);
+    expect(endReasons).toEqual([]);
     expect(audio.plays).toContain("lose");
+    expect(probe.state!.missFlash).toBeGreaterThan(0);
+
+    // Mid-delay: still open, flash still active (would render red).
+    game.update(100);
+    expect(endReasons).toEqual([]);
+    expect(probe.state!.missFlash).toBeGreaterThan(0);
+
+    // Past the flash window: ends exactly once.
+    game.update(MISS_FLASH_SEC * 1000);
+    expect(endReasons).toEqual(["lost"]);
 
     // Ended: further updates never re-report.
     game.update(1000);

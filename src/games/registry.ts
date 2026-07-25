@@ -53,6 +53,13 @@ export interface RegistryEntry {
    * lifecycle, abort — no lifecycle exception).
    */
   endPresentation?: "game-authored";
+  /**
+   * Optional "how to play" bullet i18n keys shown on the host's ready
+   * card BEFORE any run is issued/started (Daidai: the originals had a
+   * pregame explanation). Presentation only — the frozen runtime
+   * contract is untouched, and both counted + practice buttons remain.
+   */
+  introKeys?: readonly string[];
   load: () => Promise<GameDefinition>;
 }
 
@@ -88,11 +95,23 @@ const entries: RegistryEntry[] = [
   {
     meta: freebieMeta,
     scorePresentation: "authored",
+    introKeys: [
+      "game.freebie.intro.1",
+      "game.freebie.intro.2",
+      "game.freebie.intro.3",
+      "game.freebie.intro.4",
+    ],
     load: () => import("./freebie/module").then((m) => m.freebieDefinition),
   },
   {
     meta: froggerMeta,
     scorePresentation: "authored",
+    introKeys: [
+      "game.frogger.intro.1",
+      "game.frogger.intro.2",
+      "game.frogger.intro.3",
+      "game.frogger.intro.4",
+    ],
     load: () => import("./frogger/module").then((m) => m.froggerDefinition),
   },
   {

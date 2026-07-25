@@ -48,17 +48,20 @@ function crossLevelClean(state: FroggerState, rng: () => number): void {
   for (let i = 0; i <= CHECKPOINT_TICKS + 1; i++) step(state, rng);
 }
 
-describe("frogger — eased speed curve (V1)", () => {
-  it("1.0 at L1, ~1.09 at L3, exactly 2.0 at L10, monotonic convex", () => {
+describe("frogger — linear speed ramp (V1, 2026-07-24 tuning)", () => {
+  it("1.0 at L1, 2.0 at L10, +1/9 per level (felt on every advance)", () => {
     expect(speedMult(1)).toBe(1);
-    expect(speedMult(3)).toBeCloseTo(1.0901, 3);
-    expect(speedMult(5)).toBeCloseTo(1.2732, 3);
+    expect(speedMult(3)).toBeCloseTo(1.2222, 3); // 1 + 2/9
+    expect(speedMult(5)).toBeCloseTo(1.4444, 3); // 1 + 4/9
     expect(speedMult(10)).toBe(2);
+    // Levels 1–5 table Daidai/Mateo signed off on.
+    expect([1, 2, 3, 4, 5].map((l) => +speedMult(l).toFixed(2))).toEqual([
+      1.0, 1.11, 1.22, 1.33, 1.44,
+    ]);
+    // Strictly increasing with a CONSTANT per-level gain of 1/9 (linear).
     for (let level = 2; level <= 10; level++) {
       const gain = speedMult(level) - speedMult(level - 1);
-      const prevGain = speedMult(level - 1) - speedMult(level - 2 || 1);
-      expect(gain).toBeGreaterThan(0);
-      if (level >= 3) expect(gain).toBeGreaterThanOrEqual(prevGain); // convex
+      expect(gain).toBeCloseTo(1 / 9, 10);
     }
   });
 });

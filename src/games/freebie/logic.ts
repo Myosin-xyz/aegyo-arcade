@@ -123,10 +123,32 @@ export interface FreebieState {
   popups: Popup[];
   callout: Callout | null;
   time: number;
+  /** Seconds remaining on the red "missed a catch" flash (Daidai:
+   * players need a clear life-loss cue). Deterministic, decays with DT. */
+  missFlash: number;
 }
+
+/** Duration of the red miss flash, seconds (brief, like the original). */
+export const MISS_FLASH_SEC = 0.3;
 
 export function comboMultiplier(combo: number): number {
   return 1 + Math.min(5, Math.floor(combo / 4)) * 0.1;
+}
+
+/**
+ * Shrink a font so text fits a box: the base size if it already fits,
+ * else scaled down proportionally to the overflow, floored at minSize.
+ * Pure so the HUD score-fit is unit-testable without a real canvas
+ * (Daidai: the score overflowed its frame past 3 digits).
+ */
+export function fitFontPx(
+  measuredWidth: number,
+  maxWidth: number,
+  baseSize: number,
+  minSize = 10,
+): number {
+  if (measuredWidth <= 0 || measuredWidth <= maxWidth) return baseSize;
+  return Math.max(minSize, Math.floor(baseSize * (maxWidth / measuredWidth)));
 }
 
 /** Fan rank index (0..6) for a total score — titles live in i18n. */
@@ -180,6 +202,7 @@ function startLevel(state: FreebieState, rng: Rng, level: number): void {
   state.spawnTimerMs = 0;
   state.popups = [];
   state.callout = null;
+  state.missFlash = 0;
   state.status = "playing";
 }
 
@@ -200,6 +223,7 @@ export function createFreebieState(rng: Rng): FreebieState {
     popups: [],
     callout: null,
     time: 0,
+    missFlash: 0,
   };
   startLevel(state, rng, 1);
   return state;
@@ -250,6 +274,7 @@ export function scoreCatch(state: FreebieState, tier: number): number {
 function loseLife(state: FreebieState): void {
   state.lives--;
   state.combo = 0;
+  state.missFlash = MISS_FLASH_SEC; // arm the red damage flash
   if (state.lives <= 0) state.status = "lost";
 }
 
@@ -269,6 +294,9 @@ export function completeLevel(state: FreebieState): void {
 export function step(state: FreebieState, input: FreebieInput, rng: Rng): void {
   if (state.status !== "playing") return;
   state.time += DT;
+  // Decay the miss flash BEFORE resolving catches — a miss this step
+  // re-arms it to full afterward (loseLife), so a fresh miss stays bright.
+  if (state.missFlash > 0) state.missFlash = Math.max(0, state.missFlash - DT);
 
   // Catcher movement: drag (position lerp) wins over hold (accelerate).
   const c = state.catcher;

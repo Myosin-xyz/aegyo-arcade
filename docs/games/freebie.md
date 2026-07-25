@@ -103,7 +103,11 @@ guaranteed rare, even level 1. Level ends when all 10 items are resolved
    mobile (95% of the audience) and buttons duplicated the keys path.
 5. **VFX reduced**: score popups, catch callouts, hero glow/hop kept;
    particles/shockwaves/screen-shake/spotlights dropped (cosmetic only).
-   The delivery's 300ms death-beat delay before game-over is dropped.
+   The delivery's ~300ms death-beat delay before game-over is RESTORED
+   (2026-07-25, Daidai): a fatal miss holds the run open for
+   `MISS_FLASH_SEC` so the red miss flash paints, then reports `lost`
+   exactly once (the module's `lostDelayMs`); non-fatal misses flash
+   inline, `won` still ends immediately.
 6. **Level recap** is an in-canvas overlay ("tap to continue") inside ONE
    counted run; the run ends only at all-cleared (`completed`) or
    out-of-lives (`lost`).

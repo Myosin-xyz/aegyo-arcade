@@ -17,6 +17,7 @@ import type {
 } from "@/shell/contract";
 import { freebieMeta } from "./meta";
 import {
+  MISS_FLASH_SEC,
   STEP_MS,
   continueFromRecap,
   createFreebieState,
@@ -64,6 +65,10 @@ class FreebieGame implements ShellLoopGame {
   private accumulator = 0;
   private paused = false;
   private endedReported = false;
+  /** A fatal miss holds the run open for the red flash before game-over
+   * (the delivery delayed game-over ~300ms for this — review P1). While
+   * > 0 the sim is frozen and only the flash decays; end fires at 0. */
+  private lostDelayMs = 0;
   private lastReportedScore = 0;
   private input: FreebieInput = { left: false, right: false, dragX: null };
   private dragging = false;
@@ -106,6 +111,7 @@ class FreebieGame implements ShellLoopGame {
     this.state = createFreebieState(run.random);
     this.accumulator = 0;
     this.endedReported = false;
+    this.lostDelayMs = 0;
     this.lastReportedScore = 0;
     this.clearTransientInput(); // no gesture survives a restart
     this.input.left = false;
@@ -132,6 +138,21 @@ class FreebieGame implements ShellLoopGame {
     const state = this.state;
     const rng = this.rng;
     if (!state || !rng || this.paused || this.endedReported) return;
+
+    // Terminal-loss hold: keep the run open (loop alive, render painting)
+    // so the red miss flash shows before game-over. The sim is frozen
+    // (status is "lost"), so decay the flash here; report end once the
+    // window elapses (review P1).
+    if (this.lostDelayMs > 0) {
+      this.lostDelayMs -= dtMs;
+      state.missFlash = Math.max(0, state.missFlash - dtMs / 1000);
+      if (this.lostDelayMs <= 0) {
+        this.endedReported = true;
+        this.ctx.report.end({ reason: "lost" });
+      }
+      return;
+    }
+
     this.accumulator += dtMs;
     while (this.accumulator >= STEP_MS) {
       this.accumulator -= STEP_MS;
@@ -157,15 +178,18 @@ class FreebieGame implements ShellLoopGame {
       if (statusBefore === "playing" && state.status === "recap") {
         this.ctx.audio.play("clear");
       }
-      const status = state.status;
-      if (status === "won" || status === "lost") {
-        if (!this.endedReported) {
-          this.endedReported = true;
-          this.ctx.audio.play(status === "won" ? "win" : "lose");
-          this.ctx.report.end({
-            reason: status === "won" ? "completed" : "lost",
-          });
-        }
+      if (state.status === "won") {
+        this.endedReported = true;
+        this.ctx.audio.play("win");
+        this.ctx.report.end({ reason: "completed" });
+        return;
+      }
+      if (state.status === "lost") {
+        // Defer the end: arm the flash hold and play the jingle, but keep
+        // the loop alive so the red flash paints (review P1). End fires
+        // from the lostDelayMs branch above once the window elapses.
+        this.lostDelayMs = MISS_FLASH_SEC * 1000;
+        this.ctx.audio.play("lose");
         return;
       }
     }

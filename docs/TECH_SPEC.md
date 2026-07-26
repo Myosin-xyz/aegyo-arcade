@@ -112,14 +112,14 @@ External gates cannot be responsibly guessed and are not Simon memo items:
 
 Launch catalog means **playable catalog**, not automatic authorization to run promotions.
 
-| #   | Game            | Working title   | Source                         | Path                     |
-| --- | --------------- | --------------- | ------------------------------ | ------------------------ |
-| 0   | Claw machine    | Aegyo Claw      | Existing Vite/vanilla-TS app   | Migrate and adapt (§7.1) |
-| 1   | Snake           | POCA Snake      | Nicole mock                    | Rebuild against shell    |
-| 2   | Flappy          | Bias Flap       | Nicole mock                    | Rebuild against shell    |
-| 3   | Infinite jumper | Comeback Climb  | Nicole mock                    | Rebuild against shell    |
-| 4   | Hangman         | Guess the Slang | Nicole mock                    | DOM module               |
-| 5   | Frogger         | Name pending    | Daidai, with internal fallback | Intake or rebuild        |
+| #   | Game            | Working title   | Source                         | Path                                                                                |
+| --- | --------------- | --------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| 0   | Claw machine    | Aegyo Claw      | Existing Vite/vanilla-TS app   | Migrate and adapt (§7.1)                                                            |
+| 1   | Snake           | Snake Freebies  | Daidai delivery (2026-07-26)   | Ported to shell (replaced the POCA Snake placeholder; docs/games/snake-freebies.md) |
+| 2   | Flappy          | Bias Flap       | Nicole mock                    | Rebuild against shell                                                               |
+| 3   | Infinite jumper | Comeback Climb  | Nicole mock                    | Rebuild against shell                                                               |
+| 4   | Hangman         | Guess the Slang | Nicole mock                    | DOM module                                                                          |
+| 5   | Frogger         | Name pending    | Daidai, with internal fallback | Intake or rebuild                                                                   |
 
 Claw + Simon's five = six playable games. Photo Chase and Spot the Bias remain fast-follow candidates, not launch dependencies.
 

@@ -119,15 +119,6 @@ function stubCanvas(): void {
   );
 }
 
-class FakeImage {
-  onload: (() => void) | null = null;
-  onerror: ((e: unknown) => void) | null = null;
-  naturalWidth = 10;
-  naturalHeight = 10;
-  src = "";
-  set _src(_v: string) {}
-}
-
 interface EngineProbe {
   clawTZ: number;
   clawTX: number;

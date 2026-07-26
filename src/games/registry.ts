@@ -78,6 +78,16 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: snakeMeta,
+    // Snake Freebies draws its own LEVEL/SCORE/TIME HUD inside the arena
+    // (delivered design), so the host header must not print the score a
+    // second time. The ended announcement still speaks it.
+    scorePresentation: "authored",
+    introKeys: [
+      "game.snake.intro.1",
+      "game.snake.intro.2",
+      "game.snake.intro.3",
+      "game.snake.intro.4",
+    ],
     load: () => import("./snake/module").then((m) => m.snakeDefinition),
   },
   {

@@ -1,6 +1,6 @@
 # es-419 Native Review Pack (EXT-LOCALE gate)
 
-> Generated from src/i18n/locales (161 strings) by
+> Generated from src/i18n/locales (174 strings) by
 > scripts/ops/generate-l10n-review.mjs — regenerate after ANY copy
 > change; a unit test pins this document to the JSON values.
 > LOCALE-1 requires a native/fan-fluent review before es-419 is
@@ -96,9 +96,22 @@
 | `game.jumper.controls`                   | Drag left and right (or use the arrow keys) to land your bounces.                     | Arrastra a la izquierda y derecha (o usa las flechas) para caer en las plataformas.      |
 | `game.jumper.tagline`                    | Bounce up the charts. Don't flop off the top 100.                                     | Rebota hasta la cima del chart. No te caigas del top 100.                                |
 | `game.jumper.title`                      | Comeback Climb                                                                        | Comeback Climb                                                                           |
-| `game.snake.controls`                    | Swipe or tap the arrows to turn. You move on your first input.                        | Desliza o toca las flechas para girar. Te mueves con tu primer toque.                    |
-| `game.snake.tagline`                     | Grow your photocard collection without crashing the fan-sign line.                    | Junta photocards sin chocar en la fila del fan-sign.                                     |
-| `game.snake.title`                       | POCA Snake                                                                            | POCA Snake                                                                               |
+| `game.snake.controls`                    | Swipe or use the d-pad to steer. You move on your first input.                        | Desliza o usa el d-pad para girar. Te mueves con tu primer toque.                        |
+| `game.snake.hud.level`                   | Level                                                                                 | Nivel                                                                                    |
+| `game.snake.hud.score`                   | Score                                                                                 | Puntos                                                                                   |
+| `game.snake.hud.time`                    | Time                                                                                  | Tiempo                                                                                   |
+| `game.snake.intro.1`                     | Swipe anywhere, or tap the d-pad, to steer.                                           | Desliza en cualquier lado, o toca el d-pad, para girar.                                  |
+| `game.snake.intro.2`                     | Eat gift boxes. Each freebie joins your chain and it grows.                           | Come las cajas de regalo. Cada freebie se suma a tu cadena y crece.                      |
+| `game.snake.intro.3`                     | Hit a wall or yourself and you lose a life. 3 per level.                              | Si chocas con el muro o contigo pierdes una vida. 3 por nivel.                           |
+| `game.snake.intro.4`                     | Clear 3 levels: 10, then 25, then 45 freebies.                                        | Supera 3 niveles: 10, luego 25, luego 45 freebies.                                       |
+| `game.snake.levelUp`                     | Level {level}                                                                         | Nivel {level}                                                                            |
+| `game.snake.nextTarget`                  | {count} freebies to catch, same arena                                                 | {count} freebies por atrapar, la misma arena                                             |
+| `game.snake.rank.0`                      | Rookie fan to rising fan!                                                             | ¡De fan novata a fan en ascenso!                                                         |
+| `game.snake.rank.1`                      | Rising fan to super fan!                                                              | ¡De fan en ascenso a súper fan!                                                          |
+| `game.snake.rank.2`                      | Super fan!                                                                            | ¡Súper fan!                                                                              |
+| `game.snake.tagline`                     | Grow a chain of freebies. 3 levels, 3 lives, one arena.                               | Arma tu cadena de freebies. 3 niveles, 3 vidas, una arena.                               |
+| `game.snake.tapToGo`                     | Tap to go                                                                             | Toca para seguir                                                                         |
+| `game.snake.title`                       | Snake Freebies                                                                        | Snake Freebies                                                                           |
 | `game.thisorthat.controls`               | Tap a card (or press the left/right arrows) to pick. Nine rounds.                     | Toca una tarjeta (o usa las flechas) para elegir. Nueve rondas.                          |
 | `game.thisorthat.opt.arcadehan`          | Arcade run with Han                                                                   | Arcade con Han                                                                           |
 | `game.thisorthat.opt.bike`               | Han River bike ride                                                                   | Bici por el río Han                                                                      |

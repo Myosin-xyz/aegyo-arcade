@@ -28,11 +28,21 @@ const SMOKE_ACTIONS: Record<
   }
 > = {
   snake: {
-    // Turn once (input proof); the wall ends the run in ~1.5s.
+    // Snake Freebies (V1): 3 lives per level, so a single wall hit does
+    // NOT end the run — drive into a wall repeatedly until all lives are
+    // spent. ArrowDown also proves the first input arms the run.
     act: async (page) => {
+      const host = page.getByTestId("game-host");
       await page.keyboard.press("ArrowDown");
+      for (let i = 0; i < 60; i++) {
+        if ((await host.getAttribute("data-lifecycle")) === "ended") return;
+        // Alternate axes so the head keeps meeting a wall after respawn.
+        await page.keyboard.press(i % 2 === 0 ? "ArrowDown" : "ArrowRight");
+        await page.waitForTimeout(400);
+      }
     },
     terminal: true,
+    endTimeoutMs: 45_000,
   },
   flappy: {
     // One flap (tap anywhere), then gravity finds the floor.

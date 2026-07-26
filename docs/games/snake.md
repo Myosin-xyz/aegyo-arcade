@@ -1,3 +1,14 @@
+# Game Rules Seed — POCA Snake (SUPERSEDED 2026-07-26)
+
+> **This seed is historical.** The shipped Snake is now **Snake Freebies**,
+> Daidai's delivered design — see **docs/games/snake-freebies.md** for the
+> live mechanics, provenance and port notes. The code-drawn POCA Snake this
+> document described (endless classic, `maxScore` 400) was retired when the
+> designed version landed; TECH_SPEC §5 had always listed it as a "Nicole
+> mock" to "rebuild against shell", and this was that rebuild.
+>
+> Kept for provenance only. Everything below describes the retired game.
+
 # Game Rules Seed — POCA Snake (né Aegyo Snake, renamed 2026-07-19)
 
 **Status**: Recovered v0.1 design baseline; finalize test vectors before M2 implementation

@@ -44,7 +44,9 @@ describe("i18n — locale parity", () => {
     // "bias" replaced "lightstick" here when the flyer art changed
     // (2026-07-19) — the lexicon rule is the same: fan terms stay English.
     expect(es["game.flappy.controls"]).toContain("bias");
-    expect(es["game.snake.tagline"]).toContain("photocard");
+    // Snake Freebies (2026-07-26): the fan term in this tagline is
+    // "freebies" — same §12.1 rule, current copy.
+    expect(es["game.snake.tagline"]).toContain("freebies");
     expect(es["game.freebie.controls"]).toContain("merch");
     expect(es["game.freebie.rank.3"]).toBe("Bias Wrecker");
     expect(es["game.hangman.status.solved"]).toContain("Daebak");

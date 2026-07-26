@@ -279,7 +279,8 @@ describe("submission (§9.2/§9.3)", () => {
         await submitCountedResult(db, {
           deviceId: device.deviceId,
           attemptId: issued.attemptId,
-          score: 401, // snake envelope is 400 (docs/games/snake.md)
+          score: 1951, // snake envelope is the 1950 perfect run
+          // (docs/games/snake-freebies.md)
         })
       ).kind,
     ).toBe("bad_score");
@@ -299,6 +300,26 @@ describe("submission (§9.2/§9.3)", () => {
       score: 42,
     });
     expect(ok.kind).toBe("accepted");
+  });
+
+  it("snake envelope: the perfect-run 1950 is accepted, 1951 is rejected (M2.5 review P2)", async () => {
+    const device = await seedDevice();
+    const issued = await issueSnake(device);
+    expect(
+      (
+        await submitCountedResult(db, {
+          deviceId: device.deviceId,
+          attemptId: issued.attemptId,
+          score: 1951, // one past the documented maximum
+        })
+      ).kind,
+    ).toBe("bad_score");
+    const max = await submitCountedResult(db, {
+      deviceId: device.deviceId,
+      attemptId: issued.attemptId,
+      score: 1950, // docs/games/snake-freebies.md max-score vector
+    });
+    expect(max.kind).toBe("accepted");
   });
 
   it("freebie envelope: the perfect-run 2277 is accepted, 2278 is rejected (M2.5 review P1)", async () => {

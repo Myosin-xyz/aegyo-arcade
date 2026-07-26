@@ -70,8 +70,8 @@ const DEPTH_FALL_TOP = 40; // slip tumble starts just under the claw tips
 // Beat the claw holds motionless over the chute before opening (DaiDai).
 const HOLD_OVER_CHUTE_MS = 300;
 const OUTCOME_WAIT_MS = 6000; // dwell cap while the server resolves
-const HOLE_CX_FRAC = 0.16; // horizontal center of the prize chute (bottom-left)
-const HOLE_DROP_FRAC = 0.26; // how deep the claw dips to sink the plush into the box
+// (The chute's center and drop depth are no longer guessed as fractions —
+// V3 derives them from the manifest via chuteCenterX()/chuteOffset().)
 const MOVE_SPEED_FRAC = 0.00085; // design-widths per ms while a direction is held
 const MOVE_LO_FRAC = 0.26; // claw-center horizontal travel bounds
 const MOVE_HI_FRAC = 0.74;

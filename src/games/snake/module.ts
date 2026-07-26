@@ -1,12 +1,19 @@
 /**
- * Aegyo Snake — first production ShellLoopGame (docs/games/snake.md).
+ * Snake Freebies — ShellLoopGame adapter (docs/games/snake-freebies.md).
  *
- * The shell owns the loop, canvas sizing, and lifecycle; this module is a
- * pure-ish state machine over dt plus a renderer. Movement uses a fixed
- * 140ms accumulator (recovered mock feel); input is a VISIBLE on-screen
- * D-pad (docs requirement) + swipe + keyboard arrows, all via the InputBus;
- * all randomness comes from the run's seeded PRNG, so counted runs replay
- * deterministically.
+ * The shell owns the loop and canvas; this module feeds real time into the
+ * pure core (which ticks on each level's own cadence) and wires input
+ * through the InputBus.
+ *
+ * MOBILE (Simon 2026-07-26: ~95% of traffic is the IG/TikTok in-app
+ * browser): three input paths, all pointer-first —
+ *   1. SWIPE anywhere on the surface (primary on phones),
+ *   2. an on-canvas D-PAD under the arena, acting on pointer DOWN (not
+ *      click) for zero latency,
+ *   3. arrow keys / WASD as the desktop enhancement.
+ * Arena sizing comes from the shell's CanvasSurfaceManager (design-box
+ * letterboxing + DPR cap), never from the delivery's own resize handler —
+ * that is what keeps it correct in an in-app browser whose viewport lies.
  */
 
 import type {
@@ -18,92 +25,165 @@ import type {
 } from "@/shell/contract";
 import { snakeMeta } from "./meta";
 import {
+  FREEBIE_SPRITE_COUNT,
+  continueFromLevelBreak,
   createSnakeState,
   queueDirection,
   step,
-  STEP_MS,
-  type Dir,
+  type Cell,
+  type Rng,
   type SnakeState,
 } from "./logic";
-import { CONTROL_ZONES, hitControl } from "./controls";
-import { arp, blip, sweep } from "@/shell/sfx-presets";
+import { DESIGN_W, renderSnake, type SnakeImages } from "./render";
+import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
 
-const SWIPE_MIN_PX = 24;
+const ASSETS_BASE = "/games/snake/";
+/** Minimum pointer travel (design px) that counts as a swipe. */
+const SWIPE_MIN = 18;
+/** D-pad geometry, below the arena (see `dpadRects` for the sizing math). */
+const DPAD_CY = 528;
+const DPAD_BTN = 56;
+const DPAD_GAP = 6;
 
-const COLORS = {
-  background: "#2b1146",
-  board: "#1c0a33",
-  gridLine: "rgba(255, 255, 255, 0.05)",
-  body: "#ffffff",
-  head: "#ff4f8b",
-  food: "#ffd166",
-  control: "rgba(255, 255, 255, 0.10)",
-  controlArrow: "rgba(255, 255, 255, 0.85)",
-} as const;
+const DIRS: Record<string, Cell> = {
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+};
 
-// Tail gradient (head-pink → violet) precomputed into fixed buckets so the
-// per-segment colour is an array lookup instead of an `rgb(...)` string
-// built for every body segment every frame. Endpoints match the previous
-// inline interpolation — (255,79,139) at f=0 → (139,124,255) at f=1; 16
-// buckets is visually indistinguishable from the continuous ramp.
-const TAIL_BUCKET_COUNT = 16;
-const TAIL_COLORS: readonly string[] = Array.from(
-  { length: TAIL_BUCKET_COUNT },
-  (_, k) => {
-    const f = k / (TAIL_BUCKET_COUNT - 1);
-    const r = Math.round(255 + (139 - 255) * f);
-    const g = Math.round(79 + (124 - 79) * f);
-    const b = Math.round(139 + (255 - 139) * f);
-    return `rgb(${r}, ${g}, ${b})`;
-  },
-);
+const KEY_DIRS: Record<string, Cell> = {
+  ArrowUp: DIRS.up,
+  ArrowDown: DIRS.down,
+  ArrowLeft: DIRS.left,
+  ArrowRight: DIRS.right,
+  KeyW: DIRS.up,
+  KeyS: DIRS.down,
+  KeyA: DIRS.left,
+  KeyD: DIRS.right,
+};
+
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * D-pad hit rects in design space (also used to draw it).
+ *
+ * SIZING (M2.5 review P2 — an earlier 46 design px assumed a WIDTH-limited
+ * letterbox): on a tall phone the canvas is HEIGHT-limited, so the scale is
+ * `canvasH / 640`, not `canvasW / 360`. At the measured 320×568 worst case
+ * the canvas is 298×531 → scale 0.83, which turned 46 design px into only
+ * 38 CSS px and left 15 px under the Down button — inside a typical iOS
+ * home-indicator inset. At 56 design px the same viewport yields ≈46 CSS px
+ * (clears the 44 px guidance) with ≈42 px of clearance below. `dpad-touch-
+ * targets` in tests/unit/snake-module.test.ts regresses both numbers.
+ */
+export function dpadRects(): Record<string, Rect> {
+  const cx = DESIGN_W / 2;
+  const s = DPAD_BTN;
+  const g = DPAD_GAP;
+  return {
+    up: { x: cx - s / 2, y: DPAD_CY - s - g, w: s, h: s },
+    down: { x: cx - s / 2, y: DPAD_CY + g, w: s, h: s },
+    left: { x: cx - s * 1.5 - g, y: DPAD_CY - s / 2, w: s, h: s },
+    right: { x: cx + s / 2 + g, y: DPAD_CY - s / 2, w: s, h: s },
+  };
+}
+
+function loadImage(
+  src: string,
+  signal: AbortSignal,
+): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("snake init aborted", "AbortError"));
+      return;
+    }
+    const img = new Image();
+    const onAbort = () =>
+      reject(new DOMException("snake init aborted", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    img.onload = () => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(img);
+    };
+    img.onerror = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(new Error(`snake asset failed: ${src}`));
+    };
+    img.src = src;
+  });
+}
 
 class SnakeGame implements ShellLoopGame {
   readonly loop = "shell" as const;
   private state: SnakeState | null = null;
-  private rng: (() => number) | null = null;
-  private accumulator = 0;
+  private rng: Rng | null = null;
+  private images: SnakeImages | null = null;
   private paused = false;
-  /** First intentional input starts movement (M4 UX P1: the snake must
-   * not be dying while the player is still orienting). */
-  private armed = false;
   private endedReported = false;
-  private swipeStart: { x: number; y: number } | null = null;
-  /** Head-glow radial gradient built once at the origin and translated to
-   * the head each frame (rebuilt only if `cell` changes). */
-  private headGlow: CanvasGradient | null = null;
-  private headGlowCell = 0;
+  /** First input starts the run (no dying while orienting). */
+  private armed = false;
+  private lastScore = -1;
+  private lastLives = -1;
+  /**
+   * Gesture bookkeeping is per PHYSICAL pointer (M2.5 review P2): with a
+   * single global origin, a second finger pressing the D-pad could consume
+   * the first finger's swipe on release and enqueue a turn nobody asked for.
+   */
+  private swipeOrigins = new Map<number, { x: number; y: number }>();
+  private pressedDirs = new Map<number, string>();
   private unsubscribers: (() => void)[] = [];
 
   constructor(private readonly ctx: GameContext) {}
 
-  init(): void {
-    this.ctx.audio.register("eat", blip(880, 0.06, "square", 0.05));
-    this.ctx.audio.register("win", arp([523, 659, 784, 1047]));
-    this.ctx.audio.register("lose", sweep(440, 90, 0.3, "sawtooth", 0.04));
+  async init(signal: AbortSignal): Promise<void> {
+    this.ctx.audio.register("gift", blip(880, 0.06, "triangle", 0.045));
+    this.ctx.audio.register("levelUp", arp([523, 659, 784, 1047], 0.07));
+    this.ctx.audio.register("die", thud(90, 0.22, 0.05));
+    this.ctx.audio.register("lose", sweep(500, 80, 0.28, "sawtooth", 0.045));
+    this.ctx.audio.register("win", arp([659, 784, 988, 1319], 0.08));
+
+    const [head, gift, frame, ...freebies] = await Promise.all([
+      loadImage(`${ASSETS_BASE}head.webp`, signal),
+      loadImage(`${ASSETS_BASE}gift.webp`, signal),
+      loadImage(`${ASSETS_BASE}frame.webp`, signal),
+      ...Array.from({ length: FREEBIE_SPRITE_COUNT }, (_, i) =>
+        loadImage(`${ASSETS_BASE}f${String(i).padStart(2, "0")}.webp`, signal),
+      ),
+    ]);
+    this.images = { head, gift, frame, freebies };
+
     this.unsubscribers.push(
-      this.ctx.input.onPointer((p) => this.onPointer(p)),
       this.ctx.input.onKey((k) => {
-        if (k.action !== "down") return;
+        if (k.action !== "down" || this.paused) return;
         const dir = KEY_DIRS[k.code];
-        if (dir) this.tryQueue(dir);
+        if (dir) this.turn(dir);
       }),
+      this.ctx.input.onPointer((p) => this.onPointer(p)),
     );
   }
 
   start(run: RunContext): void {
     this.rng = run.random;
     this.state = createSnakeState(run.random);
-    this.accumulator = 0;
     this.endedReported = false;
-    this.armed = false; // wait for the first intentional input
-    this.swipeStart = null; // no gesture survives a restart
+    this.armed = false;
+    this.lastScore = -1;
+    this.lastLives = -1;
+    this.swipeOrigins.clear();
+    this.pressedDirs.clear();
     this.ctx.report.score(0);
   }
 
   pause(): void {
     this.paused = true;
-    this.swipeStart = null; // no gesture survives a pause
+    this.swipeOrigins.clear();
+    this.pressedDirs.clear();
   }
 
   resume(): void {
@@ -113,273 +193,183 @@ class SnakeGame implements ShellLoopGame {
   update(dtMs: number): void {
     const state = this.state;
     const rng = this.rng;
-    if (!state || !rng || this.paused || state.status !== "running") return;
+    if (!state || !rng || this.paused) return;
+    if (state.status === "won" || state.status === "lost") return;
+    // Level breaks wait for the player, like the delivery's GO! button.
+    if (state.status === "levelBreak") return;
     if (!this.armed) return; // frozen until the first input
-    this.accumulator += dtMs;
-    while (this.accumulator >= STEP_MS) {
-      this.accumulator -= STEP_MS;
-      const before = state.collected;
-      step(state, rng);
-      if (state.collected !== before) {
-        this.ctx.audio.play("eat");
-        this.ctx.report.score(state.collected);
-      }
-      if (state.status !== "running") {
-        if (!this.endedReported) {
-          this.endedReported = true;
-          this.ctx.audio.play(state.status === "completed" ? "win" : "lose");
-          this.ctx.report.end({
-            reason: state.status === "completed" ? "completed" : "lost",
-          });
-        }
-        return;
+
+    const before = state.status;
+    // step() RETURNS the new status: reading state.status back here would
+    // keep TypeScript's pre-call narrowing and dead-end the comparisons.
+    const after = step(state, dtMs, rng);
+
+    if (state.score !== this.lastScore) {
+      if (this.lastScore >= 0) this.ctx.audio.play("gift");
+      this.lastScore = state.score;
+      this.ctx.report.score(state.score);
+    }
+    if (this.lastLives >= 0 && state.lives < this.lastLives) {
+      this.ctx.audio.play("die");
+    }
+    this.lastLives = state.lives;
+    if (before === "playing" && after === "levelBreak") {
+      this.ctx.audio.play("levelUp");
+    }
+    if (after === "won" || after === "lost") {
+      if (!this.endedReported) {
+        this.endedReported = true;
+        this.ctx.audio.play(after === "won" ? "win" : "lose");
+        this.ctx.report.end({
+          reason: after === "won" ? "completed" : "lost",
+        });
       }
     }
   }
 
   render(): void {
-    if (this.ctx.surface.kind !== "canvas" || !this.state) return;
-    const { context2d: g, designBox } = this.ctx.surface;
-    const state = this.state;
-    const boardSize = designBox.w; // 360×360 board
-    const offsetY = (designBox.h - boardSize) / 2;
-    const cell = boardSize / state.grid;
-
-    g.fillStyle = COLORS.background;
-    g.fillRect(0, 0, designBox.w, designBox.h);
-    g.fillStyle = COLORS.board;
-    g.fillRect(0, offsetY, boardSize, boardSize);
-    // Checkerboard tint instead of grid lines — calmer, more "venue
-    // floor" (style pass); same geometry.
-    g.fillStyle = "rgba(255, 255, 255, 0.025)";
-    for (let gy = 0; gy < state.grid; gy++) {
-      for (let gx = gy % 2 === 0 ? 1 : 0; gx < state.grid; gx += 2) {
-        g.fillRect(gx * cell, offsetY + gy * cell, cell, cell);
-      }
+    if (this.ctx.surface.kind !== "canvas" || !this.state || !this.images) {
+      return;
     }
-    // Neon frame around the play field.
-    g.strokeStyle = "rgba(255, 79, 139, 0.45)";
-    g.lineWidth = 2;
-    g.strokeRect(1, offsetY + 1, boardSize - 2, boardSize - 2);
-    g.strokeStyle = "rgba(255, 143, 184, 0.12)";
-    g.lineWidth = 6;
-    g.strokeRect(3, offsetY + 3, boardSize - 6, boardSize - 6);
-
-    if (state.food) {
-      // Photocard pickup: gold card, pink face, soft pulse (cosmetic
-      // clock only — simulation stays seeded/deterministic).
-      const fx = state.food.x * cell + cell / 2;
-      const fy = offsetY + state.food.y * cell + cell / 2;
-      const pulse = 0.9 + 0.1 * Math.sin(performance.now() * 0.005);
-      const cardW = cell * 0.62 * pulse;
-      const cardH = cell * 0.8 * pulse;
-      g.fillStyle = "rgba(255, 209, 102, 0.25)";
-      g.beginPath();
-      g.arc(fx, fy, cell * 0.55, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = COLORS.food;
-      g.beginPath();
-      g.roundRect(fx - cardW / 2, fy - cardH / 2, cardW, cardH, 3);
-      g.fill();
-      g.fillStyle = "#ff8fb8";
-      g.beginPath();
-      g.roundRect(
-        fx - cardW * 0.32,
-        fy - cardH * 0.3,
-        cardW * 0.64,
-        cardH * 0.48,
-        2,
-      );
-      g.fill();
-    }
-
-    // Body: head pink fading to violet down the tail; head gets eyes
-    // looking along the travel direction.
-    const tailLength = Math.max(1, state.body.length - 1);
-    for (let i = state.body.length - 1; i >= 0; i--) {
-      const segment = state.body[i];
-      if (i === 0) {
-        g.fillStyle = COLORS.head;
-      } else {
-        const f = i / tailLength;
-        const bucket = Math.min(
-          TAIL_BUCKET_COUNT - 1,
-          Math.max(0, Math.round(f * (TAIL_BUCKET_COUNT - 1))),
-        );
-        g.fillStyle = TAIL_COLORS[bucket];
-      }
-      const pad = 1;
-      g.beginPath();
-      g.roundRect(
-        segment.x * cell + pad,
-        offsetY + segment.y * cell + pad,
-        cell - pad * 2,
-        cell - pad * 2,
-        i === 0 ? 6 : 4,
-      );
-      g.fill();
-    }
-
-    // Soft glow under the head so the leading edge always pops. Gradient
-    // is built once at the origin and translated to the head (rebuilt only
-    // if `cell` changes) — draw-identical to the old per-frame build.
-    const glowHead = state.body[0];
-    const ghx = glowHead.x * cell + cell / 2;
-    const ghy = offsetY + glowHead.y * cell + cell / 2;
-    let headGlow = this.headGlow;
-    if (!headGlow || this.headGlowCell !== cell) {
-      headGlow = g.createRadialGradient(0, 0, 1, 0, 0, cell * 1.4);
-      headGlow.addColorStop(0, "rgba(255, 79, 139, 0.35)");
-      headGlow.addColorStop(1, "rgba(255, 79, 139, 0)");
-      this.headGlow = headGlow;
-      this.headGlowCell = cell;
-    }
-    g.save();
-    g.translate(ghx, ghy);
-    g.fillStyle = headGlow;
-    g.beginPath();
-    g.arc(0, 0, cell * 1.4, 0, Math.PI * 2);
-    g.fill();
-    g.restore();
-
-    const head = state.body[0];
-    const neck = state.body[1] ?? head;
-    const dx = Math.sign(head.x - neck.x);
-    const dy = Math.sign(head.y - neck.y);
-    const hx = head.x * cell + cell / 2;
-    const hy = offsetY + head.y * cell + cell / 2;
-    const spread = cell * 0.22;
-    const look = cell * 0.16;
-    g.fillStyle = "#ffffff";
-    g.beginPath();
-    g.arc(
-      hx - dy * spread + dx * look,
-      hy - dx * spread + dy * look,
-      cell * 0.13,
-      0,
-      Math.PI * 2,
-    );
-    g.arc(
-      hx + dy * spread + dx * look,
-      hy + dx * spread + dy * look,
-      cell * 0.13,
-      0,
-      Math.PI * 2,
-    );
-    g.fill();
-    g.fillStyle = "#2b1146";
-    g.beginPath();
-    g.arc(
-      hx - dy * spread + dx * (look + 1.5),
-      hy - dx * spread + dy * (look + 1.5),
-      cell * 0.06,
-      0,
-      Math.PI * 2,
-    );
-    g.arc(
-      hx + dy * spread + dx * (look + 1.5),
-      hy + dx * spread + dy * (look + 1.5),
-      cell * 0.06,
-      0,
-      Math.PI * 2,
-    );
-    g.fill();
-
-    this.renderControls(g);
-  }
-
-  /** Visible on-screen D-pad (docs/games/snake.md input requirement). */
-  private renderControls(g: CanvasRenderingContext2D): void {
-    for (const zone of CONTROL_ZONES) {
-      g.fillStyle = COLORS.control;
-      g.beginPath();
-      g.roundRect(zone.x, zone.y, zone.w, zone.h, 12);
-      g.fill();
-
-      const cx = zone.x + zone.w / 2;
-      const cy = zone.y + zone.h / 2;
-      const r = 11;
-      g.fillStyle = COLORS.controlArrow;
-      g.beginPath();
-      if (zone.dir === "up") {
-        g.moveTo(cx, cy - r);
-        g.lineTo(cx - r, cy + r * 0.7);
-        g.lineTo(cx + r, cy + r * 0.7);
-      } else if (zone.dir === "down") {
-        g.moveTo(cx, cy + r);
-        g.lineTo(cx - r, cy - r * 0.7);
-        g.lineTo(cx + r, cy - r * 0.7);
-      } else if (zone.dir === "left") {
-        g.moveTo(cx - r, cy);
-        g.lineTo(cx + r * 0.7, cy - r);
-        g.lineTo(cx + r * 0.7, cy + r);
-      } else {
-        g.moveTo(cx + r, cy);
-        g.lineTo(cx - r * 0.7, cy - r);
-        g.lineTo(cx - r * 0.7, cy + r);
-      }
-      g.closePath();
-      g.fill();
-    }
+    const { context2d: g } = this.ctx.surface;
+    renderSnake(g, this.state, this.images, this.ctx.t, performance.now());
+    this.drawDpad(g);
   }
 
   destroy(): void {
     for (const unsubscribe of this.unsubscribers) unsubscribe();
     this.unsubscribers = [];
     this.state = null;
-    this.swipeStart = null;
+    this.images = null;
+  }
+
+  /**
+   * Queue a turn, arming the run on the first ACCEPTED one.
+   *
+   * Arming on a rejected turn (M2.5 review P1) meant that from the initial
+   * right-facing state, tapping Left — a reversal the core refuses — still
+   * unfroze the simulation and sent the snake right, a move the player
+   * never asked for. Returns whether the direction was taken.
+   */
+  private turn(dir: Cell): boolean {
+    const state = this.state;
+    if (!state) return false;
+    if (state.status === "levelBreak") return false;
+    if (!queueDirection(state, dir)) return false;
+    this.armed = true;
+    return true;
+  }
+
+  private dpadHit(x: number, y: number): string | null {
+    for (const [name, r] of Object.entries(dpadRects())) {
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return name;
+    }
+    return null;
+  }
+
+  /** Decode a drag into a turn once it clears SWIPE_MIN; axis of greater travel wins. */
+  private resolveSwipe(
+    origin: { x: number; y: number },
+    p: NormalizedPointer,
+  ): boolean {
+    const dx = p.x - origin.x;
+    const dy = p.y - origin.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_MIN) return false;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.turn(dx > 0 ? DIRS.right : DIRS.left);
+    } else {
+      this.turn(dy > 0 ? DIRS.down : DIRS.up);
+    }
+    return true;
   }
 
   private onPointer(p: NormalizedPointer): void {
-    if (!this.state) return;
+    const state = this.state;
+    if (!state || this.paused) return;
+
     if (p.action === "down") {
-      // Visible D-pad first (docs requirement); swipe elsewhere. A D-pad
-      // press also discards any in-flight swipe so a stale gesture can't
-      // overwrite the queued direction later (M2 re-review P2).
-      const controlDir = hitControl(p.x, p.y);
-      if (controlDir) {
-        this.swipeStart = null;
-        this.tryQueue(controlDir);
+      // Level break: any tap continues (the delivery's GO! button).
+      if (state.status === "levelBreak" && this.rng) {
+        continueFromLevelBreak(state, this.rng);
         return;
       }
-      this.swipeStart = { x: p.x, y: p.y };
+      // D-pad first — a press inside a button is a turn, not a swipe.
+      const hit = this.dpadHit(p.x, p.y);
+      if (hit) {
+        this.pressedDirs.set(p.pointerId, hit);
+        this.turn(DIRS[hit]);
+        return;
+      }
+      this.swipeOrigins.set(p.pointerId, { x: p.x, y: p.y });
       return;
     }
-    if (p.action === "cancel") {
-      this.swipeStart = null;
+
+    if (p.action === "move") {
+      // PRIMARY mobile control (M2.5 review P1): turn the moment the drag
+      // crosses the threshold, as the delivery does on touchmove. Waiting
+      // for finger-up costs multiple ticks at level 3's 125 ms cadence.
+      // The origin is dropped on success so one drag yields one turn.
+      const origin = this.swipeOrigins.get(p.pointerId);
+      if (origin && this.resolveSwipe(origin, p)) {
+        this.swipeOrigins.delete(p.pointerId);
+      }
       return;
     }
-    if (p.action !== "up" || !this.swipeStart) return;
-    const dx = p.x - this.swipeStart.x;
-    const dy = p.y - this.swipeStart.y;
-    this.swipeStart = null;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_MIN_PX) return;
-    const dir: Dir =
-      Math.abs(dx) > Math.abs(dy)
-        ? dx > 0
-          ? "right"
-          : "left"
-        : dy > 0
-          ? "down"
-          : "up";
-    this.tryQueue(dir);
+
+    if (p.action === "up" || p.action === "cancel") {
+      const origin = this.swipeOrigins.get(p.pointerId);
+      this.swipeOrigins.delete(p.pointerId);
+      this.pressedDirs.delete(p.pointerId);
+      // Fallback for a flick so quick it never reported a move past the
+      // threshold. A CANCELLED gesture stays silent — the platform took
+      // the finger away, so it was never a deliberate turn.
+      if (origin && p.action === "up") this.resolveSwipe(origin, p);
+    }
   }
 
-  /** Single arming path: only an ACCEPTED input (same-direction or a
-   * legal turn) starts the run — a rejected reversal as the first press
-   * must not launch the snake the other way (M4 review). */
-  private tryQueue(dir: Dir): void {
-    if (!this.state) return;
-    if (queueDirection(this.state, dir)) this.armed = true;
+  /** On-canvas d-pad: always visible, thumb-sized, drawn under the arena. */
+  private drawDpad(g: CanvasRenderingContext2D): void {
+    const held0 = new Set(this.pressedDirs.values());
+    for (const [name, r] of Object.entries(dpadRects())) {
+      const held = held0.has(name);
+      g.fillStyle = held ? "rgba(255, 79, 139, 0.5)" : "rgba(43, 17, 70, 0.8)";
+      g.beginPath();
+      if (typeof g.roundRect === "function") {
+        g.roundRect(r.x, r.y, r.w, r.h, 10);
+      } else {
+        g.rect(r.x, r.y, r.w, r.h);
+      }
+      g.fill();
+      g.strokeStyle = "rgba(255, 143, 184, 0.35)";
+      g.lineWidth = 1;
+      g.stroke();
+      const cx = r.x + r.w / 2;
+      const cy = r.y + r.h / 2;
+      const s = 8;
+      g.fillStyle = "#ffffff";
+      g.beginPath();
+      if (name === "up") {
+        g.moveTo(cx, cy - s);
+        g.lineTo(cx + s, cy + s * 0.6);
+        g.lineTo(cx - s, cy + s * 0.6);
+      } else if (name === "down") {
+        g.moveTo(cx, cy + s);
+        g.lineTo(cx + s, cy - s * 0.6);
+        g.lineTo(cx - s, cy - s * 0.6);
+      } else if (name === "left") {
+        g.moveTo(cx - s, cy);
+        g.lineTo(cx + s * 0.6, cy + s);
+        g.lineTo(cx + s * 0.6, cy - s);
+      } else {
+        g.moveTo(cx + s, cy);
+        g.lineTo(cx - s * 0.6, cy + s);
+        g.lineTo(cx - s * 0.6, cy - s);
+      }
+      g.closePath();
+      g.fill();
+    }
   }
 }
-
-const KEY_DIRS: Record<string, Dir> = {
-  ArrowUp: "up",
-  ArrowDown: "down",
-  ArrowLeft: "left",
-  ArrowRight: "right",
-};
 
 export const snakeDefinition: GameDefinition = {
   apiVersion: 1,

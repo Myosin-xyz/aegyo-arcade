@@ -29,8 +29,9 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
   Object.create(null) as Record<string, CountedGameConfig>,
   {
     // 20×20 board minus the 3-cell starting body → 397 collectable cells;
-    // 400 leaves rounding headroom (docs/games/snake.md).
-    snake: { maxScore: 400, scored: true },
+    // Snake Freebies (Daidai V1, 2026-07-26): a perfect run is
+    // 10·10 + 25·20 + 45·30 = 1950 (docs/games/snake-freebies.md).
+    snake: { maxScore: 1950, scored: true },
     // ~0.87 barricades/second at 2.6 px/step · 180 px spacing; the 15-min
     // attempt TTL bounds a run at ~780 — 800 is the envelope
     // (docs/games/flappy.md adopted units).

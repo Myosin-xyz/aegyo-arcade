@@ -1,6 +1,6 @@
 # es-419 Native Review Pack (EXT-LOCALE gate)
 
-> Generated from src/i18n/locales (174 strings) by
+> Generated from src/i18n/locales (186 strings) by
 > scripts/ops/generate-l10n-review.mjs — regenerate after ANY copy
 > change; a unit test pins this document to the JSON values.
 > LOCALE-1 requires a native/fan-fluent review before es-419 is
@@ -97,13 +97,17 @@
 | `game.jumper.tagline`                    | Bounce up the charts. Don't flop off the top 100.                                     | Rebota hasta la cima del chart. No te caigas del top 100.                                |
 | `game.jumper.title`                      | Comeback Climb                                                                        | Comeback Climb                                                                           |
 | `game.snake.controls`                    | Swipe or use the d-pad to steer. You move on your first input.                        | Desliza o usa el d-pad para girar. Te mueves con tu primer toque.                        |
+| `game.snake.hud.freebies`                | Freebies                                                                              | Freebies                                                                                 |
 | `game.snake.hud.level`                   | Level                                                                                 | Nivel                                                                                    |
+| `game.snake.hud.lives`                   | Lives                                                                                 | Vidas                                                                                    |
 | `game.snake.hud.score`                   | Score                                                                                 | Puntos                                                                                   |
 | `game.snake.hud.time`                    | Time                                                                                  | Tiempo                                                                                   |
 | `game.snake.intro.1`                     | Swipe anywhere, or tap the d-pad, to steer.                                           | Desliza en cualquier lado, o toca el d-pad, para girar.                                  |
 | `game.snake.intro.2`                     | Eat gift boxes. Each freebie joins your chain and it grows.                           | Come las cajas de regalo. Cada freebie se suma a tu cadena y crece.                      |
 | `game.snake.intro.3`                     | Hit a wall or yourself and you lose a life. 3 per level.                              | Si chocas con el muro o contigo pierdes una vida. 3 por nivel.                           |
 | `game.snake.intro.4`                     | Clear 3 levels: 10, then 25, then 45 freebies.                                        | Supera 3 niveles: 10, luego 25, luego 45 freebies.                                       |
+| `game.snake.intro.subtitle`              | Catch every freebie, fan!                                                             | ¡Atrapa cada freebie, fan!                                                               |
+| `game.snake.intro.title`                 | Snake Freebies                                                                        | Snake Freebies                                                                           |
 | `game.snake.levelUp`                     | Level {level}                                                                         | Nivel {level}                                                                            |
 | `game.snake.nextTarget`                  | {count} freebies to catch, same arena                                                 | {count} freebies por atrapar, la misma arena                                             |
 | `game.snake.rank.0`                      | Rookie fan to rising fan!                                                             | ¡De fan novata a fan en ascenso!                                                         |
@@ -112,6 +116,13 @@
 | `game.snake.tagline`                     | Grow a chain of freebies. 3 levels, 3 lives, one arena.                               | Arma tu cadena de freebies. 3 niveles, 3 vidas, una arena.                               |
 | `game.snake.tapToGo`                     | Tap to go                                                                             | Toca para seguir                                                                         |
 | `game.snake.title`                       | Snake Freebies                                                                        | Snake Freebies                                                                           |
+| `game.snake.toast.gift.0`                | Nice catch!                                                                           | ¡Buena atrapada!                                                                         |
+| `game.snake.toast.gift.1`                | Freebie get!                                                                          | ¡Freebie conseguido!                                                                     |
+| `game.snake.toast.gift.2`                | Bias approved!                                                                        | ¡Bias approved!                                                                          |
+| `game.snake.toast.gift.3`                | So shiny!                                                                             | ¡Qué brillo!                                                                             |
+| `game.snake.toast.gift.4`                | Fan power!                                                                            | ¡Fan power!                                                                              |
+| `game.snake.toast.gift.5`                | Encore!                                                                               | ¡Encore!                                                                                 |
+| `game.snake.toast.ouch`                  | Ouch! -1 life                                                                         | ¡Auch! -1 vida                                                                           |
 | `game.thisorthat.controls`               | Tap a card (or press the left/right arrows) to pick. Nine rounds.                     | Toca una tarjeta (o usa las flechas) para elegir. Nueve rondas.                          |
 | `game.thisorthat.opt.arcadehan`          | Arcade run with Han                                                                   | Arcade con Han                                                                           |
 | `game.thisorthat.opt.bike`               | Han River bike ride                                                                   | Bici por el río Han                                                                      |
@@ -167,6 +178,7 @@
 | `host.streakLine`                        | Daily streak: {current} (best {best})                                                 | Racha diaria: {current} (mejor {best})                                                   |
 | `host.submitError`                       | We couldn't save this run.                                                            | No pudimos guardar esta partida.                                                         |
 | `host.submittedRank`                     | Saved! Rank #{rank} this week.                                                        | ¡Guardada! Puesto #{rank} esta semana.                                                   |
+| `host.submittedUnplaced`                 | Run saved. Score a point to make the board.                                           | Partida guardada. Anota un punto para entrar a la tabla.                                 |
 | `host.submitting`                        | Saving your run...                                                                    | Guardando tu partida...                                                                  |
 | `host.todaysRun`                         | Play today's run                                                                      | Jugar la partida de hoy                                                                  |
 | `host.unknownGame`                       | This game doesn't exist.                                                              | Este juego no existe.                                                                    |

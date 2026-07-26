@@ -449,6 +449,8 @@ Adopted V1 (`OD-3`): weekly cosmetic boards only, resetting Monday 00:00 UTC. Di
 
 **Adopted ranking policy (M2):** competition ranking — rank = 1 + count of strictly greater scores, so ties share a rank ("1, 1, 3") — implemented by ONE shared query/policy for every surface. Rows with `flagged = true` are invisible EVERYWHERE: excluded from top lists, from a device's own best/rank, and from rank counting at submission time. Moderation can never inflate or deflate a legitimate rank inconsistently.
 
+**Adopted placement floor (pre-launch pass, 2026-07-26):** a zero-score run never places (`MIN_PLACING_SCORE = 1` in `src/server/leaderboard.ts`). The run itself stays fully counted — accepted, daily slot consumed, streak advanced, receipt persisted — but it appears on no board, holds no rank, and its receipt reads "not placed" instead of "#1". Applied at READ time on the same shared predicate as `flagged`, so no rows are dropped and the policy is one predicate away from reverting. Rationale: production Snake showed two 0-point runs tied at #1 on an otherwise empty board — an empty board must read as empty, not broken.
+
 If OD-3 is later overridden to add material prizes, this section is replaced before that feature is built with:
 
 - Prize-eligible identity/account rules.

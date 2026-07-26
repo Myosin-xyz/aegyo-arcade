@@ -27,12 +27,16 @@ interface Rendered {
   probe: HostileProbe;
 }
 
-async function renderHost(options: HostileOptions = {}): Promise<Rendered> {
+async function renderHost(
+  options: HostileOptions = {},
+  entryOverrides: Partial<RegistryEntry> = {},
+): Promise<Rendered> {
   const { definition, probe } = createHostileDefinition(options);
   const entry: RegistryEntry = {
     meta: hostileMeta,
     hostManagedCanvas: false,
     load: async () => definition,
+    ...entryOverrides,
   };
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -477,6 +481,73 @@ describe("GameHostInner lifecycle enforcement", () => {
     expect(probe.updateTicks).toBe(0);
     expect(probe.renders).toBe(0);
     expect(container.querySelector('[data-testid="play-again"]')).toBeTruthy();
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("the surface is INERT under a blocking overlay and live while running", async () => {
+    // A scrim that only covers the surface visually leaves DOM games
+    // underneath tabbable and screen-reader reachable — Hangman's letter
+    // keys and This-or-That's choices were both reachable behind the ready
+    // screen (operator review, 2026-07-26).
+    const { container, root } = await renderHost({ endAfterTicks: 1_000_000 });
+    const inert = () =>
+      (
+        container.querySelector(
+          '[data-testid="game-surface-frame"]',
+        ) as HTMLElement
+      ).hasAttribute("inert");
+
+    expect(lifecycleOf(container)).toBe("ready");
+    expect(inert(), "ready overlay").toBe(true);
+
+    await act(async () => {
+      (
+        container.querySelector('[data-testid="start-run"]') as HTMLElement
+      ).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(lifecycleOf(container)).toBe("running");
+    expect(inert(), "running — the game must be playable").toBe(false);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("blur")); // → paused
+    });
+    expect(lifecycleOf(container)).toBe("paused");
+    expect(inert(), "paused overlay").toBe(true);
+
+    await act(async () => {
+      (
+        container.querySelector('[data-testid="resume-run"]') as HTMLElement
+      ).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(inert(), "resumed").toBe(false);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("a game-authored ended result stays reachable (NOT inert)", async () => {
+    // This case has no scrim: the game's own result IS the content, so
+    // making it inert would hide the outcome from assistive tech.
+    const { container, root } = await renderHost(
+      { endOnStart: true },
+      { endPresentation: "game-authored" },
+    );
+    await act(async () => {
+      (
+        container.querySelector('[data-testid="start-run"]') as HTMLElement
+      ).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(lifecycleOf(container)).toBe("ended");
+    expect(
+      (
+        container.querySelector(
+          '[data-testid="game-surface-frame"]',
+        ) as HTMLElement
+      ).hasAttribute("inert"),
+    ).toBe(false);
     await act(async () => {
       root.unmount();
     });

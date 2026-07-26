@@ -23,7 +23,14 @@ interface InputOptions {
 
 // Hit zones are expanded well past the drawn buttons so taps feel forgiving on
 // touch — the cute pixel buttons stay small, the tappable area does not.
-const HIT_PAD = 0.5;
+//
+// 0.65, not 0.5 (pre-launch operator pass): the directional art is 68×60 in a
+// 941-wide design box, which at the 320px viewport floor scales by ~0.34. The
+// old ±50% pad produced a 46×41 CSS target — wide enough, but 3px under the
+// 44px minimum on the axis that matters most for a vertical d-pad. ±65% gives
+// ~53×47. Padded zones overlap by design; `hitTest` resolves to the NEAREST
+// button center, so a wider pad costs precision only between adjacent buttons.
+export const HIT_PAD = 0.65;
 const DROP_LIT_MS = 150;
 
 // All four directions are live (team feedback, 2026-07-19): forward/backward

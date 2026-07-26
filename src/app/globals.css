@@ -93,6 +93,122 @@ body {
     0 0 42px rgba(255, 79, 139, 0.25);
 }
 
+/*
+ * Snake Freebies' authored intro language. The delivery's synthwave
+ * presentation is rebuilt as lightweight CSS so the host can still own
+ * counted/practice mode selection and the frozen runtime lifecycle.
+ */
+.snake-intro-overlay {
+  background: linear-gradient(
+    180deg,
+    #05010f 0%,
+    #17002f 48%,
+    #4a1070 72%,
+    #140321 100%
+  );
+  isolation: isolate;
+}
+
+.snake-intro-overlay
+  > :not(.snake-intro-stars):not(.snake-intro-sun):not(.snake-intro-grid) {
+  position: relative;
+  z-index: 3;
+}
+
+.snake-intro-stars {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.75;
+  background-image:
+    radial-gradient(circle at 12% 16%, #fff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 83% 12%, #4ff0ff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 67% 28%, #ffd6f5 0 1.5px, transparent 2px),
+    radial-gradient(circle at 21% 39%, #4ff0ff 0 1px, transparent 1.5px),
+    radial-gradient(circle at 91% 45%, #fff 0 1px, transparent 1.5px);
+  background-size: 170px 150px;
+}
+
+.snake-intro-sun {
+  position: absolute;
+  z-index: 0;
+  bottom: 5%;
+  left: 50%;
+  width: 12rem;
+  height: 12rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  opacity: 0.22;
+  background: linear-gradient(180deg, #ffe95f, #ff4fd8 58%, #7b2ff7);
+  box-shadow:
+    0 0 40px rgba(255, 79, 216, 0.75),
+    0 0 90px rgba(123, 47, 247, 0.55);
+}
+
+.snake-intro-grid {
+  position: absolute;
+  z-index: 1;
+  right: -25%;
+  bottom: -15%;
+  left: -25%;
+  height: 42%;
+  transform: perspective(220px) rotateX(58deg);
+  transform-origin: top center;
+  background-image:
+    linear-gradient(rgba(79, 240, 255, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 79, 216, 0.45) 1px, transparent 1px);
+  background-size: 34px 26px;
+  animation: snake-grid-scroll 1.6s linear infinite;
+}
+
+@keyframes snake-grid-scroll {
+  to {
+    background-position:
+      0 26px,
+      0 0;
+  }
+}
+
+.snake-intro-heading {
+  margin-bottom: -0.25rem;
+}
+
+.snake-intro-title {
+  font-size: clamp(1.65rem, 8vw, 2.15rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #ffb8ec;
+  text-shadow:
+    0 0 10px rgba(255, 79, 216, 0.9),
+    0 4px 0 #7b2ff7;
+}
+
+.snake-intro-subtitle {
+  margin-top: 0.45rem;
+  color: #4ff0ff;
+  font-size: clamp(0.56rem, 2.6vw, 0.68rem);
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 9px rgba(79, 240, 255, 0.85);
+}
+
+.snake-intro-rules {
+  border: 1.5px solid rgba(255, 79, 216, 0.68);
+  border-radius: 1rem;
+  padding: 0.8rem 0.9rem;
+  background: rgba(22, 4, 48, 0.78);
+  box-shadow:
+    0 0 18px rgba(255, 79, 216, 0.26),
+    inset 0 0 20px rgba(123, 47, 247, 0.2);
+}
+
+.snake-intro-rules ul {
+  gap: 0.42rem;
+  font-size: clamp(0.68rem, 3vw, 0.78rem);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 /* Chunky arcade primary button (shared by host CTAs + cards). Label is
  * dark, not white: white on the bright brand pink is only ~2-3:1 and
  * fails WCAG AA on the primary action (audit H1). A dark brand-tinted

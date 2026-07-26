@@ -91,16 +91,20 @@ class HangmanGame implements ShellLoopGame {
     const keyboard = document.createElement("div");
     keyboard.setAttribute("aria-label", t("game.hangman.keyboardLabel"));
     keyboard.style.cssText =
-      "display:flex;flex-wrap:wrap;gap:6px;justify-content:center;";
+      "display:flex;flex-wrap:wrap;gap:4px;justify-content:center;";
     for (const letter of LETTERS) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.letter = letter;
       button.textContent = letter;
+      // 44×44 minimum touch target (iOS HIG / WCAG 2.5.5) — was 34×40.
+      // At the 320px floor the content box is ~288px, which fits 6 keys
+      // and 5 gaps (6·44 + 5·4 = 284). `flex:0 0 auto` stops flex-wrap
+      // from shrinking a key back under the minimum on a narrower box.
       button.style.cssText =
-        "width:34px;height:40px;border-radius:8px;border:1px solid " +
-        "currentColor;background:transparent;color:inherit;font-weight:700;" +
-        "cursor:pointer;";
+        "flex:0 0 auto;width:44px;height:44px;border-radius:8px;" +
+        "border:1px solid currentColor;background:transparent;" +
+        "color:inherit;font-weight:700;cursor:pointer;";
       keyboard.appendChild(button);
     }
 

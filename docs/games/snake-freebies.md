@@ -108,8 +108,10 @@ the measured 320×568 worst case the canvas is 298×531 → scale 0.83,
 turning 46 design px into **38 CSS px** with only 15 px of clearance
 under the Down button — inside a typical 34 px iOS home-indicator inset.
 
-Buttons are now **56 design px** centred at y=528, which at that same
-viewport gives ≈46 CSS px with ≈42 px of clearance.
+Buttons are now a connected **58 design px** controller cross centred at
+y=528, which at that same viewport gives ≈48 CSS px with ≈45 px of
+clearance. This also restores the delivery's cyan-outlined controller
+appearance instead of four visually unrelated shell buttons.
 
 Two tests guard this, at different levels. `tests/unit/snake-module.test.ts`
 pins the design-space CONSTANTS against the captured 531 px canvas height —
@@ -160,12 +162,24 @@ prod tables are EMPTY (scrubbed 2026-07-19) and the portal has never
 launched publicly, so no real leaderboard rows were invalidated — that
 window closes at launch.
 
-## Deferred (not in this port)
+## Presentation parity pass (2026-07-26)
 
-- The delivery's per-gift toast phrases (`phrases.gift`, 6 variants) and
-  game-over phrases (`phrases.over`) are not surfaced yet; the level-break
-  fan-rank phrases ARE (`game.snake.rank.*`). Adding the toast layer is a
-  small follow-up if Daidai wants it.
-- Victory confetti: the delivery uses CSS falling elements; the port ends
-  through the host's terminal panel instead. Canvas confetti could be
-  added the way the claw does it.
+The first shell port preserved mechanics but dropped too much of DaiDai's
+appeal. The follow-up restores the delivery's personality without changing
+the frozen runtime contract:
+
+- Registry-driven ready card with the neon title/subtitle, illustrated
+  rules card, synthwave sky, sun and animated floor. Counted/practice mode
+  selection remains host-owned and no run starts early.
+- Procedural synthwave canvas backdrop, neon two-row HUD, authored frame,
+  connected controller D-pad, deterministic catch callouts, and the
+  delivery's short red-flash/shake collision beat.
+- All new copy ships in EN + es-419 and uses the self-hosted arcade font;
+  there are no Google Fonts or other third-party runtime requests.
+- Gift callouts rotate by the in-level gift ordinal instead of consuming
+  `RunContext.random`, so visual flavour cannot perturb counted replay.
+
+Still deliberately host-authored: terminal score/receipt and Play Again.
+The delivery's game-over phrase and victory confetti would require a
+game-authored finale before `report.end`; they are not simulated behind
+the host overlay.

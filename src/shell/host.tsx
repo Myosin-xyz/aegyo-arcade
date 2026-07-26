@@ -41,7 +41,8 @@ type CountedPhase =
   | { kind: "submitting" }
   | {
       kind: "submitted";
-      rank: number;
+      /** null when the score did not place — see MIN_PLACING_SCORE. */
+      rank: number | null;
       seasonKey: string;
       streak: { current: number; best: number };
       score: number;
@@ -146,7 +147,7 @@ export function GameHostInner({
         return;
       }
       const body = (await res.json()) as {
-        rank: number;
+        rank: number | null;
         seasonKey: string;
         streak: { current: number; best: number };
         score: number;
@@ -536,6 +537,25 @@ export function GameHostInner({
 
   const countedCapable = entry !== undefined && entry.meta.capabilities.counted;
 
+  /**
+   * A blocking Overlay covers the surface but does not neutralize it: DOM
+   * games underneath stay tabbable and screen-reader reachable through the
+   * scrim (Hangman's 26 letter keys, This-or-That's choices), so keyboard
+   * and assistive-tech users can "play" a game that has not started.
+   * `inert` removes the subtree from focus, hit-testing, and the a11y tree
+   * for exactly as long as the overlay is up.
+   *
+   * The game-authored ENDED case is deliberately excluded: it has no scrim
+   * and the game's own result is the content, which must stay readable.
+   */
+  const surfaceBlocked =
+    entry !== undefined &&
+    (lifecycle === "initializing" ||
+      lifecycle === "failed" ||
+      lifecycle === "ready" ||
+      lifecycle === "paused" ||
+      (lifecycle === "ended" && entry.endPresentation !== "game-authored"));
+
   if (!entry) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
@@ -555,10 +575,14 @@ export function GameHostInner({
       data-score={score}
     >
       <header className="flex items-center justify-between gap-2 border-b border-line bg-surface pb-2 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))]">
+        {/* 44\u00d744 minimum touch target (iOS HIG / WCAG 2.5.5). The glyph
+            stays small; only the hit area grows, so the header keeps its
+            look while a thumb gets something real to hit. */}
         <Link
-          className="shrink-0 px-1 text-xl font-bold leading-none text-brand"
+          className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center text-xl font-bold leading-none text-brand"
           href="/"
           aria-label={t("host.back")}
+          data-testid="host-back"
         >
           {"\u2039"}
         </Link>
@@ -581,9 +605,10 @@ export function GameHostInner({
           )}
           <button
             type="button"
-            className="px-1 text-sm font-semibold text-muted"
+            className="-mr-2 flex h-11 w-11 items-center justify-center text-sm font-semibold text-muted"
             onClick={toggleMute}
             aria-label={muted ? t("host.unmute") : t("host.mute")}
+            data-testid="host-mute"
           >
             <svg
               viewBox="0 0 24 24"
@@ -622,7 +647,16 @@ export function GameHostInner({
       </p>
 
       <div className="relative min-h-0 flex-1">
-        <div ref={containerRef} className="absolute inset-0" />
+        <div
+          ref={containerRef}
+          className="absolute inset-0"
+          inert={surfaceBlocked}
+          // NOT "game-surface" — the mounted canvas/root inside carries
+          // that id and is the element the InputBus targets. Duplicating
+          // it makes querySelector return this wrapper instead, so tests
+          // dispatch into a node nothing is listening on.
+          data-testid="game-surface-frame"
+        />
 
         {lifecycle === "initializing" && (
           <Overlay>
@@ -645,19 +679,44 @@ export function GameHostInner({
           </Overlay>
         )}
         {lifecycle === "ready" && (
-          <Overlay>
+          <Overlay variant={entry.introPresentation?.variant}>
+            {entry.introPresentation && (
+              <div className="snake-intro-heading text-center">
+                <p className="snake-intro-title font-arcade">
+                  {t(entry.introPresentation.titleKey)}
+                </p>
+                <p className="snake-intro-subtitle font-arcade">
+                  {t(entry.introPresentation.subtitleKey)}
+                </p>
+              </div>
+            )}
             {entry.introKeys && entry.introKeys.length > 0 ? (
               // Pregame "how to play" (Daidai): shown BEFORE a mode is
               // chosen — no run is issued or started here.
-              <div className="max-w-xs">
-                <p className="mb-2 text-center font-arcade text-xs uppercase tracking-wide text-gold">
-                  {t("host.howToPlay")}
-                </p>
+              <div
+                className={
+                  entry.introPresentation
+                    ? "snake-intro-rules max-w-xs"
+                    : "max-w-xs"
+                }
+              >
+                {!entry.introPresentation && (
+                  <p className="mb-2 text-center font-arcade text-xs uppercase tracking-wide text-gold">
+                    {t("host.howToPlay")}
+                  </p>
+                )}
                 <ul className="flex flex-col gap-1.5 text-left text-sm text-white/85">
-                  {entry.introKeys.map((key) => (
+                  {entry.introKeys.map((key, index) => (
                     <li key={key} className="flex gap-2">
-                      <span aria-hidden className="text-brand">
-                        {"•"}
+                      <span
+                        aria-hidden
+                        className={
+                          entry.introPresentation
+                            ? "w-5 shrink-0 text-center"
+                            : "text-brand"
+                        }
+                      >
+                        {entry.introPresentation?.bulletIcons[index] ?? "•"}
                       </span>
                       <span>{t(key)}</span>
                     </li>
@@ -755,7 +814,11 @@ export function GameHostInner({
                 className="flex flex-col items-center gap-1 text-sm"
                 data-testid="counted-result"
               >
-                <p>{t("host.submittedRank", { rank: counted.rank })}</p>
+                <p>
+                  {counted.rank === null
+                    ? t("host.submittedUnplaced")
+                    : t("host.submittedRank", { rank: counted.rank })}
+                </p>
                 <p>
                   {t("host.streakLine", {
                     current: counted.streak.current,
@@ -817,9 +880,28 @@ export function GameHostInner({
   );
 }
 
-function Overlay({ children }: { children: React.ReactNode }) {
+function Overlay({
+  children,
+  variant,
+}: {
+  children: React.ReactNode;
+  variant?: "neon";
+}) {
   return (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-[rgba(12,5,28,0.78)] text-white backdrop-blur-[2px]">
+    <div
+      className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 overflow-y-auto text-white ${
+        variant === "neon"
+          ? "snake-intro-overlay px-5 py-4"
+          : "bg-[rgba(12,5,28,0.78)] backdrop-blur-[2px]"
+      }`}
+    >
+      {variant === "neon" && (
+        <>
+          <div className="snake-intro-stars" aria-hidden />
+          <div className="snake-intro-sun" aria-hidden />
+          <div className="snake-intro-grid" aria-hidden />
+        </>
+      )}
       {children}
     </div>
   );

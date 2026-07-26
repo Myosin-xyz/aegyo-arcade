@@ -60,6 +60,17 @@ export interface RegistryEntry {
    * contract is untouched, and both counted + practice buttons remain.
    */
   introKeys?: readonly string[];
+  /**
+   * Optional richer ready-card presentation for deliveries whose intro
+   * art direction is part of the game. This stays registry-side because
+   * it changes host chrome, not the frozen runtime contract.
+   */
+  introPresentation?: {
+    titleKey: string;
+    subtitleKey: string;
+    bulletIcons: readonly string[];
+    variant: "neon";
+  };
   load: () => Promise<GameDefinition>;
 }
 
@@ -85,9 +96,15 @@ const entries: RegistryEntry[] = [
     introKeys: [
       "game.snake.intro.1",
       "game.snake.intro.2",
-      "game.snake.intro.3",
       "game.snake.intro.4",
+      "game.snake.intro.3",
     ],
+    introPresentation: {
+      titleKey: "game.snake.intro.title",
+      subtitleKey: "game.snake.intro.subtitle",
+      bulletIcons: ["🕹️", "🎁", "🏟️", "💖"],
+      variant: "neon",
+    },
     load: () => import("./snake/module").then((m) => m.snakeDefinition),
   },
   {

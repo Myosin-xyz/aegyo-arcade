@@ -23,7 +23,7 @@ import {
 import { deviceLockKey } from "./identity";
 import { resolveDailyWindow } from "./daily-window";
 import { advanceStreakTx, type StreakResult } from "./streak";
-import { rankForScore } from "./leaderboard";
+import { MIN_PLACING_SCORE, rankForScore } from "./leaderboard";
 import { seasonKeyFor } from "./season";
 import {
   buildDailySeed,
@@ -165,7 +165,8 @@ export type SubmitResult =
       kind: "accepted";
       score: number;
       seasonKey: string;
-      rank: number;
+      /** null when the score does not place — see MIN_PLACING_SCORE. */
+      rank: number | null;
       streak: StreakResult;
       replay: boolean;
     }
@@ -318,7 +319,7 @@ export async function submitCountedResult(
 interface ResultSnapshot {
   score: number;
   seasonKey: string;
-  rank: number;
+  rank: number | null;
   streak: StreakResult;
 }
 
@@ -329,7 +330,7 @@ function parseSnapshot(raw: unknown): ResultSnapshot | null {
   if (
     typeof value.score !== "number" ||
     typeof value.seasonKey !== "string" ||
-    typeof value.rank !== "number" ||
+    (value.rank !== null && typeof value.rank !== "number") ||
     !streak ||
     typeof streak.current !== "number" ||
     typeof streak.best !== "number"
@@ -339,7 +340,11 @@ function parseSnapshot(raw: unknown): ResultSnapshot | null {
   return {
     score: value.score,
     seasonKey: value.seasonKey,
-    rank: value.rank,
+    // The stored receipt stays immutable, but the PLACEMENT policy is
+    // applied at read time on every surface. Snapshots written before
+    // MIN_PLACING_SCORE existed recorded a rank for scoreless runs; a
+    // replay must not resurrect a "#1" the board no longer shows.
+    rank: value.score < MIN_PLACING_SCORE ? null : (value.rank as number),
     streak: { current: streak.current, best: streak.best },
   };
 }

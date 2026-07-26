@@ -42,8 +42,11 @@ const ASSETS_BASE = "/games/snake/";
 const SWIPE_MIN = 18;
 /** D-pad geometry, below the arena (see `dpadRects` for the sizing math). */
 const DPAD_CY = 528;
-const DPAD_BTN = 56;
-const DPAD_GAP = 6;
+const DPAD_BTN = 58;
+/** Zero gap reproduces the delivery's connected controller cross. */
+const DPAD_GAP = 0;
+const TOAST_MS = 900;
+const GIFT_TOAST_COUNT = 6;
 
 const DIRS: Record<string, Cell> = {
   up: { x: 0, y: -1 },
@@ -78,8 +81,8 @@ interface Rect {
  * `canvasH / 640`, not `canvasW / 360`. At the measured 320×568 worst case
  * the canvas is 298×531 → scale 0.83, which turned 46 design px into only
  * 38 CSS px and left 15 px under the Down button — inside a typical iOS
- * home-indicator inset. At 56 design px the same viewport yields ≈46 CSS px
- * (clears the 44 px guidance) with ≈42 px of clearance below. `dpad-touch-
+ * home-indicator inset. At 58 design px the same viewport yields ≈48 CSS px
+ * (clears the 44 px guidance) with ≈45 px of clearance below. `dpad-touch-
  * targets` in tests/unit/snake-module.test.ts regresses both numbers.
  */
 export function dpadRects(): Record<string, Rect> {
@@ -130,6 +133,9 @@ class SnakeGame implements ShellLoopGame {
   private armed = false;
   private lastScore = -1;
   private lastLives = -1;
+  private toastKey: string | null = null;
+  private toastMs = 0;
+  private arcadeFont = "monospace";
   /**
    * Gesture bookkeeping is per PHYSICAL pointer (M2.5 review P2): with a
    * single global origin, a second finger pressing the D-pad could consume
@@ -157,6 +163,12 @@ class SnakeGame implements ShellLoopGame {
       ),
     ]);
     this.images = { head, gift, frame, freebies };
+    const resolvedArcadeFont = getComputedStyle(document.documentElement)
+      .getPropertyValue("--font-arcade")
+      .trim();
+    if (resolvedArcadeFont) {
+      this.arcadeFont = `${resolvedArcadeFont}, monospace`;
+    }
 
     this.unsubscribers.push(
       this.ctx.input.onKey((k) => {
@@ -175,6 +187,8 @@ class SnakeGame implements ShellLoopGame {
     this.armed = false;
     this.lastScore = -1;
     this.lastLives = -1;
+    this.toastKey = null;
+    this.toastMs = 0;
     this.swipeOrigins.clear();
     this.pressedDirs.clear();
     this.ctx.report.score(0);
@@ -194,6 +208,8 @@ class SnakeGame implements ShellLoopGame {
     const state = this.state;
     const rng = this.rng;
     if (!state || !rng || this.paused) return;
+    this.toastMs = Math.max(0, this.toastMs - dtMs);
+    if (this.toastMs === 0) this.toastKey = null;
     if (state.status === "won" || state.status === "lost") return;
     // Level breaks wait for the player, like the delivery's GO! button.
     if (state.status === "levelBreak") return;
@@ -205,12 +221,20 @@ class SnakeGame implements ShellLoopGame {
     const after = step(state, dtMs, rng);
 
     if (state.score !== this.lastScore) {
-      if (this.lastScore >= 0) this.ctx.audio.play("gift");
+      if (this.lastScore >= 0) {
+        this.ctx.audio.play("gift");
+        this.toastKey = `game.snake.toast.gift.${
+          (state.gifts - 1) % GIFT_TOAST_COUNT
+        }`;
+        this.toastMs = TOAST_MS;
+      }
       this.lastScore = state.score;
       this.ctx.report.score(state.score);
     }
     if (this.lastLives >= 0 && state.lives < this.lastLives) {
       this.ctx.audio.play("die");
+      this.toastKey = "game.snake.toast.ouch";
+      this.toastMs = TOAST_MS;
     }
     this.lastLives = state.lives;
     if (before === "playing" && after === "levelBreak") {
@@ -232,7 +256,11 @@ class SnakeGame implements ShellLoopGame {
       return;
     }
     const { context2d: g } = this.ctx.surface;
-    renderSnake(g, this.state, this.images, this.ctx.t, performance.now());
+    renderSnake(g, this.state, this.images, this.ctx.t, performance.now(), {
+      toast: this.toastKey ? this.ctx.t(this.toastKey) : null,
+      toastOpacity: Math.min(1, this.toastMs / 250),
+      arcadeFont: this.arcadeFont,
+    });
     this.drawDpad(g);
   }
 
@@ -332,21 +360,27 @@ class SnakeGame implements ShellLoopGame {
     const held0 = new Set(this.pressedDirs.values());
     for (const [name, r] of Object.entries(dpadRects())) {
       const held = held0.has(name);
-      g.fillStyle = held ? "rgba(255, 79, 139, 0.5)" : "rgba(43, 17, 70, 0.8)";
+      g.save();
+      g.shadowColor = held
+        ? "rgba(255, 79, 216, 0.9)"
+        : "rgba(79, 240, 255, 0.45)";
+      g.shadowBlur = held ? 13 : 7;
+      g.fillStyle = held ? "#a52bb7" : "#241040";
       g.beginPath();
       if (typeof g.roundRect === "function") {
-        g.roundRect(r.x, r.y, r.w, r.h, 10);
+        g.roundRect(r.x, r.y, r.w, r.h, 12);
       } else {
         g.rect(r.x, r.y, r.w, r.h);
       }
       g.fill();
-      g.strokeStyle = "rgba(255, 143, 184, 0.35)";
-      g.lineWidth = 1;
+      g.strokeStyle = held ? "#ffd6f5" : "#4ff0ff";
+      g.lineWidth = 2;
       g.stroke();
+      g.shadowBlur = 0;
       const cx = r.x + r.w / 2;
       const cy = r.y + r.h / 2;
-      const s = 8;
-      g.fillStyle = "#ffffff";
+      const s = 9;
+      g.fillStyle = "#ffd6f5";
       g.beginPath();
       if (name === "up") {
         g.moveTo(cx, cy - s);
@@ -367,7 +401,25 @@ class SnakeGame implements ShellLoopGame {
       }
       g.closePath();
       g.fill();
+      g.restore();
     }
+
+    // Controller pivot connects the four authored buttons into one cross.
+    const centre = {
+      x: DESIGN_W / 2 - DPAD_BTN / 2,
+      y: DPAD_CY - DPAD_BTN / 2,
+    };
+    g.save();
+    g.fillStyle = "#241040";
+    g.fillRect(centre.x, centre.y, DPAD_BTN, DPAD_BTN);
+    g.beginPath();
+    g.arc(DESIGN_W / 2, DPAD_CY, 12, 0, Math.PI * 2);
+    g.fillStyle = "#16072b";
+    g.fill();
+    g.strokeStyle = "rgba(79, 240, 255, 0.55)";
+    g.lineWidth = 1.5;
+    g.stroke();
+    g.restore();
   }
 }
 

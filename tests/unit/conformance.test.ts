@@ -281,6 +281,12 @@ describe("registry integrity", () => {
       for (const key of entry.introKeys ?? []) {
         expect(t(key), key).not.toBe(key);
       }
+      if (entry.introPresentation) {
+        const { titleKey, subtitleKey, bulletIcons } = entry.introPresentation;
+        expect(t(titleKey), titleKey).not.toBe(titleKey);
+        expect(t(subtitleKey), subtitleKey).not.toBe(subtitleKey);
+        expect(bulletIcons).toHaveLength(entry.introKeys?.length ?? 0);
+      }
     }
   });
 

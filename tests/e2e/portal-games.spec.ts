@@ -232,7 +232,7 @@ for (const entry of listGames()) {
   });
 }
 
-test("snake: full counted loop — issue, die, submit, receipt, board", async ({
+test("snake: full counted loop — issue, die at 0, submit, UNPLACED receipt, board", async ({
   page,
 }) => {
   test.skip(needsDb, "counted loop needs DATABASE_URL");
@@ -252,13 +252,72 @@ test("snake: full counted loop — issue, die, submit, receipt, board", async ({
   await expect(host).toHaveAttribute("data-lifecycle", "ended", {
     timeout: 15_000,
   });
+  // The reachable e2e run walks straight into a wall, so it scores 0 —
+  // which by policy does NOT place (MIN_PLACING_SCORE). The run is still
+  // fully counted: submitted, streak advanced, board reachable. The
+  // rank branch is covered by the placing-score test below.
   const receipt = page.getByTestId("counted-result");
   await expect(receipt).toBeVisible({ timeout: 10_000 });
-  await expect(receipt).toContainText("Rank");
+  await expect(receipt).toContainText("Score a point");
+  await expect(receipt).not.toContainText("Rank");
   await expect(receipt).toContainText("streak");
 
   await receipt.getByRole("link").click();
+  // DEVICE-scoped assertion only: this device's 0 gets no "your rank" row.
+  // Whether the TABLE renders depends on what other devices placed this
+  // ISO week (the board is shared, seasons are weekly, and the suite runs
+  // in parallel) — the board-wide zero-filter is proven deterministically
+  // in tests/db/counted-runs.test.ts instead.
+  await expect(page).toHaveURL(/\/leaderboard\/snake/);
+  await expect(page.getByText(/\d{4}-W\d{2}/)).toBeVisible({
+    timeout: 10_000,
+  }); // board loaded to its ready state
+  await expect(page.getByTestId("board-me")).toBeHidden();
+  expect(pageErrors).toEqual([]);
+});
+
+test("snake: a PLACING score renders the rank receipt and puts you on the board", async ({
+  page,
+}) => {
+  test.skip(needsDb, "counted loop needs DATABASE_URL");
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+
+  // Driving the snake to a real gift needs the seeded food position, which
+  // a counted run does not expose. Rewrite the submitted SCORE on the wire
+  // instead: the server still ranks it, writes the board row, and returns
+  // the receipt — only the number the game reported is substituted.
+  await page.route("**/api/runs/*", async (route) => {
+    if (route.request().method() !== "PUT") return route.continue();
+    const sent = JSON.parse(route.request().postData() ?? "{}") as {
+      score: number;
+    };
+    await route.continue({
+      postData: JSON.stringify({ ...sent, score: 120 }),
+    });
+  });
+
+  await page.goto("/play/snake");
+  const host = page.getByTestId("game-host");
+  await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("start-counted").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "running", {
+    timeout: 10_000,
+  });
+  await page.keyboard.press("ArrowDown");
+  await expect(host).toHaveAttribute("data-lifecycle", "ended", {
+    timeout: 15_000,
+  });
+
+  const receipt = page.getByTestId("counted-result");
+  await expect(receipt).toBeVisible({ timeout: 10_000 });
+  await expect(receipt).toContainText("Rank #");
+
+  await receipt.getByRole("link").click();
   await expect(page.getByTestId("board-me")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId("board-table")).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
 
@@ -404,9 +463,11 @@ test("lost PUT response → same-attempt Retry save → receipt (§10.1)", async
   await retry.click();
 
   // The server already committed: the retry replays the ORIGINAL receipt.
+  // This run dies at 0, so that receipt is the unplaced one — what matters
+  // here is that a receipt is replayed at all, byte-identically.
   const receipt = page.getByTestId("counted-result");
   await expect(receipt).toBeVisible({ timeout: 10_000 });
-  await expect(receipt).toContainText("Rank");
+  await expect(receipt).toContainText("streak");
 
   // Evidence, not inference (M2 review P2): the first PUT committed, the
   // retry re-sent a byte-identical payload, and the server marked its

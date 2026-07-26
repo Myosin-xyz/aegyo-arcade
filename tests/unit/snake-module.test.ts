@@ -19,8 +19,10 @@ import { LeakTracker } from "@/shell/conformance";
 import { dpadRects, snakeDefinition } from "@/games/snake/module";
 import { DESIGN_H } from "@/games/snake/render";
 import * as snakeLogic from "@/games/snake/logic";
+import * as snakeRender from "@/games/snake/render";
 
 vi.mock("@/games/snake/logic", { spy: true });
+vi.mock("@/games/snake/render", { spy: true });
 
 /**
  * `init()` awaits 22 sprite loads, which never resolve in jsdom. Resolving
@@ -319,6 +321,47 @@ describe("snake module — touch targets", () => {
 });
 
 describe("snake module — lifecycle", () => {
+  it("wires deterministic gift and death callouts into the real renderer", async () => {
+    const { game, pointer, teardown } = mount();
+    await game.init(new AbortController().signal);
+    game.start(makeRun("presentation-events"));
+    if (game.loop !== "shell") throw new Error("expected a shell-loop game");
+
+    const down = centerOf("down");
+    pointer("pointerdown", down.x, down.y);
+    // Establish the real score-0 baseline before simulating the first gift.
+    game.update(0);
+
+    vi.mocked(snakeLogic.step).mockImplementationOnce((state) => {
+      state.score = 10;
+      state.gifts = 1;
+      return state.status;
+    });
+    game.update(200);
+    game.render(0);
+    expect(
+      vi.mocked(snakeRender.renderSnake).mock.calls.at(-1)?.[5],
+    ).toMatchObject({
+      toast: "game.snake.toast.gift.0",
+      toastOpacity: 1,
+    });
+
+    vi.mocked(snakeLogic.step).mockImplementationOnce((state) => {
+      state.lives = 2;
+      state.status = "dying";
+      return state.status;
+    });
+    game.update(200);
+    game.render(0);
+    expect(
+      vi.mocked(snakeRender.renderSnake).mock.calls.at(-1)?.[5],
+    ).toMatchObject({
+      toast: "game.snake.toast.ouch",
+      toastOpacity: 1,
+    });
+    teardown();
+  });
+
   it("repeated start() resets the run; end fires once; teardown is leak-free", async () => {
     const tracker = new LeakTracker();
     tracker.begin();

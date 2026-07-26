@@ -513,6 +513,52 @@ describe("ranking policy (M2 review P1: one policy, flagged invisible)", () => {
     expect(c.device).toBeTruthy();
   });
 
+  it("zero scores never place: hidden from top, me, rank, and receipt (pre-launch pass)", async () => {
+    // The production symptom: two 0-point runs tied at #1 on an otherwise
+    // empty board. Policy (MIN_PLACING_SCORE): a scoreless run is still a
+    // real run — accepted, slot consumed, streak advanced — but it does
+    // not PLACE anywhere.
+    const zero = await submitFor(0);
+    expect(zero.result.kind).toBe("accepted");
+    if (zero.result.kind === "accepted") {
+      expect(zero.result.rank).toBeNull(); // receipt says unplaced, not "#1"
+      expect(zero.result.streak.current).toBe(1); // run still counted
+    }
+
+    const seasonKey = seasonKeyFor(new Date());
+    let board = await getSeasonBoard(
+      db,
+      "snake",
+      seasonKey,
+      zero.device.deviceId,
+    );
+    expect(board.top).toEqual([]); // empty board, not "#1 — 0"
+    expect(board.me).toBeNull(); // no personal placement either
+    expect(await rankForScore(db, "snake", seasonKey, 0)).toBeNull();
+
+    // A real score is unaffected — and is #1, not #2 behind a zero row.
+    const placed = await submitFor(10);
+    if (placed.result.kind === "accepted") {
+      expect(placed.result.rank).toBe(1);
+    }
+    board = await getSeasonBoard(db, "snake", seasonKey, zero.device.deviceId);
+    expect(board.top.map((r) => [r.rank, r.score])).toEqual([[1, 10]]);
+    expect(board.me).toBeNull(); // the zero device still has no placement
+
+    // Replay of the zero submission returns the same UNPLACED receipt.
+    const replay = await submitCountedResult(db, {
+      deviceId: zero.device.deviceId,
+      attemptId: zero.attemptId,
+      score: 999, // hostile rewrite attempt — replay must ignore it
+    });
+    expect(replay.kind).toBe("accepted");
+    if (replay.kind === "accepted") {
+      expect(replay.replay).toBe(true);
+      expect(replay.score).toBe(0);
+      expect(replay.rank).toBeNull();
+    }
+  });
+
   it("ties share a rank everywhere (competition ranking)", async () => {
     const a = await submitFor(15);
     const b = await submitFor(15);

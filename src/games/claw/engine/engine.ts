@@ -81,7 +81,18 @@ const OUTCOME_WAIT_MS = 6000; // dwell cap while the server resolves
 // (The chute's center and drop depth are no longer guessed as fractions —
 // V3 derives them from the manifest via chuteCenterX()/chuteOffset().)
 const MOVE_SPEED_FRAC = 0.00085; // design-widths per ms while a direction is held
-const MOVE_LO_FRAC = 0.26; // claw-center horizontal travel bounds
+// Claw-center horizontal travel bounds. LO fenced OFF the chute mouth
+// (Daidai exploit report, 2026-07-27): at 0.26 the leftmost aim (x≈245)
+// overlapped the chute opening (x 166–242), so a SLIP tumble — plush
+// half-width ≈70px — visually fell INTO the hole and read as a free win
+// every time you parked over the trap and pressed drop. The tumble also
+// ROTATES (±0.35rad) and squashes, so the fence clears the sprite's
+// half-DIAGONAL (70.6·√2 ≈ 100px), not its half-width: at 0.41 the
+// rotated extent (386−100 ≈ 286) stays clear of the widest fall-frame
+// (272, frame 4) — like the fence on a real machine. Outcomes were never
+// affected (server/weighted) — the exploit was presentational, which is
+// exactly what players see.
+export const MOVE_LO_FRAC = 0.41; // exported for the fence regression
 const MOVE_HI_FRAC = 0.74;
 const WIN_HOLD_MS = 4200; // auto-return from the win screen
 const FLASH_MS = 1300; // miss / "so close" toast duration
@@ -153,8 +164,10 @@ export class ClawMachine {
   private shakeTime = 0;
   private shakeDur = 1;
   private flashText = "";
-  /** "tryAgain" draws Daidai's authored sprite; "text" draws flashText. */
-  private flashKind: "text" | "tryAgain" = "text";
+  /** Authored boards draw sprites; "text" draws flashText (UNAVAILABLE). */
+  private flashKind: "text" | "tryAgain" | "soClose" = "text";
+  /** Red screen wash on a bad outcome (Daidai polish round). */
+  private redFlashMs = 0;
   private flashT = 0;
 
   private readonly crt: boolean;
@@ -357,6 +370,7 @@ export class ClawMachine {
           : 0;
     }
     if (this.flashT > 0) this.flashT -= dt;
+    this.redFlashMs = Math.max(0, this.redFlashMs - dt);
     this.confetti.update(dt, CONFETTI_GRAVITY);
 
     if (this.phase === "ready") {
@@ -853,8 +867,17 @@ export class ClawMachine {
       this.confetti.burst(dW * 0.5, dH * 0.42, 120, 1.7);
       this.shake(7, 320);
     } else {
-      if (this.dropOutcome === "drop") this.flash("SO CLOSE!");
+      if (this.dropOutcome === "drop") this.flash("SO CLOSE!", "soClose");
       else this.flash("TRY AGAIN", "tryAgain");
+      this.redFlashMs = 300; // red wash pairs with the shake below
+      // Shared-helper posture: motion respects the OS preference, the
+      // flash stays (it is the lose signal).
+      if (
+        typeof window.matchMedia !== "function" ||
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
+        this.shake(5, 260);
+      }
       this.toReady();
     }
     this.opts.onDropComplete?.(this.dropOutcome);
@@ -878,7 +901,10 @@ export class ClawMachine {
     this.toReady();
   }
 
-  private flash(text: string, kind: "text" | "tryAgain" = "text"): void {
+  private flash(
+    text: string,
+    kind: "text" | "tryAgain" | "soClose" = "text",
+  ): void {
     this.flashText = text;
     this.flashKind = kind;
     this.flashT = FLASH_MS;
@@ -1114,14 +1140,24 @@ export class ClawMachine {
     dW: number,
     dH: number,
   ): void {
+    if (this.redFlashMs > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.28 * (this.redFlashMs / 300);
+      ctx.fillStyle = "#ff2a3c";
+      ctx.fillRect(-80, -80, dW + 160, dH + 160);
+      ctx.restore();
+    }
     ctx.save();
     ctx.globalAlpha = clamp01(this.flashT / 300);
-    // Daidai's authored TRY AGAIN! art replaces the canvas text for the
-    // retry outcome (V3). "SO CLOSE!" / "UNAVAILABLE" have no delivered
-    // art, so they stay as drawn text in the same slot.
-    if (this.flashKind === "tryAgain") {
-      const ta = this.manifest.tryAgain;
-      ctx.drawImage(this.bank.get(ta), ta.x, ta.y, ta.w, ta.h);
+    // Daidai's authored TRY AGAIN! (V3) and SO CLOSE! (2026-07-27) art
+    // replace the canvas text for those outcomes. "UNAVAILABLE" stays as
+    // drawn text in the same slot (no art delivered).
+    if (this.flashKind === "tryAgain" || this.flashKind === "soClose") {
+      const board =
+        this.flashKind === "tryAgain"
+          ? this.manifest.tryAgain
+          : this.manifest.soClose;
+      ctx.drawImage(this.bank.get(board), board.x, board.y, board.w, board.h);
     } else {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";

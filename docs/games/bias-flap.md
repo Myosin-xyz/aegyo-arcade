@@ -1,9 +1,9 @@
 # Bias Flap — intake (Daidai delivery, 2026-07-27)
 
-Status: **PORTED 2026-07-27, publicly cleared** — the shipped sticks
-carry the star-emblem pixel edit (`scripts/export-bias-flap-sticks.py`,
-hashes pinned in the content register), so NO release gate ships with
-this port. Daidai's own corrected sticks may supersede the edit. Replaced the code-drawn flyer in the
+Status: **PORTED 2026-07-27.** Shipped sticks are Daidai's ORIGINAL art
+per Mateo's directive (the interim star edit was reverted same day) —
+the ⛔ BTS-mark public gate STANDS in the content register until
+Daidai's corrected sticks land. Replaced the code-drawn flyer in the
 `flappy` slot the way Snake Freebies replaced POCA Snake; server
 `maxScore` 800 → 1700 (a RAISE, so no preflight needed — old rows stay
 beatable). Reference build:

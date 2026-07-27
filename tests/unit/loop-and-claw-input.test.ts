@@ -92,6 +92,7 @@ describe("claw input teardown (drop-light timer)", () => {
       winBoard: zero,
       fallFrames: [zero, zero, zero, zero, zero, zero], // exactly 6 required
       tryAgain: zero,
+      soClose: zero,
       controls: {
         left: { ...zero },
         right: { ...zero },

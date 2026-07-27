@@ -10,7 +10,7 @@
  *  - NO shadow element under the claw.
  *  - The win timeline holds motionless over the chute before releasing,
  *    then plays the authored fall frames.
- *  - TRY AGAIN uses Daidai's sprite; SO CLOSE!/UNAVAILABLE stay as text.
+ *  - TRY AGAIN and SO CLOSE! use Daidai's sprites; UNAVAILABLE stays text.
  *
  * Sprites get DISTINCT srcs here so draw order is provable by src.
  */
@@ -71,6 +71,7 @@ function manifest(): Manifest {
     ],
     winBoard: rect("win-board", 20, 20, 60, 20),
     tryAgain: rect("try-again", 20, 40, 60, 20),
+    soClose: rect("so-close", 20, 40, 60, 20),
     controls: {
       left: rect("ctl-left", 5, 130),
       right: rect("ctl-right", 85, 130),
@@ -143,6 +144,27 @@ interface EngineProbe {
   pileY(): number;
   flash(text: string, kind?: string): void;
 }
+
+import { MOVE_LO_FRAC } from "@/games/claw/engine/engine";
+import realManifest from "../../public/games/claw/manifest.json";
+
+describe("claw — chute fence (Daidai exploit, 2026-07-27)", () => {
+  it("the leftmost aim keeps a slip tumble CLEAR of the chute mouth (real cabinet)", () => {
+    // Parking over the trap and dropping used to land the slip tumble
+    // visually INSIDE the chute — a free win every time. The tumble is
+    // centred on the claw at width 0.15·dW; its left edge at the
+    // leftmost rail position must stay right of the mouth.
+    const leftmostCenter = realManifest.design.w * MOVE_LO_FRAC;
+    // The tumble ROTATES and squashes as it falls, so the conservative
+    // extent is the half-DIAGONAL of its square draw box, not half-width.
+    const tumbleHalfDiagonal =
+      ((realManifest.design.w * 0.15) / 2) * Math.SQRT2;
+    const mouthRight = Math.max(
+      ...realManifest.fallFrames.map((f) => f.x + f.w),
+    );
+    expect(leftmostCenter - tumbleHalfDiagonal).toBeGreaterThan(mouthRight);
+  });
+});
 
 describe("claw V3 presentation", () => {
   let cleanup: (() => void) | null = null;
@@ -302,6 +324,14 @@ describe("claw V3 presentation", () => {
     expect(tipsMinusPile(0.5)).toBeCloseTo(front, 6);
     expect(tipsMinusPile(0.2)).toBeCloseTo(front, 6);
     expect(tipsMinusPile(0)).toBeCloseTo(front, 6);
+  });
+
+  it("SO CLOSE! renders Daidai's BOARD sprite, not canvas text (2026-07-27)", async () => {
+    const machine = await mount();
+    machine.flash("SO CLOSE!", "soClose");
+    drawn.length = 0;
+    machine.render(1000);
+    expect(drawn).toContain("so-close"); // the authored board blits
   });
 
   it("the win timeline HOLDS over the chute between lowering and releasing", async () => {

@@ -26,6 +26,13 @@ import {
   PLAYER_W,
   type JumperState,
 } from "./logic";
+import {
+  createHitFeedback,
+  drawHitFlash,
+  shakeOffset,
+  tickHitFeedback,
+  triggerHitFeedback,
+} from "@/shell/feedback";
 
 const SIM_STEP_MS = 1000 / 60;
 const KEY_NUDGE = 60;
@@ -42,6 +49,10 @@ class JumperGame implements ShellLoopGame {
   private state: JumperState | null = null;
   private rng: (() => number) | null = null;
   private accumulator = 0;
+  private hitFx = createHitFeedback();
+  /** Terminal-loss hold: the flash must PAINT before report.end stops
+   * the loop (audit P1 — the flappy endRun lesson, loss-side). */
+  private endHoldMs = 0;
   private paused = false;
   private endedReported = false;
   private dragging = false;
@@ -81,6 +92,8 @@ class JumperGame implements ShellLoopGame {
     this.state = createJumperState(run.random);
     this.accumulator = 0;
     this.endedReported = false;
+    this.hitFx = createHitFeedback();
+    this.endHoldMs = 0;
     this.armed = false; // stand on the platform until the first steer
     this.dragging = false;
     this.ctx.report.score(0);
@@ -96,9 +109,17 @@ class JumperGame implements ShellLoopGame {
   }
 
   update(dtMs: number): void {
+    tickHitFeedback(this.hitFx, dtMs);
     const state = this.state;
     const rng = this.rng;
-    if (!state || !rng || this.paused || state.status !== "running") return;
+    if (!state || !rng || this.paused) return;
+    if (state.status !== "running") {
+      // The terminal hold spans UPDATES — without re-entering the finish
+      // path here, this guard would stall the pending end forever (the
+      // same trap the snake top guard had, audit P1).
+      if (!this.endedReported) this.finishTerminal(state.status, dtMs);
+      return;
+    }
     if (!this.armed) return; // frozen until the first steer
     this.accumulator += dtMs;
     while (this.accumulator >= SIM_STEP_MS) {
@@ -112,13 +133,7 @@ class JumperGame implements ShellLoopGame {
         this.ctx.report.score(state.climbed);
       }
       if (state.status !== "running") {
-        if (!this.endedReported) {
-          this.endedReported = true;
-          this.ctx.audio.play(state.status === "completed" ? "win" : "lose");
-          this.ctx.report.end({
-            reason: state.status === "completed" ? "completed" : "lost",
-          });
-        }
+        if (!this.endedReported) this.finishTerminal(state.status, dtMs);
         return;
       }
     }
@@ -161,9 +176,31 @@ class JumperGame implements ShellLoopGame {
     return { sky, jacket, vignette };
   }
 
+  /** Report the end once; a LOST run holds ~300ms so the red wash
+   * paints before report.end stops the loop (audit P1). */
+  private finishTerminal(status: string, dtMs: number): void {
+    if (this.endedReported) return;
+    if (status !== "completed") {
+      if (this.endHoldMs === 0 && this.hitFx.flashMs === 0) {
+        triggerHitFeedback(this.hitFx);
+        this.endHoldMs = 300;
+      }
+      this.endHoldMs = Math.max(0, this.endHoldMs - dtMs);
+      if (this.endHoldMs > 0) return;
+    }
+    this.endedReported = true;
+    this.ctx.audio.play(status === "completed" ? "win" : "lose");
+    this.ctx.report.end({
+      reason: status === "completed" ? "completed" : "lost",
+    });
+  }
+
   render(): void {
     if (this.ctx.surface.kind !== "canvas" || !this.state) return;
     const { context2d: g } = this.ctx.surface;
+    const off = shakeOffset(this.hitFx);
+    g.save();
+    g.translate(off.x, off.y);
     const state = this.state;
     const grad = this.ensureGradients(g);
 
@@ -292,6 +329,8 @@ class JumperGame implements ShellLoopGame {
     g.textAlign = "left";
     g.textBaseline = "top";
     g.fillText(`#${rankOf(state)}`, 16, 14);
+    g.restore();
+    drawHitFlash(g, this.hitFx, 360, 640);
   }
 
   destroy(): void {

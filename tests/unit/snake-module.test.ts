@@ -320,6 +320,35 @@ describe("snake module — touch targets", () => {
   });
 });
 
+describe("snake module — terminal-loss hold (audit P1)", () => {
+  it("a fatal loss holds ~300ms for the wash, then ends; Play Again inherits NO stale feedback", async () => {
+    const { game, ends, teardown } = mount();
+    await game.init(new AbortController().signal);
+    if (game.loop !== "shell") throw new Error("expected shell loop");
+    game.start(makeRun("hold"));
+
+    const probe = game as unknown as {
+      state: { status: string };
+      hitFx: { flashMs: number; shakeMs: number };
+    };
+    // A death flash is live when the fatal transition lands.
+    probe.hitFx.flashMs = 300;
+    probe.state.status = "lost";
+    game.update(50);
+    expect(ends).toEqual([]); // held — the wash is painting
+    game.update(300);
+    expect(ends).toEqual(["lost"]); // released after the hold
+
+    // Play Again: feedback must reset, not bleed into the new run.
+    probe.hitFx.flashMs = 250;
+    probe.hitFx.shakeMs = 250;
+    game.start(makeRun("hold-2"));
+    expect(probe.hitFx.flashMs).toBe(0);
+    expect(probe.hitFx.shakeMs).toBe(0);
+    teardown();
+  });
+});
+
 describe("snake module — lifecycle", () => {
   it("wires deterministic gift and death callouts into the real renderer", async () => {
     const { game, pointer, teardown } = mount();

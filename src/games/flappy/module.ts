@@ -35,6 +35,13 @@ import {
   type Heart,
 } from "./render";
 import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
+import {
+  createHitFeedback,
+  drawHitFlash,
+  shakeOffset,
+  tickHitFeedback,
+  triggerHitFeedback,
+} from "@/shell/feedback";
 
 const ASSETS_BASE = "/games/flappy/";
 const CRASH_PHRASES = 3;
@@ -87,6 +94,7 @@ class FlappyGame {
   private toast: string | null = null;
   private toastMs = 0;
   private crashPhraseIndex = 0;
+  private hitFx = createHitFeedback();
   private unsubscribers: (() => void)[] = [];
 
   constructor(private readonly ctx: GameContext) {}
@@ -146,6 +154,7 @@ class FlappyGame {
     this.rng = run.random;
     this.state = createFlappyState(run.random);
     this.endedReported = false;
+    this.hitFx = createHitFeedback();
     this.lastScore = -1;
     this.hearts = [];
     this.toast = null;
@@ -171,6 +180,7 @@ class FlappyGame {
     // step() RETURNS the new status; re-reading state.status keeps
     // TypeScript's pre-call narrowing and dead-ends the comparisons.
     const after = step(state, dtMs, rng);
+    tickHitFeedback(this.hitFx, dtMs);
 
     if (state.score !== this.lastScore) {
       // Gains chirp; the crash ROLLBACK must not (it also reports, so
@@ -184,6 +194,7 @@ class FlappyGame {
 
     if (before === "flying" && after === "crashed") {
       this.ctx.audio.play("crash");
+      triggerHitFeedback(this.hitFx); // red wash + shake (Daidai)
       this.crashPhraseIndex = (this.crashPhraseIndex % CRASH_PHRASES) + 1;
       this.toast = this.ctx.t(`game.flappy.crash.${this.crashPhraseIndex}`);
       this.toastMs = TOAST_MS + 850;
@@ -219,14 +230,20 @@ class FlappyGame {
     if (this.ctx.surface.kind !== "canvas" || !this.state || !this.images) {
       return;
     }
+    const g = this.ctx.surface.context2d;
+    const off = shakeOffset(this.hitFx);
+    g.save();
+    g.translate(off.x, off.y);
     renderFlappy(
-      this.ctx.surface.context2d,
+      g,
       this.state,
       this.images,
       this.hearts,
       this.ctx.t,
       this.toast,
     );
+    g.restore();
+    drawHitFlash(g, this.hitFx, 360, 640);
   }
 
   destroy(): void {

@@ -51,6 +51,7 @@ function fakeManifest(): Manifest {
       rect(20, 110, 10, 10),
     ],
     tryAgain: rect(20, 40, 60, 20),
+    soClose: rect(20, 40, 60, 20),
     controls: {
       left: rect(5, 130),
       right: rect(85, 130),

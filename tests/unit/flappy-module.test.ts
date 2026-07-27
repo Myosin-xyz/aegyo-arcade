@@ -234,6 +234,23 @@ describe("bias flap module — keyboard routes (review P2)", () => {
   });
 });
 
+describe("bias flap module — feedback reset (audit P1)", () => {
+  it("Play Again inherits no stale flash/shake", async () => {
+    const { game, teardown } = mount();
+    await game.init(new AbortController().signal);
+    game.start(makeRun("fx-1"));
+    const probe = game as unknown as {
+      hitFx: { flashMs: number; shakeMs: number };
+    };
+    probe.hitFx.flashMs = 250;
+    probe.hitFx.shakeMs = 250;
+    game.start(makeRun("fx-2"));
+    expect(probe.hitFx.flashMs).toBe(0);
+    expect(probe.hitFx.shakeMs).toBe(0);
+    teardown();
+  });
+});
+
 describe("bias flap module — lifecycle", () => {
   it("crash does NOT end the run; restart works; teardown is leak-free", async () => {
     const tracker = new LeakTracker();

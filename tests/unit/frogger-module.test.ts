@@ -144,6 +144,10 @@ describe("frogger module — real lifecycle", () => {
     probe.state!.invuln = 0;
     probe.state!.lanes[4].xs = [HERO_X, HERO_X];
     game.update(50);
+    // Terminal HOLD (audit P1): the fatal-hit wash must paint before
+    // report.end stops the loop — the end lands ~300ms later, not now.
+    expect(endReasons).toEqual([]);
+    game.update(300);
     expect(endReasons).toEqual(["lost"]);
     expect(audio.plays).toContain("lose"); // terminal SFX fired
     expect(audio.registered).toContain("hit"); // event synths registered

@@ -30,6 +30,13 @@ import {
 } from "./logic";
 import { renderFrogger, type FroggerImages } from "./render";
 import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
+import {
+  createHitFeedback,
+  drawHitFlash,
+  shakeOffset,
+  tickHitFeedback,
+  triggerHitFeedback,
+} from "@/shell/feedback";
 
 const ASSETS_BASE = "/games/frogger/";
 
@@ -64,6 +71,10 @@ class FroggerGame implements ShellLoopGame {
   private rng: Rng | null = null;
   private images: FroggerImages | null = null;
   private accumulator = 0;
+  private hitFx = createHitFeedback();
+  /** Terminal-loss hold: the flash must PAINT before report.end stops
+   * the loop (audit P1 — the flappy endRun lesson, loss-side). */
+  private endHoldMs = 0;
   private paused = false;
   private endedReported = false;
   private lastReportedScore = 0;
@@ -129,6 +140,8 @@ class FroggerGame implements ShellLoopGame {
     this.state = createFroggerState(run.random);
     this.accumulator = 0;
     this.endedReported = false;
+    this.hitFx = createHitFeedback();
+    this.endHoldMs = 0;
     this.lastReportedScore = 0;
     this.ctx.report.score(0);
   }
@@ -147,14 +160,19 @@ class FroggerGame implements ShellLoopGame {
     const state = this.state;
     const rng = this.rng;
     if (!state || !rng || this.paused || this.endedReported) return;
+    tickHitFeedback(this.hitFx, dtMs);
     this.accumulator += dtMs;
     while (this.accumulator >= STEP_MS) {
       this.accumulator -= STEP_MS;
       const livesBefore = state.lives;
       const levelBefore = state.level;
       step(state, rng);
+      if (state.lives < livesBefore && state.status !== "playing") {
+        triggerHitFeedback(this.hitFx); // the fatal 3rd hit flashes too
+      }
       if (state.lives < livesBefore && state.status === "playing") {
         this.ctx.audio.play("hit");
+        triggerHitFeedback(this.hitFx);
       }
       if (state.level > levelBefore) this.ctx.audio.play("level");
       if (state.score !== this.lastReportedScore) {
@@ -164,6 +182,17 @@ class FroggerGame implements ShellLoopGame {
       const status = state.status;
       if (status === "won" || status === "lost") {
         if (!this.endedReported) {
+          if (
+            status === "lost" &&
+            this.endHoldMs === 0 &&
+            this.hitFx.flashMs > 0
+          ) {
+            this.endHoldMs = 300; // let the fatal-hit wash paint first
+          }
+          if (this.endHoldMs > 0) {
+            this.endHoldMs = Math.max(0, this.endHoldMs - dtMs);
+            if (this.endHoldMs > 0) return;
+          }
           this.endedReported = true;
           this.ctx.audio.play(status === "won" ? "win" : "lose");
           this.ctx.report.end({
@@ -179,12 +208,15 @@ class FroggerGame implements ShellLoopGame {
     if (this.ctx.surface.kind !== "canvas" || !this.state || !this.images) {
       return;
     }
-    renderFrogger(
-      this.ctx.surface.context2d,
-      this.state,
-      this.images,
-      (key, params) => this.ctx.t(key, params),
+    const g = this.ctx.surface.context2d;
+    const off = shakeOffset(this.hitFx);
+    g.save();
+    g.translate(off.x, off.y);
+    renderFrogger(g, this.state, this.images, (key, params) =>
+      this.ctx.t(key, params),
     );
+    g.restore();
+    drawHitFlash(g, this.hitFx, 360, 552);
   }
 
   destroy(): void {

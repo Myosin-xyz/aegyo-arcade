@@ -28,6 +28,13 @@ import {
 } from "./logic";
 import { renderFreebie, type FreebieImages } from "./render";
 import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
+import {
+  createHitFeedback,
+  drawHitFlash,
+  shakeOffset,
+  tickHitFeedback,
+  triggerHitFeedback,
+} from "@/shell/feedback";
 
 const ASSETS_BASE = "/games/freebie/";
 const TIER_COUNT = 6;
@@ -63,6 +70,7 @@ class FreebieGame implements ShellLoopGame {
   private rng: Rng | null = null;
   private images: FreebieImages | null = null;
   private accumulator = 0;
+  private hitFx = createHitFeedback();
   private paused = false;
   private endedReported = false;
   /** A fatal miss holds the run open for the red flash before game-over
@@ -111,6 +119,7 @@ class FreebieGame implements ShellLoopGame {
     this.state = createFreebieState(run.random);
     this.accumulator = 0;
     this.endedReported = false;
+    this.hitFx = createHitFeedback();
     this.lostDelayMs = 0;
     this.lastReportedScore = 0;
     this.clearTransientInput(); // no gesture survives a restart
@@ -135,6 +144,7 @@ class FreebieGame implements ShellLoopGame {
   }
 
   update(dtMs: number): void {
+    tickHitFeedback(this.hitFx, dtMs);
     const state = this.state;
     const rng = this.rng;
     if (!state || !rng || this.paused || this.endedReported) return;
@@ -174,6 +184,8 @@ class FreebieGame implements ShellLoopGame {
       }
       if (state.lives < livesBefore && state.status === "playing") {
         this.ctx.audio.play("miss");
+        triggerHitFeedback(this.hitFx);
+        this.hitFx.flashMs = 0; // freebie paints its OWN wash — shake only
       }
       if (statusBefore === "playing" && state.status === "recap") {
         this.ctx.audio.play("clear");
@@ -190,6 +202,8 @@ class FreebieGame implements ShellLoopGame {
         // from the lostDelayMs branch above once the window elapses.
         this.lostDelayMs = MISS_FLASH_SEC * 1000;
         this.ctx.audio.play("lose");
+        triggerHitFeedback(this.hitFx);
+        this.hitFx.flashMs = 0; // its lostDelay flash covers the wash
         return;
       }
     }
@@ -199,12 +213,15 @@ class FreebieGame implements ShellLoopGame {
     if (this.ctx.surface.kind !== "canvas" || !this.state || !this.images) {
       return;
     }
-    renderFreebie(
-      this.ctx.surface.context2d,
-      this.state,
-      this.images,
-      (key, params) => this.ctx.t(key, params),
+    const g = this.ctx.surface.context2d;
+    const off = shakeOffset(this.hitFx);
+    g.save();
+    g.translate(off.x, off.y);
+    renderFreebie(g, this.state, this.images, (key, params) =>
+      this.ctx.t(key, params),
     );
+    g.restore();
+    drawHitFlash(g, this.hitFx, 480, 760);
   }
 
   destroy(): void {

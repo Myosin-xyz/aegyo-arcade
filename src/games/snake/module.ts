@@ -36,6 +36,13 @@ import {
 } from "./logic";
 import { DESIGN_W, renderSnake, type SnakeImages } from "./render";
 import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
+import {
+  createHitFeedback,
+  drawHitFlash,
+  shakeOffset,
+  tickHitFeedback,
+  triggerHitFeedback,
+} from "@/shell/feedback";
 
 const ASSETS_BASE = "/games/snake/";
 /** Minimum pointer travel (design px) that counts as a swipe. */
@@ -129,6 +136,10 @@ class SnakeGame implements ShellLoopGame {
   private images: SnakeImages | null = null;
   private paused = false;
   private endedReported = false;
+  private hitFx = createHitFeedback();
+  /** Terminal-loss hold: the flash must PAINT before report.end stops
+   * the loop (audit P1 — same trap as the flappy endRun lesson). */
+  private endHoldMs = 0;
   /** First input starts the run (no dying while orienting). */
   private armed = false;
   private lastScore = -1;
@@ -184,6 +195,8 @@ class SnakeGame implements ShellLoopGame {
     this.rng = run.random;
     this.state = createSnakeState(run.random);
     this.endedReported = false;
+    this.hitFx = createHitFeedback(); // no stale flash after Play Again
+    this.endHoldMs = 0;
     this.armed = false;
     this.lastScore = -1;
     this.lastLives = -1;
@@ -210,7 +223,15 @@ class SnakeGame implements ShellLoopGame {
     if (!state || !rng || this.paused) return;
     this.toastMs = Math.max(0, this.toastMs - dtMs);
     if (this.toastMs === 0) this.toastKey = null;
-    if (state.status === "won" || state.status === "lost") return;
+    if (state.status === "won" || state.status === "lost") {
+      // The terminal hold spans UPDATES: without re-entering here, the
+      // top guard would stall the pending end forever (audit P1 fix).
+      if (!this.endedReported) {
+        tickHitFeedback(this.hitFx, dtMs);
+        this.finishTerminal(state.status, dtMs);
+      }
+      return;
+    }
     // Level breaks wait for the player, like the delivery's GO! button.
     if (state.status === "levelBreak") return;
     if (!this.armed) return; // frozen until the first input
@@ -219,6 +240,7 @@ class SnakeGame implements ShellLoopGame {
     // step() RETURNS the new status: reading state.status back here would
     // keep TypeScript's pre-call narrowing and dead-end the comparisons.
     const after = step(state, dtMs, rng);
+    tickHitFeedback(this.hitFx, dtMs);
 
     if (state.score !== this.lastScore) {
       if (this.lastScore >= 0) {
@@ -233,6 +255,7 @@ class SnakeGame implements ShellLoopGame {
     }
     if (this.lastLives >= 0 && state.lives < this.lastLives) {
       this.ctx.audio.play("die");
+      triggerHitFeedback(this.hitFx);
       this.toastKey = "game.snake.toast.ouch";
       this.toastMs = TOAST_MS;
     }
@@ -241,14 +264,26 @@ class SnakeGame implements ShellLoopGame {
       this.ctx.audio.play("levelUp");
     }
     if (after === "won" || after === "lost") {
-      if (!this.endedReported) {
-        this.endedReported = true;
-        this.ctx.audio.play(after === "won" ? "win" : "lose");
-        this.ctx.report.end({
-          reason: after === "won" ? "completed" : "lost",
-        });
-      }
+      this.finishTerminal(after, dtMs);
     }
+  }
+
+  /** Report the end once, holding a lost run ~300ms so the red wash
+   * paints before report.end stops the loop (audit P1). */
+  private finishTerminal(status: "won" | "lost", dtMs: number): void {
+    if (this.endedReported) return;
+    if (status === "lost" && this.endHoldMs === 0 && this.hitFx.flashMs > 0) {
+      this.endHoldMs = 300;
+    }
+    if (this.endHoldMs > 0) {
+      this.endHoldMs = Math.max(0, this.endHoldMs - dtMs);
+      if (this.endHoldMs > 0) return;
+    }
+    this.endedReported = true;
+    this.ctx.audio.play(status === "won" ? "win" : "lose");
+    this.ctx.report.end({
+      reason: status === "won" ? "completed" : "lost",
+    });
   }
 
   render(): void {
@@ -256,12 +291,17 @@ class SnakeGame implements ShellLoopGame {
       return;
     }
     const { context2d: g } = this.ctx.surface;
+    const off = shakeOffset(this.hitFx);
+    g.save();
+    g.translate(off.x, off.y);
     renderSnake(g, this.state, this.images, this.ctx.t, performance.now(), {
       toast: this.toastKey ? this.ctx.t(this.toastKey) : null,
       toastOpacity: Math.min(1, this.toastMs / 250),
       arcadeFont: this.arcadeFont,
     });
     this.drawDpad(g);
+    g.restore();
+    drawHitFlash(g, this.hitFx, DESIGN_W, 640);
   }
 
   destroy(): void {

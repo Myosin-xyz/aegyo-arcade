@@ -13,7 +13,7 @@ import {
   GAME_W,
   HERO_HALF,
   HERO_X,
-  INSTANCES_PER_LANE,
+  instancesForLevel,
   INVULN_TICKS,
   JITTER_MAX,
   LANES,
@@ -68,18 +68,24 @@ describe("frogger — linear speed ramp (V1, Daidai 2026-07-27 tuning)", () => {
 
 describe("frogger — seeded lane build (V2)", () => {
   it("2 instances per lane at 180·i + [0,40) jitter; deterministic per seed", () => {
-    const lanes = buildLanes(seededRandom("lanes-1"));
+    const lanes = buildLanes(seededRandom("lanes-1"), 1);
     expect(lanes).toHaveLength(5);
     for (const lane of lanes) {
-      expect(lane.xs).toHaveLength(INSTANCES_PER_LANE);
-      for (let i = 0; i < INSTANCES_PER_LANE; i++) {
-        const base = (GAME_W / INSTANCES_PER_LANE) * i;
+      expect(lane.xs).toHaveLength(2); // L1–2 keep the delivery's 2
+      for (let i = 0; i < 2; i++) {
+        const base = (GAME_W / 2) * i;
         expect(lane.xs[i]).toBeGreaterThanOrEqual(base);
         expect(lane.xs[i]).toBeLessThan(base + JITTER_MAX);
       }
     }
-    expect(buildLanes(seededRandom("lanes-1"))).toEqual(lanes);
-    expect(buildLanes(seededRandom("lanes-2"))).not.toEqual(lanes);
+    expect(buildLanes(seededRandom("lanes-1"), 1)).toEqual(lanes);
+    expect(buildLanes(seededRandom("lanes-2"), 1)).not.toEqual(lanes);
+    // Density retune #3: a third instance joins every lane from L3.
+    expect(instancesForLevel(2)).toBe(2);
+    expect(instancesForLevel(3)).toBe(3);
+    for (const lane of buildLanes(seededRandom("lanes-3"), 3)) {
+      expect(lane.xs).toHaveLength(3);
+    }
   });
 });
 

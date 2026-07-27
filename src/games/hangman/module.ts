@@ -168,6 +168,31 @@ class HangmanGame implements ShellLoopGame {
       this.ctx.audio.play(result.solved ? "win" : "good");
     } else if (result.kind === "wrong") {
       this.ctx.audio.play(result.lost ? "lose" : "bad");
+      // DOM twin of the canvas games' red-flash + shake (Daidai polish
+      // round): finite Web Animations, nothing to clean up on destroy.
+      if (this.root && typeof this.root.animate === "function") {
+        const reduced =
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        this.root.animate(
+          { backgroundColor: ["rgba(255,42,60,0.28)", "rgba(255,42,60,0)"] },
+          { duration: 300 },
+        );
+        if (!reduced) {
+          this.root.animate(
+            {
+              transform: [
+                "translate(0,0)",
+                "translate(-4px,2px)",
+                "translate(4px,-2px)",
+                "translate(-2px,-2px)",
+                "translate(0,0)",
+              ],
+            },
+            { duration: 260 },
+          );
+        }
+      }
     }
 
     switch (result.kind) {

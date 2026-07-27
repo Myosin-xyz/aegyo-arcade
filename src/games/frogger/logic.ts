@@ -2,8 +2,9 @@
  * Cross to the Concert — pure deterministic core (docs/games/frogger.md).
  *
  * Ported verbatim from Daidai's delivered build (M3 acceptance rubric):
- * 360×467 playfield, 7 rows (goal, 5 hazard lanes, start), two obstacle
- * instances per lane at 180·i + seeded 0–40px jitter, per-frame speeds ×
+ * 360×467 playfield, 7 rows (goal, 5 hazard lanes, start), 2 obstacle
+ * instances per lane at L1–2 and 3 from L3 (density retune #3), evenly
+ * based + seeded 0–120px jitter, per-frame speeds ×
  * a LINEAR ramp `1 + (level−1)/4` (1.0× at L1 → 2.0× at L5; Daidai
  * 2026-07-27 — 5 levels CONFIRMED, 10 was too long, and the earlier
  * +11%/level ramp still read as flat: obstacles now gain a full +25% of
@@ -47,8 +48,14 @@ export const CHECKPOINT_TICKS = 105;
 export const TOAST_TICKS = 78; // ≈ the delivery's 1300ms toast
 export const ANIM_DECAY = 0.08; // cosmetic move-bounce decay per tick
 
-export const INSTANCES_PER_LANE = 2;
-export const JITTER_MAX = 40;
+// Density retune #3 (Daidai 2026-07-27: "still too easy — offset between
+// obstacles more pronounced, or more obstacles on the line"): jitter
+// TRIPLED so lanes desynchronize hard, and levels 3+ run a THIRD
+// instance per lane. instancesForLevel keeps L1–2 at the delivery's 2.
+export const JITTER_MAX = 120;
+export function instancesForLevel(level: number): number {
+  return level >= 3 ? 3 : 2;
+}
 
 export type LaneKey = "golf" | "merch" | "scalper" | "kfood" | "guard";
 
@@ -160,16 +167,17 @@ export interface FroggerState {
 }
 
 /**
- * The delivery's ONLY RNG: instance x = (W/count)·i + rand()·40, drawn
- * lane by lane (row 1→5), instance 0 then 1. Called at run start and on
- * every level advance.
+ * The delivery's ONLY RNG: instance x = (W/count)·i + rand()·JITTER,
+ * drawn lane by lane (row 1→5), instance 0..count-1. Called at run start
+ * and on every level advance; count and jitter grew in retune #3.
  */
-export function buildLanes(rng: Rng): LaneState[] {
+export function buildLanes(rng: Rng, level: number): LaneState[] {
+  const count = instancesForLevel(level);
   return LANES.map((spec) => ({
     spec,
     xs: Array.from(
-      { length: INSTANCES_PER_LANE },
-      (_, i) => (GAME_W / INSTANCES_PER_LANE) * i + rng() * JITTER_MAX,
+      { length: count },
+      (_, i) => (GAME_W / count) * i + rng() * JITTER_MAX,
     ),
   }));
 }
@@ -186,7 +194,7 @@ export function createFroggerState(rng: Rng): FroggerState {
     anim: 0,
     checkpointKind: null,
     checkpointTimer: 0,
-    lanes: buildLanes(rng),
+    lanes: buildLanes(rng, 1),
     toast: null,
     tick: 0,
   };
@@ -265,7 +273,7 @@ export function step(state: FroggerState, rng: Rng): void {
       state.bestRow = START_ROW;
       state.invuln = 0;
       state.checkpointKind = null;
-      state.lanes = buildLanes(rng); // re-randomized every level (delivery)
+      state.lanes = buildLanes(rng, state.level); // re-randomized + densified per level
       state.status = "playing";
       state.toast = {
         key: "game.frogger.toast.level",

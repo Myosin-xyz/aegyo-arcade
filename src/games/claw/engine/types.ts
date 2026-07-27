@@ -32,5 +32,7 @@ export interface Manifest {
   winBoard: SpriteRect;
   /** TRY AGAIN! overlay for miss/slip outcomes. */
   tryAgain: SpriteRect;
+  /** Daidai's SO CLOSE! board (delivered 2026-07-27). */
+  soClose: SpriteRect;
   controls: Record<ControlKey, SpriteRect>;
 }

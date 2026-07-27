@@ -43,6 +43,7 @@ const REQUIRED_SPRITES = [
   "clawRelease",
   "winBoard",
   "tryAgain",
+  "soClose",
 ] as const;
 
 export async function fetchManifest(base: string): Promise<Manifest> {
@@ -100,6 +101,7 @@ export async function loadImages(
     m.clawRelease,
     m.winBoard,
     m.tryAgain,
+    m.soClose,
     ...m.fallFrames,
     ...Object.values(m.clawPlush),
     ...Object.values(m.controls),

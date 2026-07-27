@@ -109,6 +109,20 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: flappyMeta,
+    // Bias Flap (Daidai delivery, ported 2026-07-27) draws its own
+    // LEVEL/GATES/TIME HUD; score appears only on its own end screens —
+    // which is also why the ended presentation is game-authored: the
+    // "FRONT ROW, BABY!" / "SEE YOU AT THE NEXT SHOW!" stats screens ARE
+    // the result, the host adds only Play Again + the Challenge CTA.
+    scorePresentation: "authored",
+    endPresentation: "game-authored",
+    introKeys: [
+      "game.flappy.intro.1",
+      "game.flappy.intro.2",
+      "game.flappy.intro.3",
+      "game.flappy.intro.4",
+      "game.flappy.intro.5",
+    ],
     load: () => import("./flappy/module").then((m) => m.flappyDefinition),
   },
   {

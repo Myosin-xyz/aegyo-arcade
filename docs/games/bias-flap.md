@@ -1,9 +1,13 @@
 # Bias Flap — intake (Daidai delivery, 2026-07-27)
 
-Status: **INTAKE ONLY — port is the next slice.** The delivery will
-REPLACE the code-drawn flyer in the `flappy` slot the way Snake Freebies
-replaced POCA Snake. Reference build: https://precious-arithmetic-db1e00.netlify.app/
-(bias-flap at the app root).
+Status: **PORTED 2026-07-27, publicly cleared** — the shipped sticks
+carry the star-emblem pixel edit (`scripts/export-bias-flap-sticks.py`,
+hashes pinned in the content register), so NO release gate ships with
+this port. Daidai's own corrected sticks may supersede the edit. Replaced the code-drawn flyer in the
+`flappy` slot the way Snake Freebies replaced POCA Snake; server
+`maxScore` 800 → 1700 (a RAISE, so no preflight needed — old rows stay
+beatable). Reference build:
+https://precious-arithmetic-db1e00.netlify.app/ (bias-flap at the root).
 
 Source: `~/Downloads/bias-flap` (static site: index.html + 3 JS + 1 CSS +
 5 assets, 304 KB). No build step, no JS dependencies. One external request
@@ -46,8 +50,12 @@ Visual review of every asset (same standard as the frogger intake):
   frogger `bg.webp` BTS marks: **RESKIN REQUIRED before public access**
   (swap the orb emblem for the promised generic star and ideally recolor
   the handle). Internal/preview use behind Vercel SSO only until then.
-  Ask Daidai for corrected stick sprites BEFORE the port lands, so the
-  port ships clean instead of inheriting a gate.
+  RESOLVED AT PORT (2026-07-27): the SHIPPED `stick-*.webp` carry a
+  Myosin pixel edit — the BTS mark in the orb is replaced with the
+  generic five-point star the brief itself promised (same precedent as
+  the Nicole claw-board edit; the intake originals are untouched
+  evidence). Daidai's own corrected sticks are welcome to supersede the
+  edit. With this, NO public-release gate ships with the port.
 
 Grep over delivered code + copy: no band names or agency marks in text.
 Flavour phrases are generic concert culture ("PAST THE MERCH STANDS!",
@@ -83,17 +91,49 @@ toward the front row. Per `config.js` (all tuning lives there):
   day) + OD-3 (cosmetic boards). Same replacement as Snake Freebies.
 - Gap-center placement moves to the run's seeded RNG (counted replay).
 - The delivery's `setInterval`-style loop becomes the shell's fixed-step
-  accumulator; intro screen → `introKeys` ready card; terminal panels →
-  the host's ended overlay (now incl. the Challenge-your-friend CTA).
+  accumulator; intro screen → `introKeys` ready card; terminal panels
+  stay IN-CANVAS via `endPresentation: "game-authored"` (the host adds
+  Play Again, the Challenge CTA, and — since the audit P1 — the counted
+  receipt/Retry-save block).
 - Server `maxScore` for `flappy` moves to **1700** at the port (same
   pre-launch-window justification as snake 400→1950 and frogger 60→30).
-- Cash-out maps to a game-initiated `report.end({ reason: "completed" })`
-  mid-run — supported by the frozen contract; the confirm overlay is
-  game-side.
+- Cash-out maps to a game-initiated `report.end({ reason: "quit" })` —
+  the host's generic-submit saves the score on any end reason; the
+  confirm overlay is game-side (pointer zones + Esc/Enter keyboard
+  routes). Victory reports `completed`.
 - Timer/tiebreaker: the portal board ranks `score DESC, acceptedAt ASC`;
   the delivery wants `time ASC` among finishers. Decision needed at port
   time: adopt time as a secondary sort (schema change) or drop the
   tiebreaker for V1 (document as deviation).
+
+## Port record (2026-07-27)
+
+- `src/games/flappy/logic.ts` — pure core: level table verbatim, gap
+  fairness (≤24% jump, seeded rng, ONE draw per obstacle, retries
+  continue the stream), crash → 850ms beat → level restart with score
+  rollback (`totalGates` never rolls back), cash-out via
+  quitConfirm/keepFlying/cashOut, active-play clock (runs through
+  crashes, frozen on overlays and unarmed waiting), win = exactly 1700.
+- `render.ts` — cover-fit bg, stick pairs with the delivery's
+  shaft-extension slice technique, velocity-tilted hero, heart trail,
+  canvas HUD (LEVEL/GATES/TIME + ⏹ leave zone, 72×54 design px ≈ 60×45
+  CSS at the 320 floor), in-canvas level-break / quit-confirm / terminal
+  screens. Terminal screens stay visible via `endPresentation:
+"game-authored"` — the host adds Play Again (disabled while a counted
+  save is in flight), the Challenge CTA, and the counted receipt/Retry
+  card.
+- `module.ts` — ShellLoopGame; tap anywhere flaps (Space/ArrowUp/KeyW on
+  desktop), ⏹ opens the confirm, taps outside the confirm zones do
+  NOTHING (no accidental exits). Crash never ends the run; only victory
+  (`completed`) or confirmed cash-out (`quit`) reports end — the host's
+  generic-submit saves the score on both.
+- Deviations (documented): the delivery's leaderboard tiebreaker
+  `score DESC, time ASC` is NOT adopted — the portal board keeps
+  `score DESC, acceptedAt ASC`; TIME is shown cosmetically on the end
+  screens only (reviewer + DaiDai agreed for V1). CSS CRT/vignette page
+  chrome and the DOM confetti are not ported (Snake Freebies precedent);
+  canvas confetti can come later. Crash toast phrases cycle in order
+  rather than randomly (i18n-keyed, cosmetically equivalent).
 
 ## Asset budget
 

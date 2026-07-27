@@ -45,11 +45,24 @@ const SMOKE_ACTIONS: Record<
     endTimeoutMs: 45_000,
   },
   flappy: {
-    // One flap (tap anywhere), then gravity finds the floor.
+    // Bias Flap: a crash RESTARTS the level (unlimited retries), so the
+    // only reachable terminal path for a smoke is CASH-OUT — flap once
+    // (arms the run and proves input), then ⏹ leave → LEAVE & SAVE. The
+    // zones live in design space; the design box fills the surface
+    // height, x-centered (CanvasSurfaceManager letterboxing).
     act: async (page) => {
-      await page
-        .getByTestId("game-surface")
-        .click({ position: { x: 60, y: 60 } });
+      const surface = page.getByTestId("game-surface");
+      const box = await surface.boundingBox();
+      if (!box) throw new Error("flappy: no game-surface bounding box");
+      const scale = box.height / 640;
+      const originX = box.x + box.width / 2 - (360 * scale) / 2;
+      const tap = async (dx: number, dy: number) =>
+        page.mouse.click(originX + dx * scale, box.y + dy * scale);
+      await tap(80, 400); // flap — arms the run
+      await page.waitForTimeout(250);
+      await tap(360 - 84 + 36, 12 + 27); // ⏹ leave zone center
+      await page.waitForTimeout(250);
+      await tap(180, 430); // LEAVE & SAVE zone center
     },
     terminal: true,
   },
@@ -322,6 +335,121 @@ test("snake: a PLACING score renders the rank receipt and puts you on the board"
   await expect(page.getByTestId("board-me")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("board-table")).toBeVisible();
   expect(pageErrors).toEqual([]);
+});
+
+async function flappyCashOut(page: Page): Promise<void> {
+  const surface = page.getByTestId("game-surface");
+  const box = await surface.boundingBox();
+  if (!box) throw new Error("flappy: no game-surface bounding box");
+  const scale = box.height / 640;
+  const originX = box.x + box.width / 2 - (360 * scale) / 2;
+  const tap = async (dx: number, dy: number) =>
+    page.mouse.click(originX + dx * scale, box.y + dy * scale);
+  await tap(80, 400); // flap — arms the run
+  await page.waitForTimeout(250);
+  await tap(360 - 84 + 36, 12 + 27); // ⏹ leave
+  await page.waitForTimeout(250);
+  await tap(180, 430); // LEAVE & SAVE
+}
+
+test("flappy: counted cash-out shows the receipt ON the game-authored end (review P1)", async ({
+  page,
+}) => {
+  test.skip(needsDb, "counted loop needs DATABASE_URL");
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+
+  await page.goto("/play/flappy");
+  const host = page.getByTestId("game-host");
+  await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("start-counted").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "running", {
+    timeout: 10_000,
+  });
+  await flappyCashOut(page);
+  await expect(host).toHaveAttribute("data-lifecycle", "ended", {
+    timeout: 15_000,
+  });
+  // The authored end must still surface the counted receipt — it was
+  // previously host-overlay-only, so a counted cash-out committed
+  // invisibly.
+  const receipt = page.getByTestId("counted-result");
+  await expect(receipt).toBeVisible({ timeout: 10_000 });
+  await expect(receipt).toContainText("streak");
+  await expect(page.getByTestId("play-again")).toBeVisible();
+  await expect(page.getByTestId("challenge-friend")).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("flappy: Play Again is DISABLED while the counted save is in flight (audit P1)", async ({
+  page,
+}) => {
+  test.skip(needsDb, "counted loop needs DATABASE_URL");
+  // Hold the PUT open long enough to observe the guard, then let it land.
+  await page.route("**/api/runs/*", async (route) => {
+    if (route.request().method() === "PUT") {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    }
+    await route.continue();
+  });
+  await page.goto("/play/flappy");
+  const host = page.getByTestId("game-host");
+  await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("start-counted").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "running", {
+    timeout: 10_000,
+  });
+  await flappyCashOut(page);
+  await expect(host).toHaveAttribute("data-lifecycle", "ended", {
+    timeout: 15_000,
+  });
+  // While the PUT is pending, a fast tap must NOT be able to start
+  // Practice and hide the receipt (the M2 save race, re-fixed for the
+  // game-authored branch).
+  await expect(page.getByTestId("play-again")).toBeDisabled();
+  await expect(page.getByTestId("counted-result")).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByTestId("play-again")).toBeEnabled();
+});
+
+test("flappy: lost PUT on a counted cash-out shows Retry save on the authored end (review P1)", async ({
+  page,
+}) => {
+  test.skip(needsDb, "counted loop needs DATABASE_URL");
+  await page.route("**/api/runs/*", async (route) => {
+    if (route.request().method() === "PUT") {
+      await route.fetch(); // server commits; the response is lost
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto("/play/flappy");
+  const host = page.getByTestId("game-host");
+  await expect(host).toHaveAttribute("data-lifecycle", "ready", {
+    timeout: 30_000,
+  });
+  await page.getByTestId("start-counted").click();
+  await expect(host).toHaveAttribute("data-lifecycle", "running", {
+    timeout: 10_000,
+  });
+  await flappyCashOut(page);
+  await expect(host).toHaveAttribute("data-lifecycle", "ended", {
+    timeout: 15_000,
+  });
+  // Failure must be VISIBLE on the authored end, with the retry path.
+  const retry = page.getByTestId("retry-save");
+  await expect(retry).toBeVisible({ timeout: 10_000 });
+  await page.unroute("**/api/runs/*");
+  await retry.click();
+  await expect(page.getByTestId("counted-result")).toBeVisible({
+    timeout: 10_000,
+  });
 });
 
 test("claw: GAME-OWNED counted loop — issue, drop, committed end, receipt", async ({

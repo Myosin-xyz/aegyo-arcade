@@ -1,87 +1,155 @@
 /**
- * Bias Flap — ShellLoopGame (docs/games/flappy.md). Fixed 60Hz simulation
- * through the shell loop; tap anywhere (pointer down) or Space to flap;
- * all randomness from the run's seeded PRNG.
+ * Bias Flap — ShellLoopGame adapter (docs/games/bias-flap.md).
+ *
+ * The shell owns the loop and canvas; this module feeds real time into
+ * the pure core and wires input through the InputBus. Tap anywhere (or
+ * Space/ArrowUp/KeyW) flaps; the ⏹ HUD zone opens the cash-out confirm;
+ * level breaks advance on tap. Crash does NOT end the run — only victory
+ * or a confirmed cash-out reports `end`, so unlimited retries and the
+ * leave-and-save path both match the delivery.
  */
 
 import type {
   GameContext,
   GameDefinition,
+  NormalizedPointer,
   RunContext,
-  ShellLoopGame,
 } from "@/shell/contract";
 import { flappyMeta } from "./meta";
-import { blip, sweep } from "@/shell/sfx-presets";
 import {
+  cashOut,
+  continueFromLevelBreak,
   createFlappyState,
   flap,
+  keepFlying,
+  openQuitConfirm,
   step,
-  DESIGN,
-  FLOOR_Y,
-  GAP_HALF,
-  PIPE_WIDTH,
-  PLAYER_RADIUS,
-  PLAYER_X,
   type FlappyState,
+  type Rng,
 } from "./logic";
+import {
+  leaveRect,
+  quitConfirmRects,
+  renderFlappy,
+  type FlappyImages,
+  type Heart,
+} from "./render";
+import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
 
-const SIM_STEP_MS = 1000 / 60;
+const ASSETS_BASE = "/games/flappy/";
+const CRASH_PHRASES = 3;
+const TOAST_MS = 1000;
 
-const COLORS = {
-  background: "#2b1146",
-  floor: "#1c0a33",
-  barricade: "#7b2ff7",
-  lightstick: "#ffd166",
-  lightstickTip: "#ff4f8b",
-} as const;
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
-class FlappyGame implements ShellLoopGame {
+const within = (p: { x: number; y: number }, r: Rect): boolean =>
+  p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+
+function loadImage(
+  src: string,
+  signal: AbortSignal,
+): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("flappy init aborted", "AbortError"));
+      return;
+    }
+    const img = new Image();
+    const onAbort = () =>
+      reject(new DOMException("flappy init aborted", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    img.onload = () => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(img);
+    };
+    img.onerror = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(new Error(`flappy asset failed: ${src}`));
+    };
+    img.src = src;
+  });
+}
+
+class FlappyGame {
   readonly loop = "shell" as const;
   private state: FlappyState | null = null;
-  private rng: (() => number) | null = null;
-  private accumulator = 0;
+  private rng: Rng | null = null;
+  private images: FlappyImages | null = null;
   private paused = false;
   private endedReported = false;
-  /** First flap starts the run (M4 UX P1: no falling while orienting). */
-  private armed = false;
-  /** Render-only glow trail of recent player positions (style pass). */
-  private trail: number[] = [];
-  /** Constant draw-only gradients, built once (lazy) — see render(). */
-  private skyGradient: CanvasGradient | null = null;
-  private pipeGradient: CanvasGradient | null = null;
-  private wingGradient: CanvasGradient | null = null;
+  private lastScore = -1;
+  private hearts: Heart[] = [];
+  private toast: string | null = null;
+  private toastMs = 0;
+  private crashPhraseIndex = 0;
   private unsubscribers: (() => void)[] = [];
 
   constructor(private readonly ctx: GameContext) {}
 
-  init(): void {
-    this.ctx.audio.register("flap", sweep(280, 560, 0.09, "triangle", 0.04));
-    this.ctx.audio.register("point", blip(1046, 0.07, "triangle", 0.045));
-    this.ctx.audio.register("lose", sweep(500, 80, 0.28, "sawtooth", 0.045));
+  async init(signal: AbortSignal): Promise<void> {
+    this.ctx.audio.register("flap", blip(660, 0.05, "triangle", 0.035));
+    this.ctx.audio.register("gate", blip(880, 0.06, "triangle", 0.045));
+    this.ctx.audio.register("crash", thud(110, 0.2, 0.05));
+    this.ctx.audio.register("levelUp", arp([523, 659, 784, 1047], 0.07));
+    this.ctx.audio.register("win", arp([659, 784, 988, 1319], 0.08));
+    this.ctx.audio.register("cashout", sweep(700, 350, 0.2, "sine", 0.04));
+
+    const [bg, hero, heart, stickUp, stickDown] = await Promise.all([
+      loadImage(`${ASSETS_BASE}bg.webp`, signal),
+      loadImage(`${ASSETS_BASE}hero.webp`, signal),
+      loadImage(`${ASSETS_BASE}coeur.webp`, signal),
+      loadImage(`${ASSETS_BASE}stick-up.webp`, signal),
+      loadImage(`${ASSETS_BASE}stick-down.webp`, signal),
+    ]);
+    this.images = { bg, hero, heart, stickUp, stickDown };
+
     this.unsubscribers.push(
-      this.ctx.input.onPointer((p) => {
-        if (p.action === "down" && this.state) {
-          this.armed = true;
-          if (this.state.status === "running") this.ctx.audio.play("flap");
-          flap(this.state);
-        }
-      }),
       this.ctx.input.onKey((k) => {
-        if (k.action === "down" && k.code === "Space" && this.state) {
-          this.armed = true;
-          if (this.state.status === "running") this.ctx.audio.play("flap");
-          flap(this.state);
+        if (k.action !== "down" || this.paused) return;
+        const state = this.state;
+        const rng = this.rng;
+        if (!state || !rng) return;
+        const flapKey =
+          k.code === "Space" || k.code === "ArrowUp" || k.code === "KeyW";
+        // Keyboard must reach EVERY state a pointer can (review P2: flap
+        // keys alone stranded keyboard players at the first level break).
+        if (state.status === "levelBreak") {
+          if (flapKey || k.code === "Enter") {
+            continueFromLevelBreak(state, rng);
+          }
+          return;
         }
+        if (state.status === "quitConfirm") {
+          if (k.code === "Escape") keepFlying(state);
+          else if (k.code === "Enter") {
+            cashOut(state);
+            if (!this.endedReported) this.endRun("cashout", "quit");
+          }
+          return;
+        }
+        if (k.code === "Escape") {
+          openQuitConfirm(state);
+          return;
+        }
+        if (flapKey) this.doFlap();
       }),
+      this.ctx.input.onPointer((p) => this.onPointer(p)),
     );
   }
 
   start(run: RunContext): void {
     this.rng = run.random;
     this.state = createFlappyState(run.random);
-    this.accumulator = 0;
     this.endedReported = false;
-    this.armed = false; // hover until the first flap
+    this.lastScore = -1;
+    this.hearts = [];
+    this.toast = null;
+    this.toastMs = 0;
     this.ctx.report.score(0);
   }
 
@@ -96,250 +164,143 @@ class FlappyGame implements ShellLoopGame {
   update(dtMs: number): void {
     const state = this.state;
     const rng = this.rng;
-    if (!state || !rng || this.paused || state.status !== "running") return;
-    if (!this.armed) return; // frozen until the first flap
-    this.accumulator += dtMs;
-    while (this.accumulator >= SIM_STEP_MS) {
-      this.accumulator -= SIM_STEP_MS;
-      const before = state.score;
-      step(state, rng);
-      if (state.score !== before) {
-        this.ctx.audio.play("point");
-        this.ctx.report.score(state.score);
-      }
-      if (state.status !== "running") {
-        if (!this.endedReported) {
-          this.endedReported = true;
-          this.ctx.audio.play("lose");
-          this.ctx.report.end({ reason: "lost" });
-        }
-        return;
-      }
-    }
-  }
+    if (!state || !rng || this.paused) return;
+    if (state.status === "won" || state.status === "cashedOut") return;
 
-  /**
-   * Build the constant (position-independent) gradients once. Their stops
-   * and coordinates never change, so rebuilding them every frame was pure
-   * waste. The pipe gradient spans 0..PIPE_WIDTH and is translated to each
-   * pipe at fill time; the wing gradient's coords are transformed by the
-   * CTM at paint — both stay draw-identical. Local vars let the compiler
-   * narrow away the null without an assertion.
-   */
-  private ensureGradients(g: CanvasRenderingContext2D): {
-    sky: CanvasGradient;
-    pipe: CanvasGradient;
-    wing: CanvasGradient;
-  } {
-    let sky = this.skyGradient;
-    let pipe = this.pipeGradient;
-    let wing = this.wingGradient;
-    if (!sky || !pipe || !wing) {
-      sky = g.createLinearGradient(0, 0, 0, FLOOR_Y);
-      sky.addColorStop(0, "#150a2b");
-      sky.addColorStop(1, "#341457");
-      pipe = g.createLinearGradient(0, 0, PIPE_WIDTH, 0);
-      pipe.addColorStop(0, "#5b21c9");
-      pipe.addColorStop(0.5, "#7b2ff7");
-      pipe.addColorStop(1, "#4a18a8");
-      wing = g.createLinearGradient(0, 0, -PLAYER_RADIUS * 1.7, 0);
-      wing.addColorStop(0, "#fff6ee");
-      wing.addColorStop(1, "#ffd9ec");
-      this.skyGradient = sky;
-      this.pipeGradient = pipe;
-      this.wingGradient = wing;
+    const before = state.status;
+    // step() RETURNS the new status; re-reading state.status keeps
+    // TypeScript's pre-call narrowing and dead-ends the comparisons.
+    const after = step(state, dtMs, rng);
+
+    if (state.score !== this.lastScore) {
+      // Gains chirp; the crash ROLLBACK must not (it also reports, so
+      // the counted submit always carries the rolled-back truth).
+      if (state.score > this.lastScore && this.lastScore >= 0) {
+        this.ctx.audio.play("gate");
+      }
+      this.lastScore = state.score;
+      this.ctx.report.score(state.score);
     }
-    return { sky, pipe, wing };
+
+    if (before === "flying" && after === "crashed") {
+      this.ctx.audio.play("crash");
+      this.crashPhraseIndex = (this.crashPhraseIndex % CRASH_PHRASES) + 1;
+      this.toast = this.ctx.t(`game.flappy.crash.${this.crashPhraseIndex}`);
+      this.toastMs = TOAST_MS + 850;
+    }
+    if (before === "flying" && after === "levelBreak") {
+      this.ctx.audio.play("levelUp");
+    }
+
+    if (this.toastMs > 0) {
+      this.toastMs -= dtMs;
+      if (this.toastMs <= 0) this.toast = null;
+    }
+
+    // Ambient heart trail while flying (delivery: 10% per frame) —
+    // cosmetic, so plain Math.random, never the run's seeded stream.
+    if (after === "flying" && Math.random() < 0.1 * (dtMs / (1000 / 60))) {
+      this.spawnHeart();
+    }
+    for (const h of this.hearts) {
+      const f = dtMs / (1000 / 60);
+      h.x += h.vx * f;
+      h.y += h.vy * f;
+      h.a -= 0.016 * f;
+    }
+    this.hearts = this.hearts.filter((h) => h.a > 0);
+
+    if (after === "won" && !this.endedReported) {
+      this.endRun("win", "completed");
+    }
   }
 
   render(): void {
-    if (this.ctx.surface.kind !== "canvas" || !this.state) return;
-    const { context2d: g } = this.ctx.surface;
-    const state = this.state;
-    const grad = this.ensureGradients(g);
-
-    // Render-only trail bookkeeping (never touches the simulation).
-    if (this.armed && state.status === "running") {
-      this.trail.push(state.y);
-      if (this.trail.length > 7) this.trail.shift();
-    } else if (this.trail.length > 0 && state.status !== "running") {
-      this.trail.length = 0;
+    if (this.ctx.surface.kind !== "canvas" || !this.state || !this.images) {
+      return;
     }
-
-    // Concert night sky + deterministic crowd-lightstick specks (hash
-    // scatter — render stays allocation-light and RNG-free).
-    g.fillStyle = grad.sky;
-    g.fillRect(0, 0, DESIGN.w, DESIGN.h);
-    for (let i = 0; i < 42; i++) {
-      const px = (i * 97 + 23) % DESIGN.w;
-      const py = ((i * 61 + 11) % Math.floor(FLOOR_Y * 0.92)) + 8;
-      g.globalAlpha = 0.12 + (i % 5) * 0.06;
-      g.fillStyle = i % 3 === 0 ? "#ffd166" : "#ff8fb8";
-      g.fillRect(px, py, 2, 2);
-    }
-    g.globalAlpha = 1;
-
-    // Floor: crowd silhouette bumps under a pink stage-edge glow.
-    g.fillStyle = COLORS.floor;
-    g.fillRect(0, FLOOR_Y, DESIGN.w, DESIGN.h - FLOOR_Y);
-    g.fillStyle = "#120722";
-    for (let i = 0; i < 16; i++) {
-      const bx = i * (DESIGN.w / 15);
-      const br = 14 + ((i * 37) % 9);
-      g.beginPath();
-      g.arc(bx, FLOOR_Y + 12, br, Math.PI, 0);
-      g.fill();
-    }
-    g.fillStyle = "rgba(255, 79, 139, 0.55)";
-    g.fillRect(0, FLOOR_Y, DESIGN.w, 3);
-
-    // Barricades: rounded neon blocks with a caution rim at the gap.
-    for (const pipe of state.pipes) {
-      const topH = pipe.gapCenter - GAP_HALF;
-      const botY = pipe.gapCenter + GAP_HALF;
-      // Cached gradient spans 0..PIPE_WIDTH; translate places it per pipe
-      // (identical to the old per-pipe createLinearGradient at pipe.x).
-      g.save();
-      g.translate(pipe.x, 0);
-      g.fillStyle = grad.pipe;
-      g.beginPath();
-      g.roundRect(0, -8, PIPE_WIDTH, topH + 8, 6);
-      g.roundRect(0, botY, PIPE_WIDTH, FLOOR_Y - botY + 8, 6);
-      g.fill();
-      g.fillStyle = "#ff8fb8";
-      g.fillRect(0, topH - 4, PIPE_WIDTH, 4);
-      g.fillRect(0, botY, PIPE_WIDTH, 4);
-      g.restore();
-    }
-
-    // Feather trail behind the flyer (render-only history).
-    for (let i = 0; i < this.trail.length; i++) {
-      const a = ((i + 1) / this.trail.length) * 0.18;
-      g.globalAlpha = a;
-      g.fillStyle = "#fff6ee";
-      g.beginPath();
-      g.arc(
-        PLAYER_X - (this.trail.length - i) * 7,
-        this.trail[i] - 2,
-        PLAYER_RADIUS * 0.4,
-        0,
-        Math.PI * 2,
-      );
-      g.fill();
-    }
-    g.globalAlpha = 1;
-
-    // The flyer: a winged idol cartoon (team feedback 2026-07-19 —
-    // shirtless, tattooed arm, lip ring; see CONTENT_REGISTER for the
-    // likeness gate). Hitbox stays the PLAYER_RADIUS circle — draw-only.
-    const R = PLAYER_RADIUS;
-    const tilt = Math.max(-0.5, Math.min(0.6, state.vy * 0.045));
-    // Wings flap with vertical velocity: up-beat right after a flap.
-    const flapBeat = Math.max(-0.9, Math.min(0.9, -state.vy * 0.08));
-    g.save();
-    g.translate(PLAYER_X, state.y);
-    g.rotate(tilt);
-
-    // Wings (behind the body): two feathered arcs, angle driven by vy.
-    for (const side of [-1, 1] as const) {
-      g.save();
-      g.scale(side, 1);
-      g.translate(-R * 0.45, -R * 0.15);
-      g.rotate(-0.55 - flapBeat * 0.55);
-      // Cached constant gradient; its coords are mapped by the current
-      // CTM at paint, so the per-side scale/rotate still applies.
-      g.fillStyle = grad.wing;
-      g.beginPath();
-      g.ellipse(-R * 0.85, 0, R * 1.05, R * 0.42, 0.12, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = "rgba(255, 143, 184, 0.45)";
-      for (let f = 0; f < 3; f++) {
-        g.beginPath();
-        g.ellipse(
-          -R * (0.55 + f * 0.45),
-          R * 0.16,
-          R * 0.3,
-          R * 0.12,
-          0.1,
-          0,
-          Math.PI * 2,
-        );
-        g.fill();
-      }
-      g.restore();
-    }
-
-    // Torso: shirtless, warm skin tone.
-    g.fillStyle = "#f2c49b";
-    g.beginPath();
-    g.roundRect(-R * 0.5, -R * 0.35, R, R * 1.05, R * 0.3);
-    g.fill();
-    // Chest line + navel (cartoon shading).
-    g.strokeStyle = "rgba(146, 90, 51, 0.5)";
-    g.lineWidth = 1;
-    g.beginPath();
-    g.moveTo(-R * 0.18, R * 0.05);
-    g.lineTo(R * 0.18, R * 0.05);
-    g.stroke();
-    // Shorts.
-    g.fillStyle = "#2b1146";
-    g.beginPath();
-    g.roundRect(-R * 0.5, R * 0.55, R, R * 0.4, R * 0.14);
-    g.fill();
-    // Arms: trailing arm carries the tattoo sleeve (dark ink marks).
-    g.fillStyle = "#f2c49b";
-    g.beginPath();
-    g.roundRect(-R * 0.92, -R * 0.3, R * 0.42, R * 0.95, R * 0.2);
-    g.roundRect(R * 0.5, -R * 0.3, R * 0.42, R * 0.95, R * 0.2);
-    g.fill();
-    g.strokeStyle = "rgba(43, 17, 70, 0.75)";
-    g.lineWidth = 1.4;
-    for (let m = 0; m < 3; m++) {
-      g.beginPath();
-      g.moveTo(-R * 0.88, -R * 0.12 + m * R * 0.26);
-      g.lineTo(-R * 0.54, -R * 0.02 + m * R * 0.26);
-      g.stroke();
-    }
-
-    // Head: dark shaggy hair, soft face, lip ring glint.
-    g.fillStyle = "#f6d0ab";
-    g.beginPath();
-    g.arc(0, -R * 0.85, R * 0.62, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = "#241430";
-    g.beginPath();
-    g.arc(0, -R * 1.0, R * 0.62, Math.PI * 0.92, Math.PI * 2.08);
-    g.fill();
-    // Fringe strands.
-    g.beginPath();
-    g.ellipse(-R * 0.22, -R * 1.02, R * 0.24, R * 0.34, 0.5, 0, Math.PI * 2);
-    g.ellipse(R * 0.2, -R * 1.04, R * 0.22, R * 0.3, -0.4, 0, Math.PI * 2);
-    g.fill();
-    // Eyes + tiny smile.
-    g.fillStyle = "#241430";
-    g.beginPath();
-    g.arc(-R * 0.22, -R * 0.82, R * 0.07, 0, Math.PI * 2);
-    g.arc(R * 0.22, -R * 0.82, R * 0.07, 0, Math.PI * 2);
-    g.fill();
-    g.strokeStyle = "#a4553a";
-    g.lineWidth = 1.2;
-    g.beginPath();
-    g.arc(0, -R * 0.62, R * 0.16, 0.25, Math.PI - 0.25);
-    g.stroke();
-    // Lip ring: a tiny silver hoop at the lower lip.
-    g.strokeStyle = "#dfe6f2";
-    g.lineWidth = 1.1;
-    g.beginPath();
-    g.arc(R * 0.11, -R * 0.5, R * 0.06, 0, Math.PI * 2);
-    g.stroke();
-
-    g.restore();
+    renderFlappy(
+      this.ctx.surface.context2d,
+      this.state,
+      this.images,
+      this.hearts,
+      this.ctx.t,
+      this.toast,
+    );
   }
 
   destroy(): void {
     for (const unsubscribe of this.unsubscribers) unsubscribe();
     this.unsubscribers = [];
     this.state = null;
+    this.images = null;
+  }
+
+  /**
+   * Terminal exit — the LAST frame must be painted BEFORE report.end:
+   * the host stops the shell loop inside end(), so a frame queued for
+   * "after this update" never draws and the canvas would freeze on the
+   * pre-terminal state (caught at the 320×568 walk: the ended screen
+   * still showed the quit confirm).
+   */
+  private endRun(sound: string, reason: "completed" | "quit"): void {
+    this.endedReported = true;
+    this.ctx.audio.play(sound);
+    this.render();
+    this.ctx.report.end({ reason });
+  }
+
+  private doFlap(): void {
+    const state = this.state;
+    if (!state) return;
+    if (flap(state)) {
+      this.ctx.audio.play("flap");
+      this.spawnHeart();
+    }
+  }
+
+  private spawnHeart(): void {
+    const state = this.state;
+    if (!state) return;
+    this.hearts.push({
+      x: 108 - 48.6 * 0.25,
+      y: state.heroY + 42.8 * 0.3,
+      vx: -1.1 - Math.random() * 0.6,
+      vy: 0.25 + Math.random() * 0.5,
+      s: 360 * (0.035 + Math.random() * 0.02),
+      a: 1,
+    });
+  }
+
+  private onPointer(p: NormalizedPointer): void {
+    const state = this.state;
+    const rng = this.rng;
+    if (!state || !rng || this.paused) return;
+    if (p.action !== "down") return;
+
+    if (state.status === "levelBreak") {
+      continueFromLevelBreak(state, rng);
+      return;
+    }
+    if (state.status === "quitConfirm") {
+      const zones = quitConfirmRects();
+      if (within(p, zones.keep)) {
+        keepFlying(state);
+      } else if (within(p, zones.leave)) {
+        cashOut(state);
+        if (!this.endedReported) this.endRun("cashout", "quit");
+      }
+      return; // taps outside the zones do nothing — no accidental exits
+    }
+    // The ⏹ leave zone opens the confirm; anywhere else flaps.
+    if (
+      (state.status === "flying" || state.status === "waiting") &&
+      within(p, leaveRect())
+    ) {
+      openQuitConfirm(state);
+      return;
+    }
+    this.doFlap();
   }
 }
 

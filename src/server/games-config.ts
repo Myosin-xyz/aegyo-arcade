@@ -32,10 +32,12 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
     // Snake Freebies (Daidai V1, 2026-07-26): a perfect run is
     // 10·10 + 25·20 + 45·30 = 1950 (docs/games/snake-freebies.md).
     snake: { maxScore: 1950, scored: true },
-    // ~0.87 barricades/second at 2.6 px/step · 180 px spacing; the 15-min
-    // attempt TTL bounds a run at ~780 — 800 is the envelope
-    // (docs/games/flappy.md adopted units).
-    flappy: { maxScore: 800, scored: true },
+    // Bias Flap perfect run: Σ gates × 10 × level over the 5-level table
+    // (6·10 + 8·20 + 10·30 + 12·40 + 14·50) — exactly 1700, reachable
+    // only by finishing all levels (docs/games/bias-flap.md). Raising the
+    // cap (800 → 1700) strands no historical row — old scores stay valid
+    // and beatable — so no preflight is needed for this direction.
+    flappy: { maxScore: 1700, scored: true },
     // Chart climb #100 → #1: score = positions climbed, hard max 99
     // (docs/games/jumper.md).
     jumper: { maxScore: 99, scored: true },

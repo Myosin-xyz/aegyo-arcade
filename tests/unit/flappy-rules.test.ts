@@ -1,147 +1,273 @@
 /**
- * Bias Flap rule vectors (docs/games/flappy.md — "Required vectors"):
- * no-input fall, flap trajectories, seeded gap bounds, one-score-per-
- * barricade with collision precedence, restart determinism.
+ * Bias Flap rule vectors (docs/games/bias-flap.md): the delivery's level
+ * table, per-gate scoring to the exact 1700 perfect run, gap fairness,
+ * crash → level-restart with score rollback, the cash-out path, the
+ * active-play clock, and seeded determinism.
  */
 
 import { describe, expect, it } from "vitest";
 import { seededRandom } from "@/shell/rng";
 import {
+  CRASH_BEAT_MS,
+  DESIGN_H,
+  GAP_MARGIN_FRAC,
+  HERO_H,
+  HERO_X,
+  LEVELS,
+  MAX_GAP_JUMP_FRAC,
+  MAX_SCORE,
+  SCORE_PER_GATE,
+  STEP_MS,
+  STICK_W,
+  cashOut,
+  continueFromLevelBreak,
   createFlappyState,
   flap,
+  formatTime,
+  keepFlying,
+  openQuitConfirm,
+  setupLevel,
   step,
-  DESIGN,
-  FLAP_IMPULSE,
-  GAP_CENTER_MAX,
-  GAP_CENTER_MIN,
-  GAP_HALF,
-  GRAVITY,
-  PIPE_WIDTH,
-  PLAYER_RADIUS,
-  PLAYER_X,
+  tick,
   type FlappyState,
 } from "@/games/flappy/logic";
 
-describe("flappy rules (docs/games/flappy.md vectors)", () => {
-  it("V1: no-input fall follows the exact adopted-unit trajectory", () => {
-    const rng = seededRandom("flappy-v1");
-    const state = createFlappyState(rng);
-    expect(state.y).toBe(DESIGN.h / 2); // 320
-    step(state, rng);
-    expect(state.vy).toBeCloseTo(GRAVITY, 10);
-    expect(state.y).toBeCloseTo(320 + GRAVITY, 10);
-    for (let i = 0; i < 9; i++) step(state, rng);
-    // y after n steps = y0 + g·n(n+1)/2 → 320 + 0.45·55 = 344.75
-    expect(state.y).toBeCloseTo(344.75, 10);
-  });
+const rngOf = (seed: string) => seededRandom(seed);
 
-  it("V2: flap impulse trajectories at fixed steps", () => {
-    const rng = seededRandom("flappy-v2");
-    const state = createFlappyState(rng);
-    flap(state);
-    expect(state.vy).toBe(FLAP_IMPULSE);
-    step(state, rng);
-    expect(state.vy).toBeCloseTo(FLAP_IMPULSE + GRAVITY, 10); // −7.05
-    expect(state.y).toBeCloseTo(320 + FLAP_IMPULSE + GRAVITY, 10); // 312.95
-    // A second flap mid-fall resets vy exactly.
-    for (let i = 0; i < 5; i++) step(state, rng);
-    flap(state);
-    expect(state.vy).toBe(FLAP_IMPULSE);
-  });
-
-  it("V3: seeded gap generation stays inside the safe margins", () => {
-    const rng = seededRandom("flappy-v3");
-    const state = createFlappyState(rng);
-    const centers: number[] = state.pipes.map((p) => p.gapCenter);
-    // Force many recycles by teleporting pipes off-screen.
-    for (let i = 0; i < 50; i++) {
-      state.pipes[0].x = -PIPE_WIDTH - 1;
-      state.vy = 0; // keep the player alive and neutral
-      state.y = state.pipes[1].gapCenter; // stay inside the next gap
-      step(state, rng);
-      centers.push(state.pipes[state.pipes.length - 1].gapCenter);
+/**
+ * Drive every remaining gate of the current level past the hero, keeping
+ * the hero glued to a safe gap center. NEAREST-by-x, not next-unpassed:
+ * `passed` flips while the stick still overlaps the hero horizontally,
+ * so snapping to the next gate's center at that instant teleports the
+ * hero into the just-passed stick's orb zone. These vectors are about
+ * rules, not navigation.
+ */
+function clearLevel(state: FlappyState): void {
+  if (state.status === "waiting") flap(state);
+  let guard = 0;
+  while (state.status === "flying" && guard++ < 100_000) {
+    let nearest = state.obstacles[0];
+    for (const o of state.obstacles) {
+      if (Math.abs(o.x - HERO_X) < Math.abs(nearest.x - HERO_X)) nearest = o;
     }
-    for (const center of centers) {
-      expect(center).toBeGreaterThanOrEqual(GAP_CENTER_MIN);
-      expect(center).toBeLessThanOrEqual(GAP_CENTER_MAX);
-    }
-    // Seed determinism: the same sequence regenerates identically.
-    const replayState = createFlappyState(seededRandom("flappy-v3"));
-    expect(replayState.pipes.map((p) => p.gapCenter)).toEqual(
-      centers.slice(0, 3),
-    );
+    if (nearest) state.heroY = (nearest.gapTop + nearest.gapBot) / 2;
+    state.heroVy = 0; // cancel gravity
+    tick(state);
+  }
+  if (guard >= 100_000) throw new Error("clearLevel did not terminate");
+}
+
+describe("bias flap — delivery constants (V1)", () => {
+  it("5-level table verbatim from config.js; perfect run is exactly 1700", () => {
+    expect(LEVELS.map((l) => l.gates)).toEqual([6, 8, 10, 12, 14]);
+    expect(LEVELS.map((l) => l.speed)).toEqual([2.4, 2.6, 2.8, 3.0, 3.2]);
+    expect(LEVELS.map((l) => l.gap)).toEqual([0.335, 0.315, 0.3, 0.285, 0.27]);
+    expect(SCORE_PER_GATE).toBe(10);
+    expect(MAX_SCORE).toBe(1700); // 60 + 160 + 300 + 480 + 700
   });
+});
 
-  it("V4: a barricade scores exactly once; collision resolves first", () => {
-    const rng = seededRandom("flappy-v4");
-    // Hand-built state: pipe about to pass the player.
-    const passing: FlappyState = {
-      y: 300,
-      vy: 0,
-      pipes: [
-        {
-          x: PLAYER_X - PLAYER_RADIUS - PIPE_WIDTH - 1,
-          gapCenter: 300,
-          scored: false,
-        },
-        { x: 400, gapCenter: 300, scored: false },
-        { x: 580, gapCenter: 300, scored: false },
-      ],
-      score: 0,
-      status: "running",
-    };
-    step(passing, rng);
-    expect(passing.score).toBe(1);
-    step(passing, rng);
-    expect(passing.score).toBe(1); // never double-scores
-
-    // Collision precedence: in the SAME step, pipe A becomes score-eligible
-    // (fully passed, unscored) while pipe B collides. A scoring-first
-    // implementation would record score 1 before dying; collision-first
-    // leaves it at 0 (docs rule edge).
-    const colliding: FlappyState = {
-      y: 300 - GAP_HALF - PLAYER_RADIUS + 1, // intersects pipe B's top arm
-      vy: 0,
-      pipes: [
-        // Pipe A: already fully behind the player and NOT yet scored —
-        // score-eligible the moment scoring runs.
-        { x: 5, gapCenter: 500, scored: false },
-        // Pipe B: overlapping the player horizontally this step.
-        { x: PLAYER_X - PIPE_WIDTH + 2, gapCenter: 300, scored: false },
-        { x: 580, gapCenter: 300, scored: false },
-      ],
-      score: 0,
-      status: "running",
-    };
-    step(colliding, rng);
-    expect(colliding.status).toBe("lost");
-    expect(colliding.score).toBe(0); // pipe A never scored — collision won
-    // End-at-most-once: further steps are frozen no-ops.
-    const snapshot = JSON.parse(JSON.stringify(colliding)) as FlappyState;
-    step(colliding, rng);
-    flap(colliding);
-    expect(colliding).toEqual(snapshot);
-  });
-
-  it("V5: restart with the same seed replays identically", () => {
-    const run = (seed: string) => {
-      const rng = seededRandom(seed);
-      const state = createFlappyState(rng);
-      for (let i = 0; i < 120; i++) {
-        if (i % 20 === 0) flap(state);
-        step(state, rng);
+describe("bias flap — scoring and progression (V2)", () => {
+  it("a full clean run scores exactly MAX_SCORE through the real path", () => {
+    const rng = rngOf("perfect");
+    const state = createFlappyState(rng);
+    for (let level = 0; level < LEVELS.length; level++) {
+      expect(state.level).toBe(level);
+      clearLevel(state);
+      if (level < LEVELS.length - 1) {
+        expect(state.status).toBe("levelBreak");
+        continueFromLevelBreak(state, rng);
       }
-      return state;
-    };
-    expect(run("flappy-v5")).toEqual(run("flappy-v5"));
+    }
+    expect(state.status).toBe("won");
+    expect(state.score).toBe(MAX_SCORE);
+    expect(state.totalGates).toBe(6 + 8 + 10 + 12 + 14);
   });
 
-  it("V1b: leaving the vertical bounds ends the run", () => {
-    const rng = seededRandom("flappy-v1b");
+  it("each gate pays 10 × level number", () => {
+    const rng = rngOf("pergате");
     const state = createFlappyState(rng);
-    for (let i = 0; i < 200 && state.status === "running"; i++) {
-      step(state, rng); // no input → falls to the floor
+    flap(state);
+    const first = state.obstacles[0];
+    state.heroY = (first.gapTop + first.gapBot) / 2;
+    state.heroVy = 0;
+    while (!first.passed) {
+      state.heroY = (first.gapTop + first.gapBot) / 2;
+      state.heroVy = 0;
+      tick(state);
     }
-    expect(state.status).toBe("lost");
+    expect(state.score).toBe(10); // level 1
+    expect(state.gates).toBe(1);
+    expect(state.totalGates).toBe(1);
+  });
+});
+
+describe("bias flap — crash restarts the level and rolls the score back (V3)", () => {
+  it("crash → 850ms beat → same level, score at level-start, gates re-seeded; totalGates keeps counting", () => {
+    const rng = rngOf("crashy");
+    const state = createFlappyState(rng);
+
+    // Pass one gate legitimately, then crash into the ceiling.
+    flap(state);
+    const first = state.obstacles.find((o) => !o.passed)!;
+    while (!first.passed) {
+      state.heroY = (first.gapTop + first.gapBot) / 2;
+      state.heroVy = 0;
+      tick(state);
+    }
+    const gapsBefore = state.obstacles.map((o) => o.gapTop);
+    expect(state.score).toBe(10);
+    expect(state.totalGates).toBe(1);
+
+    state.heroY = -DESIGN_H; // way past the ceiling forgiveness
+    tick(state);
+    expect(state.status).toBe("crashed");
+
+    // The beat holds the level, then the respawn rolls back.
+    expect(step(state, CRASH_BEAT_MS - 1, rng)).toBe("crashed");
+    expect(step(state, 1, rng)).toBe("waiting");
+    expect(state.score).toBe(0); // rolled back to the level-start value
+    expect(state.gates).toBe(0);
+    expect(state.totalGates).toBe(1); // the lifetime stat NEVER rolls back
+    expect(state.level).toBe(0);
+    // Retry gaps come from the CONTINUING rng stream — fresh layout.
+    expect(state.obstacles.map((o) => o.gapTop)).not.toEqual(gapsBefore);
+  });
+
+  it("crash rollback returns to the LEVEL-start score, not zero", () => {
+    const rng = rngOf("rollback");
+    const state = createFlappyState(rng);
+    clearLevel(state); // level 1 banked: 60
+    continueFromLevelBreak(state, rng);
+    expect(state.levelStartScore).toBe(60);
+
+    flap(state);
+    state.heroY = -DESIGN_H;
+    tick(state);
+    step(state, CRASH_BEAT_MS, rng);
+    expect(state.score).toBe(60); // level-2 progress gone, bank intact
+  });
+});
+
+describe("bias flap — cash-out (V4)", () => {
+  it("leave → confirm → cashedOut keeps the current score; keep flying resumes", () => {
+    const rng = rngOf("cashout");
+    const state = createFlappyState(rng);
+    clearLevel(state);
+    continueFromLevelBreak(state, rng);
+    flap(state);
+
+    expect(openQuitConfirm(state)).toBe(true);
+    expect(state.status).toBe("quitConfirm");
+    // The confirm freezes the sim AND the clock.
+    const elapsedAt = state.elapsedMs;
+    expect(step(state, 5000, rng)).toBe("quitConfirm");
+    expect(state.elapsedMs).toBe(elapsedAt);
+
+    keepFlying(state);
+    expect(state.status).toBe("flying");
+
+    openQuitConfirm(state);
+    cashOut(state);
+    expect(state.status).toBe("cashedOut");
+    expect(state.score).toBe(60); // banked score survives the exit
+  });
+
+  it("the confirm can open from waiting and returns to waiting", () => {
+    const state = createFlappyState(rngOf("wait"));
+    expect(openQuitConfirm(state)).toBe(true);
+    keepFlying(state);
+    expect(state.status).toBe("waiting");
+  });
+});
+
+describe("bias flap — gap fairness (V5)", () => {
+  it("every consecutive gap-center shift is ≤ 24% of height, within margins, at every level", () => {
+    const rng = rngOf("fairness");
+    const state = createFlappyState(rng);
+    for (let level = 0; level < LEVELS.length; level++) {
+      state.level = level;
+      setupLevel(state, rng, "fresh");
+      const centers = state.obstacles.map((o) => (o.gapTop + o.gapBot) / 2);
+      const gapH = DESIGN_H * LEVELS[level].gap;
+      const margin = DESIGN_H * GAP_MARGIN_FRAC;
+      for (let i = 0; i < centers.length; i++) {
+        expect(centers[i]).toBeGreaterThanOrEqual(margin + gapH / 2 - 1e-9);
+        expect(centers[i]).toBeLessThanOrEqual(
+          DESIGN_H - margin - gapH / 2 + 1e-9,
+        );
+        if (i > 0) {
+          expect(Math.abs(centers[i] - centers[i - 1])).toBeLessThanOrEqual(
+            DESIGN_H * MAX_GAP_JUMP_FRAC + 1e-9,
+          );
+        }
+      }
+    }
+  });
+});
+
+describe("bias flap — clock (V6)", () => {
+  it("runs from the level's first flap through crashes; frozen before arming and on level breaks", () => {
+    const rng = rngOf("clock");
+    const state = createFlappyState(rng);
+
+    // Unarmed waiting: no time accrues.
+    step(state, 2000, rng);
+    expect(state.elapsedMs).toBe(0);
+
+    flap(state);
+    step(state, 1000, rng);
+    expect(state.elapsedMs).toBe(1000);
+
+    // Crash: the beat still counts (delivery: the interval keeps going).
+    state.heroY = -DESIGN_H;
+    tick(state);
+    step(state, CRASH_BEAT_MS, rng);
+    expect(state.elapsedMs).toBe(1000 + CRASH_BEAT_MS);
+    // Post-crash waiting is still armed — the clock keeps running.
+    step(state, 500, rng);
+    expect(state.elapsedMs).toBe(1500 + CRASH_BEAT_MS);
+
+    // A level break freezes it; the NEXT level re-arms on first flap.
+    clearLevel(state);
+    const atBreak = state.elapsedMs;
+    step(state, 3000, rng);
+    expect(state.elapsedMs).toBe(atBreak);
+    continueFromLevelBreak(state, rng);
+    step(state, 3000, rng); // new level, not yet armed
+    expect(state.elapsedMs).toBe(atBreak);
+    flap(state);
+    step(state, STEP_MS, rng);
+    expect(state.elapsedMs).toBe(atBreak + STEP_MS);
+  });
+
+  it("formats MM:SS", () => {
+    expect(formatTime(0)).toBe("00:00");
+    expect(formatTime(7_000)).toBe("00:07");
+    expect(formatTime(433_000)).toBe("07:13"); // the reference screenshot
+  });
+});
+
+describe("bias flap — determinism (V7)", () => {
+  it("same seed → identical gap layouts across levels and retries", () => {
+    const layout = (seed: string): number[][] => {
+      const rng = rngOf(seed);
+      const state = createFlappyState(rng);
+      const all: number[][] = [state.obstacles.map((o) => o.gapTop)];
+      // Crash once, capture the retry layout too.
+      flap(state);
+      state.heroY = -DESIGN_H;
+      tick(state);
+      step(state, CRASH_BEAT_MS, rng);
+      all.push(state.obstacles.map((o) => o.gapTop));
+      return all;
+    };
+    expect(layout("replay-a")).toEqual(layout("replay-a"));
+    expect(layout("replay-b")).not.toEqual(layout("replay-a"));
+  });
+
+  it("geometry sanity: hero and sticks fit the design box", () => {
+    expect(HERO_X + HERO_H).toBeLessThan(DESIGN_H);
+    expect(STICK_W).toBeGreaterThan(0);
   });
 });

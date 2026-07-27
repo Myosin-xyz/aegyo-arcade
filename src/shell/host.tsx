@@ -783,22 +783,45 @@ export function GameHostInner({
           // The game's own in-DOM result stays visible (M4.5 review P1):
           // no dark overlay — just the host-owned restart (fresh
           // RunContext through the normal startRun path).
-          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-center justify-center gap-2 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            <button
-              type="button"
-              className="btn-arcade px-8 py-3 text-lg"
-              onClick={startRun}
-              data-testid="play-again"
-            >
-              {t("host.playAgain")}
-            </button>
-            <ChallengeShareButton
-              gameId={gameId}
-              gameTitle={t(entry.meta.titleKey)}
-              score={
-                (entry.scorePresentation ?? "shell") === "none" ? null : score
-              }
-            />
+          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-2 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {/* Only phases CountedStatus actually renders — a blocked/
+                issuing phase must not paint an EMPTY card (audit P3). */}
+            {["submitting", "submitted", "owned-complete", "error"].includes(
+              counted.kind,
+            ) && (
+              // Counted receipts must SURVIVE the authored end (review P1:
+              // this branch showed only Play Again, so a counted run could
+              // commit — or fail — invisibly). Card backdrop: the game's
+              // own art is behind, not the host scrim.
+              <div className="card-arcade w-full max-w-xs bg-surface/95 px-4 py-2.5 text-white">
+                <CountedStatus
+                  counted={counted}
+                  gameId={gameId}
+                  onRetry={() => void attemptCountedSubmit()}
+                />
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                className="btn-arcade px-8 py-3 text-lg"
+                onClick={startRun}
+                // Same save-race guard as the standard ended branch (audit
+                // P1 recurrence): starting Practice mid-PUT would hide the
+                // pending receipt/retry state.
+                disabled={counted.kind === "submitting"}
+                data-testid="play-again"
+              >
+                {t("host.playAgain")}
+              </button>
+              <ChallengeShareButton
+                gameId={gameId}
+                gameTitle={t(entry.meta.titleKey)}
+                score={
+                  (entry.scorePresentation ?? "shell") === "none" ? null : score
+                }
+              />
+            </div>
           </div>
         )}
         {lifecycle === "ended" && entry.endPresentation !== "game-authored" && (
@@ -814,64 +837,11 @@ export function GameHostInner({
                 {t("host.score")}: {score}
               </p>
             )}
-            {counted.kind === "submitting" && (
-              <p className="text-sm">{t("host.submitting")}</p>
-            )}
-            {counted.kind === "submitted" && (
-              <div
-                className="flex flex-col items-center gap-1 text-sm"
-                data-testid="counted-result"
-              >
-                <p>
-                  {counted.rank === null
-                    ? t("host.submittedUnplaced")
-                    : t("host.submittedRank", { rank: counted.rank })}
-                </p>
-                <p>
-                  {t("host.streakLine", {
-                    current: counted.streak.current,
-                    best: counted.streak.best,
-                  })}
-                </p>
-                <Link
-                  className="font-semibold text-accent underline underline-offset-4"
-                  href={`/leaderboard/${gameId}`}
-                >
-                  {t("host.viewBoard")}
-                </Link>
-              </div>
-            )}
-            {counted.kind === "owned-complete" && (
-              <div
-                className="flex flex-col items-center gap-1 text-sm"
-                data-testid="counted-result"
-              >
-                <p>{t("host.ownedSaved")}</p>
-                {counted.streak && (
-                  <p>
-                    {t("host.streakLine", {
-                      current: counted.streak.current,
-                      best: counted.streak.best,
-                    })}
-                  </p>
-                )}
-              </div>
-            )}
-            {counted.kind === "error" && (
-              <div className="flex flex-col items-center gap-2 text-sm">
-                <p>{t("host.submitError")}</p>
-                {counted.retryable && (
-                  <button
-                    type="button"
-                    className="btn-arcade px-5 py-2.5 text-sm"
-                    onClick={() => void attemptCountedSubmit()}
-                    data-testid="retry-save"
-                  >
-                    {t("host.retrySave")}
-                  </button>
-                )}
-              </div>
-            )}
+            <CountedStatus
+              counted={counted}
+              gameId={gameId}
+              onRetry={() => void attemptCountedSubmit()}
+            />
             <button
               type="button"
               className="btn-arcade px-8 py-3 text-lg"
@@ -893,6 +863,87 @@ export function GameHostInner({
       </div>
     </div>
   );
+}
+
+/**
+ * Counted-run receipt states, shared by BOTH ended presentations (review
+ * P1: the game-authored branch previously omitted them entirely, hiding
+ * submission progress, rank/streak receipts, and Retry save).
+ */
+function CountedStatus({
+  counted,
+  gameId,
+  onRetry,
+}: {
+  counted: CountedPhase;
+  gameId: string;
+  onRetry: () => void;
+}) {
+  if (counted.kind === "submitting") {
+    return <p className="text-sm">{t("host.submitting")}</p>;
+  }
+  if (counted.kind === "submitted") {
+    return (
+      <div
+        className="flex flex-col items-center gap-1 text-sm"
+        data-testid="counted-result"
+      >
+        <p>
+          {counted.rank === null
+            ? t("host.submittedUnplaced")
+            : t("host.submittedRank", { rank: counted.rank })}
+        </p>
+        <p>
+          {t("host.streakLine", {
+            current: counted.streak.current,
+            best: counted.streak.best,
+          })}
+        </p>
+        <Link
+          className="font-semibold text-accent underline underline-offset-4"
+          href={`/leaderboard/${gameId}`}
+        >
+          {t("host.viewBoard")}
+        </Link>
+      </div>
+    );
+  }
+  if (counted.kind === "owned-complete") {
+    return (
+      <div
+        className="flex flex-col items-center gap-1 text-sm"
+        data-testid="counted-result"
+      >
+        <p>{t("host.ownedSaved")}</p>
+        {counted.streak && (
+          <p>
+            {t("host.streakLine", {
+              current: counted.streak.current,
+              best: counted.streak.best,
+            })}
+          </p>
+        )}
+      </div>
+    );
+  }
+  if (counted.kind === "error") {
+    return (
+      <div className="flex flex-col items-center gap-2 text-sm">
+        <p>{t("host.submitError")}</p>
+        {counted.retryable && (
+          <button
+            type="button"
+            className="btn-arcade px-5 py-2.5 text-sm"
+            onClick={onRetry}
+            data-testid="retry-save"
+          >
+            {t("host.retrySave")}
+          </button>
+        )}
+      </div>
+    );
+  }
+  return null;
 }
 
 function Overlay({

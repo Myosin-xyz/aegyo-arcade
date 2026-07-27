@@ -116,7 +116,7 @@ Launch catalog means **playable catalog**, not automatic authorization to run pr
 | --- | --------------- | --------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
 | 0   | Claw machine    | Aegyo Claw      | Existing Vite/vanilla-TS app   | Migrate and adapt (§7.1)                                                            |
 | 1   | Snake           | Snake Freebies  | Daidai delivery (2026-07-26)   | Ported to shell (replaced the POCA Snake placeholder; docs/games/snake-freebies.md) |
-| 2   | Flappy          | Bias Flap       | Nicole mock                    | Rebuild against shell                                                               |
+| 2   | Flappy          | Bias Flap       | Daidai delivery (2026-07-27)   | Ported to shell (replaced the code-drawn rebuild; docs/games/bias-flap.md)          |
 | 3   | Infinite jumper | Comeback Climb  | Nicole mock                    | Rebuild against shell                                                               |
 | 4   | Hangman         | Guess the Slang | Nicole mock                    | DOM module                                                                          |
 | 5   | Frogger         | Name pending    | Daidai, with internal fallback | Intake or rebuild                                                                   |

@@ -322,6 +322,32 @@ describe("submission (§9.2/§9.3)", () => {
     expect(max.kind).toBe("accepted");
   });
 
+  it("flappy envelope: the perfect-run 1700 is accepted, 1701 is rejected (Bias Flap port)", async () => {
+    const device = await seedDevice();
+    const issued = await issueCountedAttempt(db, {
+      deviceId: device.deviceId,
+      timeZone: device.timeZone,
+      gameId: "flappy",
+    });
+    if (issued.kind !== "issued")
+      throw new Error(`issue failed: ${issued.kind}`);
+    expect(
+      (
+        await submitCountedResult(db, {
+          deviceId: device.deviceId,
+          attemptId: issued.attemptId,
+          score: 1701, // one past the 5-level perfect run
+        })
+      ).kind,
+    ).toBe("bad_score");
+    const max = await submitCountedResult(db, {
+      deviceId: device.deviceId,
+      attemptId: issued.attemptId,
+      score: 1700, // docs/games/bias-flap.md max-score vector
+    });
+    expect(max.kind).toBe("accepted");
+  });
+
   it("frogger envelope: the perfect-run 30 is accepted, 31 is rejected (5 levels, 2026-07-27)", async () => {
     const device = await seedDevice();
     const issued = await issueCountedAttempt(db, {

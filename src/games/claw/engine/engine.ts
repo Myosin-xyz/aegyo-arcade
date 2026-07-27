@@ -72,6 +72,10 @@ const ROW_KEYS_BY_STATION = [
 const GANTRY_DEPTH_FRAC = 0.08;
 // Scale at stations: 1.0 / 0.91 / 0.82 — every step back reads smaller.
 const DEPTH_SHRINK_SPAN = 0.18;
+// Stations remain discrete for targeting, but the visible assembly travels
+// between them as one perspective tween. This avoids the "resized sticker"
+// snap while preserving the exact three row intersections underneath.
+const DEPTH_TRAVEL_MS = 260;
 const DEPTH_FALL_TOP = 40; // slip tumble starts just under the claw tips
 // Beat the claw holds motionless over the chute before opening (DaiDai).
 const HOLD_OVER_CHUTE_MS = 300;
@@ -115,9 +119,15 @@ export class ClawMachine {
   // claw transform (offset from the authored rest position, design px)
   private clawTX = 0;
   private clawTY = 0;
-  /** Depth position: 0 = back of the cabinet, 1 = against the glass. */
+  /** Discrete target: 0 = closest/front, 2 = deepest/back. */
   private depthStation: 0 | 1 | 2 = 0;
+  /** Animated render depth: 0 = back of the cabinet, 1 = glass/front. */
   private clawTZ = 1;
+  /** Start + clock for the visible rail journey to depthStation. */
+  private depthTravelFrom = 1;
+  private depthTravelElapsed = DEPTH_TRAVEL_MS;
+  /** A quick Drop waits for the rail to settle instead of snapping depth. */
+  private dropQueued = false;
   private heldDir: -1 | 0 | 1 = 0;
   private dropStartTX = 0;
   private spriteState: SpriteState = "open";
@@ -293,6 +303,9 @@ export class ClawMachine {
     this.clawTY = 0;
     this.depthStation = 0; // rest = closest to the window
     this.clawTZ = 1;
+    this.depthTravelFrom = 1;
+    this.depthTravelElapsed = DEPTH_TRAVEL_MS;
+    this.dropQueued = false;
     this.winFallT = -1;
     this.overChute = false;
     this.segs = [];
@@ -372,7 +385,13 @@ export class ClawMachine {
     this.confetti.update(dt, CONFETTI_GRAVITY);
 
     if (this.phase === "ready") {
-      if (this.heldDir !== 0) {
+      const depthSettled = this.updateDepthTravel(dt);
+      if (this.dropQueued && depthSettled) {
+        this.dropQueued = false;
+        this.beginDrop();
+        return;
+      }
+      if (!this.dropQueued && this.heldDir !== 0) {
         const { lo, hi } = this.moveBounds();
         const speed = this.manifest.design.w * MOVE_SPEED_FRAC;
         this.clawTX = clamp(this.clawTX + this.heldDir * speed * dt, lo, hi);
@@ -438,7 +457,7 @@ export class ClawMachine {
       return;
     }
     unlockAudio();
-    if (this.phase !== "ready") return;
+    if (this.phase !== "ready" || this.dropQueued) return;
     this.heldDir = dir;
     sfx.move();
     haptic(6);
@@ -460,12 +479,15 @@ export class ClawMachine {
       return;
     }
     unlockAudio();
-    if (this.phase !== "ready") return;
+    if (this.phase !== "ready" || this.dropQueued) return;
     const next = clamp(this.depthStation + (dir === -1 ? 1 : -1), 0, 2) as
       0 | 1 | 2;
     if (next === this.depthStation) return; // clamped — nothing to do
     this.depthStation = next;
-    this.clawTZ = 1 - next / 2;
+    // Targeting changes immediately, but the rendered assembly glides from
+    // its current pose. A second quick tap simply retargets from mid-travel.
+    this.depthTravelFrom = this.clawTZ;
+    this.depthTravelElapsed = 0;
     sfx.move();
     haptic(6);
   }
@@ -482,16 +504,27 @@ export class ClawMachine {
       this.replay();
       return;
     }
-    if (this.phase !== "ready" || this.awaiting) return;
+    if (this.phase !== "ready" || this.awaiting || this.dropQueued) return;
     this.heldDir = 0;
+    sfx.press();
+    haptic(12);
+    // Finish the short perspective glide before descending. The requested
+    // station is already locked, so rapid Up → Drop feels physical without
+    // a scale/position pop or a row-selection race.
+    if (!this.depthTravelSettled()) {
+      this.dropQueued = true;
+      return;
+    }
+    this.beginDrop();
+  }
+
+  private beginDrop(): void {
     this.awaiting = true;
     this.pendingOutcome = null;
     this.dropError = false;
     this.dropRefused = false;
     this.dwellMs = 0;
     const gen = ++this.dropGen;
-    sfx.press();
-    haptic(12);
     const provider = this.forced
       ? fixedOutcome(this.forced)
       : this.opts.outcome;
@@ -517,6 +550,34 @@ export class ClawMachine {
         this.dropError = true;
       });
     this.startDescent();
+  }
+
+  /** Render-space target for the selected station (front → rear). */
+  private depthTarget(): number {
+    return 1 - this.depthStation / 2;
+  }
+
+  private depthTravelSettled(): boolean {
+    return this.depthTravelElapsed >= DEPTH_TRAVEL_MS;
+  }
+
+  /**
+   * Move the trolley, cable and claw through one eased perspective pose.
+   * The endpoint is exact so descent geometry still lands on PSD rows.
+   */
+  private updateDepthTravel(dt: number): boolean {
+    if (this.depthTravelSettled()) {
+      this.clawTZ = this.depthTarget();
+      return true;
+    }
+    this.depthTravelElapsed = Math.min(
+      DEPTH_TRAVEL_MS,
+      this.depthTravelElapsed + Math.max(0, dt),
+    );
+    const t = easeInOutCubic(this.depthTravelElapsed / DEPTH_TRAVEL_MS);
+    this.clawTZ = lerp(this.depthTravelFrom, this.depthTarget(), t);
+    if (this.depthTravelSettled()) this.clawTZ = this.depthTarget();
+    return this.depthTravelSettled();
   }
 
   // ---- drop sequence ----
@@ -882,6 +943,7 @@ export class ClawMachine {
   private toReady(): void {
     this.phase = "ready";
     this.heldDir = 0;
+    this.dropQueued = false;
     this.spriteState = "open";
     this.awaiting = false;
     // Drop the win-presentation pose (review P1): a practice replay comes
@@ -899,6 +961,9 @@ export class ClawMachine {
     // clamped and Down jumping (audit P1). Rejoin them at the front.
     this.depthStation = 0;
     this.clawTZ = 1;
+    this.depthTravelFrom = 1;
+    this.depthTravelElapsed = DEPTH_TRAVEL_MS;
+    this.dropQueued = false;
     this.toReady();
   }
 

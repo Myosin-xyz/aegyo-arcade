@@ -441,9 +441,16 @@ describe("claw adapter — real engine lifecycle", () => {
       update: (dt: number) => void;
       clawTZ: number;
       depthStation: number;
+      dropQueued: boolean;
+      depthScale: () => number;
+      gantryY: () => number;
       phase: string;
     };
-    machine.opts.outcome = async () => "miss";
+    let plays = 0;
+    machine.opts.outcome = async () => {
+      plays += 1;
+      return "miss";
+    };
     machine.run();
 
     const key = (type: string, k: string, repeat = false) =>
@@ -460,12 +467,28 @@ describe("claw adapter — real engine lifecycle", () => {
     machine.update(100);
     expect(machine.depthStation).toBe(0);
 
-    // Up, Up reaches the rear limit; a third Up is a no-op.
+    // Up changes the discrete target immediately, but the visible assembly
+    // eases there instead of snapping like a resized sticker.
     press("ArrowUp");
     expect(machine.depthStation).toBe(1);
+    expect(machine.clawTZ).toBe(1);
+    machine.update(130);
+    expect(machine.clawTZ).toBeGreaterThan(0.5);
+    expect(machine.clawTZ).toBeLessThan(1);
+    // Scale + height change off the same eased depth value, so the trolley,
+    // cable and claw read as one assembly moving through the cabinet.
+    expect(machine.depthScale()).toBeGreaterThan(0.91);
+    expect(machine.depthScale()).toBeLessThan(1);
+    expect(machine.gantryY()).toBeLessThan(0);
+    machine.update(130);
     expect(machine.clawTZ).toBe(0.5);
+
+    // A second press retargets smoothly from the current pose. Up, Up
+    // reaches the rear limit; a third Up is a no-op.
     press("ArrowUp");
     expect(machine.depthStation).toBe(2);
+    expect(machine.clawTZ).toBe(0.5);
+    machine.update(260);
     expect(machine.clawTZ).toBe(0);
     press("ArrowUp");
     expect(machine.depthStation).toBe(2); // clamped
@@ -484,6 +507,9 @@ describe("claw adapter — real engine lifecycle", () => {
     press("ArrowDown");
     press("ArrowDown");
     expect(machine.depthStation).toBe(0);
+    // Rapid retargeting remains continuous, then lands exactly on station 0.
+    expect(machine.clawTZ).toBe(0);
+    machine.update(260);
     expect(machine.clawTZ).toBe(1);
 
     // Pause swallows input: a press while frozen changes nothing.
@@ -493,15 +519,23 @@ describe("claw adapter — real engine lifecycle", () => {
     expect(machine.depthStation).toBe(0);
     machine.resume();
 
-    // Drop LOCKS the selected station: presses during descent are inert.
+    // A quick Up → Drop waits for the perspective journey to finish rather
+    // than popping to the new scale. It then locks the selected station:
+    // presses during the queued travel and descent are inert.
     press("ArrowUp"); // aim station 1 for the drop
     const atDrop = machine.depthStation;
     machine.onDrop();
-    expect(machine.phase).toBe("dropping");
+    expect(machine.phase).toBe("ready");
+    expect(machine.dropQueued).toBe(true);
+    expect(plays).toBe(0);
     press("ArrowUp");
     press("ArrowDown");
-    machine.update(200);
-    machine.update(200);
+    machine.update(130);
+    expect(machine.phase).toBe("ready");
+    expect(machine.clawTZ).toBeGreaterThan(0.5);
+    machine.update(130);
+    expect(machine.phase).toBe("dropping");
+    expect(plays).toBe(1);
     expect(machine.depthStation).toBe(atDrop);
     expect(machine.clawTZ).toBe(0.5);
 

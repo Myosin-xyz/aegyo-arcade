@@ -25,8 +25,9 @@ function fakeManifest(): Manifest {
     scale: 1,
     design: { w: 100, h: 150 },
     back: rect(),
-    midPlush: rect(),
-    frontPlush: rect(),
+    row1: rect(20, 100, 60, 20),
+    row2: rect(20, 80, 60, 20),
+    row3: rect(20, 60, 60, 20),
     frame: rect(),
     trolley: rect(),
     clawOpen: rect(40, 10),
@@ -373,7 +374,7 @@ describe("claw adapter — real engine lifecycle", () => {
     cleanup();
   });
 
-  it("depth axis picks the BACK row deterministically; reset restores center depth (team feedback 2026-07-19)", async () => {
+  it("all THREE station row mappings are deterministic; restart returns to the front station", async () => {
     const { ctx, cleanup } = createClawContext();
     const adapter = clawDefinition.create(ctx);
     await adapter.init(new AbortController().signal);
@@ -388,40 +389,43 @@ describe("claw adapter — real engine lifecycle", () => {
       moveBounds: () => { lo: number; hi: number };
       clawTX: number;
       clawTZ: number;
+      depthStation: 0 | 1 | 2;
       heldKey: string;
     };
     machine.opts.outcome = async () => "miss";
     const { lo, hi } = machine.moveBounds();
 
-    const aimAt = (tx: number, tz: number): string => {
+    const aimAt = (tx: number, station: 0 | 1 | 2): string => {
       machine.resetToReady();
       machine.run();
       machine.clawTX = tx;
-      machine.clawTZ = tz;
-      machine.onDrop(); // (column, depth) lock at drop start
+      machine.depthStation = station;
+      machine.clawTZ = 1 - station / 2;
+      machine.onDrop(); // (column, station) lock at drop start
       return machine.heldKey;
     };
 
-    // Back row (tz < 0.5) = ["K","E","A2","D","B"] — distinct plushes.
-    expect(aimAt(lo, 0.2)).toBe("K");
-    expect(aimAt((lo + hi) / 2, 0.2)).toBe("A2");
-    expect(aimAt(hi, 0.2)).toBe("B");
-    expect(aimAt(lo, 0.2)).toBe("K"); // repeatable — no RNG
+    // Station 0 (front) preserves the original single-axis mapping.
+    expect(aimAt(lo, 0)).toBe("D");
+    expect(aimAt(hi, 0)).toBe("K");
+    // Station 1 (middle) — distinct deterministic row.
+    expect(aimAt(lo, 1)).toBe("K");
+    expect(aimAt((lo + hi) / 2, 1)).toBe("A2");
+    // Station 2 (back) — third row, repeatable (no RNG).
+    expect(aimAt(lo, 2)).toBe("B");
+    expect(aimAt(hi, 2)).toBe("E");
+    expect(aimAt(lo, 2)).toBe("B");
 
-    // Row boundary: exactly 0.5 is the FRONT row (the rest default), so
-    // the original single-axis mapping is preserved untouched.
-    expect(aimAt(lo, 0.5)).toBe("D");
-    expect(aimAt(lo, 0.499)).toBe("K");
-
-    // resetToReady returns the claw to center depth.
+    // Restart returns the system to the FRONT station.
     machine.resetToReady();
-    expect(machine.clawTZ).toBe(0.5);
+    expect(machine.depthStation).toBe(0);
+    expect(machine.clawTZ).toBe(1);
 
     adapter.destroy();
     cleanup();
   });
 
-  it("depth moves through the REAL input path: key hold glides, pause clears, drop locks (review P2)", async () => {
+  it("depth STATIONS through the REAL input path: one press = one station, clamps, pause, drop lock (Daidai 2026-07-27)", async () => {
     const { ctx, cleanup } = createClawContext();
     const adapter = clawDefinition.create(ctx);
     await adapter.init(new AbortController().signal);
@@ -436,41 +440,70 @@ describe("claw adapter — real engine lifecycle", () => {
       onDrop: () => void;
       update: (dt: number) => void;
       clawTZ: number;
+      depthStation: number;
       phase: string;
     };
     machine.opts.outcome = async () => "miss";
     machine.run();
 
-    // ArrowDown (backward = toward the glass) through the REAL window
-    // keyboard listener — not a private-field write.
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
-    machine.update(400);
-    expect(machine.clawTZ).toBeGreaterThan(0.5);
-    const held = machine.clawTZ;
+    const key = (type: string, k: string, repeat = false) =>
+      window.dispatchEvent(new KeyboardEvent(type, { key: k, repeat }));
+    const press = (k: string) => {
+      key("keydown", k);
+      key("keyup", k);
+    };
 
-    // Pause clears the held glide: no drift while frozen.
+    // Rest = station 0 = CLOSEST to the window. Down at rest is a no-op.
+    expect(machine.depthStation).toBe(0);
+    expect(machine.clawTZ).toBe(1);
+    press("ArrowDown");
+    machine.update(100);
+    expect(machine.depthStation).toBe(0);
+
+    // Up, Up reaches the rear limit; a third Up is a no-op.
+    press("ArrowUp");
+    expect(machine.depthStation).toBe(1);
+    expect(machine.clawTZ).toBe(0.5);
+    press("ArrowUp");
+    expect(machine.depthStation).toBe(2);
+    expect(machine.clawTZ).toBe(0);
+    press("ArrowUp");
+    expect(machine.depthStation).toBe(2); // clamped
+
+    // HOLDING must not advance repeatedly: repeat keydowns are filtered
+    // at the input layer, and time alone never steps.
+    press("ArrowDown"); // → station 1
+    key("keydown", "ArrowUp");
+    key("keydown", "ArrowUp", true); // OS key-repeat
+    key("keydown", "ArrowUp", true);
+    machine.update(2000);
+    expect(machine.depthStation).toBe(2); // exactly ONE step from the hold
+    key("keyup", "ArrowUp");
+
+    // Down, Down returns to the front station.
+    press("ArrowDown");
+    press("ArrowDown");
+    expect(machine.depthStation).toBe(0);
+    expect(machine.clawTZ).toBe(1);
+
+    // Pause swallows input: a press while frozen changes nothing.
     machine.pause();
+    press("ArrowUp");
     machine.update(400);
-    expect(machine.clawTZ).toBe(held);
+    expect(machine.depthStation).toBe(0);
     machine.resume();
 
-    // The stale keyup is inert (pause drained holds); a fresh ArrowUp
-    // hold glides back toward the rear.
-    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown" }));
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
-    machine.update(300);
-    expect(machine.clawTZ).toBeLessThan(held);
-    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp" }));
-
-    // Drop LOCKS depth: held keys during the descent change nothing.
-    const atDrop = machine.clawTZ;
+    // Drop LOCKS the selected station: presses during descent are inert.
+    press("ArrowUp"); // aim station 1 for the drop
+    const atDrop = machine.depthStation;
     machine.onDrop();
     expect(machine.phase).toBe("dropping");
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    press("ArrowUp");
+    press("ArrowDown");
     machine.update(200);
     machine.update(200);
-    expect(machine.clawTZ).toBe(atDrop);
-    window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown" }));
+    expect(machine.depthStation).toBe(atDrop);
+    expect(machine.clawTZ).toBe(0.5);
 
     adapter.destroy();
     cleanup();

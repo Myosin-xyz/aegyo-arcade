@@ -21,9 +21,9 @@ scripts/check-claw-assets.mjs, run by CI).
 
 V3 layer map (2026-07-25 delivery). Layering is baked into the export so the
 engine draws flat images, not PSD groups:
-  back        = cabinet + the BACK plush rows (behind the claw)
-  midPlush    = plush_line_4/5 (occlude a claw aimed at the BACK depth row)
-  frontPlush  = plush_line_1/2/3 (occlude a claw aimed at the FRONT row)
+  back        = cabinet + WALL plush rows 4/5/6 (scenery, never occluders)
+  row1/2/3    = plush_line_1..3, the PLAYABLE station rows (each exported
+                separately; all draw BEHIND the claw assembly)
   frame       = foreground cabinet + 4-direction control panel (transparent window)
   trolley     = rail head (moves horizontally with the claw)
   claw        = open / closed / very-open(win release) / 7 held variants
@@ -52,6 +52,9 @@ PSD_PATH = Path(
 WINNER_PATH = Path(os.environ.get("WINNER_PATH", str(INTAKE / "WINNER.png")))
 TRY_AGAIN_PATH = Path(
     os.environ.get("TRY_AGAIN_PATH", str(INTAKE / "TRY AGAIN.png"))
+)
+SO_CLOSE_PATH = Path(
+    os.environ.get("SO_CLOSE_PATH", str(INTAKE / "so_close.png"))
 )
 OUT = Path(os.environ.get("OUT", str(REPO / "public" / "games" / "claw")))
 SCALE = float(os.environ.get("SCALE", "1.0"))
@@ -201,18 +204,23 @@ man: dict = {
 # Depth occlusion (Daidai): a descending claw must disappear BEHIND the
 # plush rows in front of its aimed depth. Back row hides behind mid+front,
 # front row only behind the front rows.
+# DEPTH STATIONS (Daidai 2026-07-27): rows 1/2/3 are the PLAYABLE rows —
+# the claw assembly steps between them, and each exports SEPARATELY so
+# the renderer can align the claw with its station's row. Rows 4/5 are
+# "on the wall" per Daidai (useless as gameplay rows) and fold into the
+# back scenery with row 6. Z-order rule stands: rows stay BEHIND the claw.
 man["back"] = entry_full(
     "back.png",
-    flatten([top("background_claw_machine"), top("plush_line_6")]),
+    flatten([
+        top("background_claw_machine"),
+        top("plush_line_6"),
+        top("plush_line_5"),
+        top("plush_line_4"),
+    ]),
 )
-man["midPlush"] = entry_cropped(
-    "mid-plush.png",
-    flatten([top("plush_line_5"), top("plush_line_4")]),
-)
-man["frontPlush"] = entry_cropped(
-    "front-plush.png",
-    flatten([top("plush_line_3"), top("plush_line_2"), top("plush_line_1")]),
-)
+man["row3"] = entry_cropped("row3.png", flatten([top("plush_line_3")]))
+man["row2"] = entry_cropped("row2.png", flatten([top("plush_line_2")]))
+man["row1"] = entry_cropped("row1.png", flatten([top("plush_line_1")]))
 # V3 ships the 4-direction panel (LEFT/RIGHT/FORWARD/BACK + DROP) — Simon's
 # depth request, confirmed by Daidai 2026-07-25. No arrow removal needed.
 man["frame"] = entry_full(
@@ -228,7 +236,7 @@ man["clawRelease"] = entry_sprite(
     "claw-release.png", find(psd, "very_open_claw_winning")
 )
 
-# Exactly the keys the engine can aim at (FRONT_ROW + BACK_ROW, validated by
+# Exactly the keys the engine can aim at (ROW_KEYS_BY_STATION, validated by
 # assets.ts REQUIRED_PLUSH). The PSD also carries `claw_plush_!`, which no aim
 # row can select — shipping it cost ~17 KB of a tight budget for a sprite the
 # player could never see.
@@ -285,6 +293,40 @@ try_again = try_again.resize(
 )
 man["tryAgain"] = entry_image(
     "try-again.png", try_again, (PW - try_again.width) // 2, round(PH * 0.36)
+)
+
+# SO CLOSE: delivered board (2026-07-27). Its transparency carries speckle
+# NOISE, so a plain getbbox() grabs the whole frame — crop by DENSITY
+# (rows/cols with a real run of solid pixels), then hard-threshold alpha.
+def load_density_cropped(path: Path) -> Image.Image:
+    img = Image.open(path).convert("RGBA")
+    px = img.load()
+    w, h = img.size
+    cols = [0] * w
+    rows = [0] * h
+    for y in range(h):
+        for x in range(w):
+            if px[x, y][3] > 200:
+                cols[x] += 1
+                rows[y] += 1
+    xs = [x for x in range(w) if cols[x] > 12]
+    ys = [y for y in range(h) if rows[y] > 12]
+    out = Image.new("RGBA", (max(xs) - min(xs) + 1, max(ys) - min(ys) + 1))
+    for y in range(min(ys), max(ys) + 1):
+        for x in range(min(xs), max(xs) + 1):
+            r, g, b, a = px[x, y]
+            if a > 140:
+                out.putpixel((x - min(xs), y - min(ys)), (r, g, b, 255))
+    return out
+
+
+so_close = load_density_cropped(SO_CLOSE_PATH)
+sc_w = round(PW * 0.62)
+so_close = so_close.resize(
+    (sc_w, round(so_close.height * sc_w / so_close.width)), Image.LANCZOS
+)
+man["soClose"] = entry_image(
+    "so-close.png", so_close, (PW - so_close.width) // 2, round(PH * 0.41)
 )
 
 # --- lit control overlays (also define the hit-zones) ---

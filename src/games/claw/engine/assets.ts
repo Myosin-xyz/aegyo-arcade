@@ -21,7 +21,7 @@ export const REQUIRED_CONTROLS = [
   "backward",
   "drop",
 ] as const;
-/** Union of engine.ts FRONT_ROW + BACK_ROW — every aimable plush. Keep
+/** Union of engine.ts ROW_KEYS_BY_STATION — every aimable plush. Keep
  * in sync if those rows change (validated here so a drifted/stale-cached
  * manifest fails LOUD at load instead of silently redirecting aim to a
  * different plush or throwing deep inside the rAF frame — audit
@@ -34,8 +34,9 @@ export const FALL_FRAME_COUNT = 6;
 /** V3 sprites the engine dereferences unconditionally while drawing. */
 const REQUIRED_SPRITES = [
   "back",
-  "midPlush",
-  "frontPlush",
+  "row1",
+  "row2",
+  "row3",
   "frame",
   "trolley",
   "clawOpen",
@@ -92,8 +93,9 @@ export async function loadImages(
 ): Promise<ImageBank> {
   const rects: SpriteRect[] = [
     m.back,
-    m.midPlush,
-    m.frontPlush,
+    m.row1,
+    m.row2,
+    m.row3,
     m.frame,
     m.trolley,
     m.clawOpen,

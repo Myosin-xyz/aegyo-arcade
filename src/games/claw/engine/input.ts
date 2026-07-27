@@ -15,8 +15,6 @@ interface InputOptions {
   onDirUp: () => void;
   /** a depth direction is being held: -1 = deeper (away), +1 = closer */
   onDepthDown: (dir: -1 | 1) => void;
-  /** the held depth direction was released */
-  onDepthUp: () => void;
   /** the drop button was tapped */
   onDrop: () => void;
 }
@@ -33,11 +31,10 @@ interface InputOptions {
 export const HIT_PAD = 0.65;
 const DROP_LIT_MS = 150;
 
-// All four directions are live (team feedback, 2026-07-19): forward/backward
-// restore the original machine's depth axis as a pseudo-perspective glide —
-// the claw hangs slightly lower (cable lengthens) "closer" to the glass while
-// the trolley stays on its rail, and the aim shadow travels down the pile.
-// Assets for the lit arrows shipped with the port.
+// All four directions are live: LEFT/RIGHT glide the claw continuously
+// along the rail; FORWARD/BACKWARD step the whole assembly one depth
+// STATION per press (Daidai 2026-07-27 — trolley, cable and claw move
+// and scale together). Assets for the lit arrows shipped with the port.
 const ZONES: ControlKey[] = ["left", "right", "forward", "backward", "drop"];
 
 /** forward = away from the viewer (up-screen), backward = toward it. */
@@ -59,7 +56,6 @@ export function createInput(opts: InputOptions): {
     onDirDown,
     onDirUp,
     onDepthDown,
-    onDepthUp,
     onDrop,
   } = opts;
   const controls = manifest.controls;
@@ -124,7 +120,6 @@ export function createInput(opts: InputOptions): {
   }
   const holds: Hold[] = [];
   let lastX: -1 | 0 | 1 = 0;
-  let lastZ: -1 | 0 | 1 = 0;
 
   function effectiveDir(dirs: Partial<Record<ControlKey, -1 | 1>>): -1 | 0 | 1 {
     for (let i = holds.length - 1; i >= 0; i--) {
@@ -147,12 +142,12 @@ export function createInput(opts: InputOptions): {
       if (effX === 0) onDirUp();
       else onDirDown(effX);
     }
-    const effZ = effectiveDir(DEPTH_DIR);
-    if (effZ !== lastZ) {
-      lastZ = effZ;
-      if (effZ === 0) onDepthUp();
-      else onDepthDown(effZ);
-    }
+    // DEPTH is deliberately absent here (audit P1, 2026-07-27): stations
+    // are EDGE-triggered — one step per new physical press, fired from
+    // press() below. Re-emitting the surviving direction on release was
+    // right for continuous glide, but with stations it minted an extra
+    // hop (hold Up, tap Down, release Down -> phantom second Up step).
+    // syncAxes still owns button LIGHTING for both axes via `pressed`.
   }
 
   function press(source: string, control: ControlKey): void {
@@ -160,6 +155,11 @@ export function createInput(opts: InputOptions): {
     if (i >= 0) holds.splice(i, 1);
     holds.push({ source, control });
     syncAxes();
+    // Edge-triggered station step: only a NEW physical press advances
+    // depth (keyboard repeats are filtered upstream; release
+    // reconciliation never reaches this).
+    const depthDir = DEPTH_DIR[control];
+    if (depthDir !== undefined) onDepthDown(depthDir);
   }
 
   function release(source: string): void {

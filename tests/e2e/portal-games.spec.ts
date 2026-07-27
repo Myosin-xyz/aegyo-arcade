@@ -94,14 +94,13 @@ const SMOKE_ACTIONS: Record<
     terminal: true,
   },
   claw: {
-    // Rail tap (ArrowLeft, ~0ms) + a real 250ms DEPTH hold via keyboard
-    // (input proof for both axes, review P2 2026-07-19); practice never
-    // terminates.
+    // Rail tap (ArrowLeft) + a depth STEP via keyboard (input proof for
+    // both axes). ArrowUp, not Down: rest is the CLOSEST station now
+    // (Daidai 2026-07-27), so Down at rest is a clamped no-op.
     act: async (page) => {
       await page.keyboard.press("ArrowLeft");
-      await page.keyboard.down("ArrowDown");
+      await page.keyboard.press("ArrowUp");
       await page.waitForTimeout(250);
-      await page.keyboard.up("ArrowDown");
     },
     terminal: false,
   },

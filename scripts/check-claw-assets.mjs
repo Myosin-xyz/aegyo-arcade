@@ -24,6 +24,24 @@ const DECODED_BUDGET = 32 * 1024 * 1024;
 const TRANSFER_BUDGET = 350 * 1024;
 const EXPECTED_DESIGN = { w: 941, h: 1488 }; // mirrors src/games/claw/meta.ts
 
+// Required manifest entries (audit 2026-07-27): a regeneration that
+// silently DROPS a gameplay-critical sprite must fail here, not in prod.
+// (soClose vanished once when it was hand-added post-export.)
+const REQUIRED_KEYS = [
+  "back",
+  "row1",
+  "row2",
+  "row3",
+  "frame",
+  "trolley",
+  "clawOpen",
+  "clawClosed",
+  "clawRelease",
+  "winBoard",
+  "tryAgain",
+  "soClose",
+];
+
 const manifest = JSON.parse(
   readFileSync(path.join(ASSET_DIR, "manifest.json"), "utf8"),
 );
@@ -41,6 +59,16 @@ const rects = [];
     }
   }
 })(manifest);
+
+const missingKeys = REQUIRED_KEYS.filter((k) => !manifest[k]?.src);
+if (missingKeys.length > 0) {
+  console.error(`missing required manifest entries: ${missingKeys.join(", ")}`);
+  process.exit(1);
+}
+if (!Array.isArray(manifest.fallFrames) || manifest.fallFrames.length !== 6) {
+  console.error("fallFrames must be the 6 authored frames");
+  process.exit(1);
+}
 
 let decoded = 0;
 let transfer = 0;

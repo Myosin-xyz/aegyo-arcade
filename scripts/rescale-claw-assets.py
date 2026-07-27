@@ -28,12 +28,17 @@ ASSET_DIR = Path(
 # at 2x zoom: plush faces, DAEBAK lettering and shelf edges are identical at
 # q58 vs q74). Sprites, overlay TEXT (WINNER / TRY AGAIN) and the small
 # controls keep the high quality where crispness actually reads.
-BACKGROUND_QUALITY = 58
+BACKGROUND_QUALITY = 55
 BACKGROUND_SRCS = {
     "back.png",
-    "mid-plush.png",
-    "front-plush.png",
+    "row1.png",
+    "row2.png",
+    "row3.png",
     "frame.png",
+    # The two big BOARDS are dense delivered art like the cabinet — q58
+    # A/B'd clean there; the budget needs them out of the sprite class.
+    "win-board.png",
+    "so-close.png",
 }
 
 

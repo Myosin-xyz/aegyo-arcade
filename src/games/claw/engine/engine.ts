@@ -49,31 +49,29 @@ interface Segment {
 
 // --- tunables (design-space fractions, so they scale with export resolution) ---
 /**
- * Aim → plush mapping (M4 UX P1 + depth axis, team feedback 2026-07-19):
- * the claw's travel divides into fixed columns AND two depth rows —
- * front (closer to the glass) and back. Aiming selects the plush from a
- * 2×5 grid; the server still decides grip (win / slip(drop) / miss).
- * Deterministic — the same (column, depth) always yields the same
- * plush, never a random one. The default depth (0.5) is the FRONT row,
- * which preserves the original single-axis mapping.
+ * Aim → plush mapping (M4 UX P1; stations per Daidai 2026-07-27): the
+ * claw's travel divides into fixed columns AND three depth STATIONS at
+ * the plush-row intersections. Aiming selects the plush from a 3×5
+ * grid; the server still decides grip (win / slip(drop) / miss).
+ * Deterministic — the same (column, station) always yields the same
+ * plush, never a random one. Station 0 (front/closest) preserves the
+ * original single-axis mapping.
  */
-const FRONT_ROW = ["D", "A", "E", "B", "K"] as const;
-const BACK_ROW = ["K", "E", "A2", "D", "B"] as const;
-// pile surface shift across full depth (of dH) — drives the aim shadow,
-// the slip-tumble landing row, the contact puffs, AND descentDepth();
-// tuning it moves those presentation landings, not just the shadow.
-const PILE_Y_FRAC = 0.72; // pile surface line at center depth
-const PILE_DEPTH_SPAN = 0.1;
-// Depth presentation (DaiDai, 2026-07-27: "it needs to go further into the
-// machine"): the vertical shift across full depth DOUBLED (0.04 → 0.08 of
-// dH — still under PILE_DEPTH_SPAN so descentDepth() stays sane), and the
-// claw now SHRINKS as it pushes back — perspective, not just elevation.
-const GANTRY_DEPTH_FRAC = 0.08; // claw/cable y-shift across full depth (of dH); trolley stays on rail
-// Scale lost at the FULL-BACK extreme (clawTZ=0). The front half (≥ 0.5,
-// the resting row) stays at 1: the authored art is drawn at front scale,
-// so only the far half fakes distance.
+const ROW_KEYS_BY_STATION = [
+  ["D", "A", "E", "B", "K"], // station 0 — front (row1)
+  ["K", "E", "A2", "D", "B"], // station 1 — middle (row2)
+  ["B", "K", "D", "A2", "E"], // station 2 — back (row3)
+] as const;
+// DEPTH STATIONS (Daidai, 2026-07-27): three discrete positions at the
+// plush-row intersections. Station 0 = rest = CLOSEST to the window
+// (Down there is a no-op); each Up press steps exactly one station
+// deeper. clawTZ is the derived render float 1 − station/2 → 1.0 / 0.5 /
+// 0.0; the win carry still lerps it back to 1.0 over the chute.
+// Assembly y-shift across full depth (of dH): rest (z=1) is the AUTHORED
+// position → offset 0 there, NEGATIVE (up-screen) stepping back.
+const GANTRY_DEPTH_FRAC = 0.08;
+// Scale at stations: 1.0 / 0.91 / 0.82 — every step back reads smaller.
 const DEPTH_SHRINK_SPAN = 0.18;
-const DEPTH_SPEED = 0.0011; // depth units per ms while forward/back held
 const DEPTH_FALL_TOP = 40; // slip tumble starts just under the claw tips
 // Beat the claw holds motionless over the chute before opening (DaiDai).
 const HOLD_OVER_CHUTE_MS = 300;
@@ -118,9 +116,9 @@ export class ClawMachine {
   private clawTX = 0;
   private clawTY = 0;
   /** Depth position: 0 = back of the cabinet, 1 = against the glass. */
-  private clawTZ = 0.5;
+  private depthStation: 0 | 1 | 2 = 0;
+  private clawTZ = 1;
   private heldDir: -1 | 0 | 1 = 0;
-  private heldDepth: -1 | 0 | 1 = 0;
   private dropStartTX = 0;
   private spriteState: SpriteState = "open";
   private heldKey = "D";
@@ -229,7 +227,6 @@ export class ClawMachine {
       onDirDown: (d) => this.onDirDown(d),
       onDirUp: () => this.onDirUp(),
       onDepthDown: (d) => this.onDepthDown(d),
-      onDepthUp: () => this.onDepthUp(),
       onDrop: () => this.onDrop(),
     });
     this.onCanvasTap = () => {
@@ -261,9 +258,9 @@ export class ClawMachine {
     this.pausedFlag = true;
     cancelAnimationFrame(this.raf);
     this.raf = 0;
-    // A held glide must not survive a background pause.
+    // A held X-glide must not survive a background pause (depth is
+    // press-stepped, so it has nothing to drain).
     this.heldDir = 0;
-    this.heldDepth = 0;
     // The legacy adapter bypasses InputBus, so it is gated here: frozen
     // time means frozen state — no key/tap may reach the engine while
     // paused (M2 review P1).
@@ -294,7 +291,8 @@ export class ClawMachine {
     this.toReady();
     this.clawTX = 0;
     this.clawTY = 0;
-    this.clawTZ = 0.5;
+    this.depthStation = 0; // rest = closest to the window
+    this.clawTZ = 1;
     this.winFallT = -1;
     this.overChute = false;
     this.segs = [];
@@ -379,13 +377,6 @@ export class ClawMachine {
         const speed = this.manifest.design.w * MOVE_SPEED_FRAC;
         this.clawTX = clamp(this.clawTX + this.heldDir * speed * dt, lo, hi);
       }
-      if (this.heldDepth !== 0) {
-        this.clawTZ = clamp(
-          this.clawTZ + this.heldDepth * DEPTH_SPEED * dt,
-          0,
-          1,
-        );
-      }
       // ease any residual vertical offset (e.g. after a win) back to rest
       this.clawTY += (0 - this.clawTY) * Math.min(1, dt / 110);
     } else if (this.phase === "dropping") {
@@ -457,19 +448,26 @@ export class ClawMachine {
     this.heldDir = 0;
   }
 
+  /**
+   * ONE press = ONE station (Daidai: the claw system hops between the
+   * plush-row intersections; holding must not advance repeatedly — the
+   * input layer fires this once per physical press). dir −1 = forward/
+   * deeper, +1 = backward/closer; both clamp, so Down at the rest
+   * station is a no-op.
+   */
   private onDepthDown(dir: -1 | 1): void {
     if (this.pausedFlag || this.destroyed || this.finale || !this.running) {
       return;
     }
     unlockAudio();
     if (this.phase !== "ready") return;
-    this.heldDepth = dir;
+    const next = clamp(this.depthStation + (dir === -1 ? 1 : -1), 0, 2) as
+      0 | 1 | 2;
+    if (next === this.depthStation) return; // clamped — nothing to do
+    this.depthStation = next;
+    this.clawTZ = 1 - next / 2;
     sfx.move();
     haptic(6);
-  }
-
-  private onDepthUp(): void {
-    this.heldDepth = 0;
   }
 
   private onDrop(): void {
@@ -523,25 +521,28 @@ export class ClawMachine {
 
   // ---- drop sequence ----
 
-  /** Aim → (column, depth row) → plush. FIVE EQUAL bins per row (M4
+  /** Aim → (column, STATION) → plush. FIVE EQUAL bins per row (M4
    * review P2: rounding four intervals gave the edge plushes half-width
-   * lanes) × TWO depth rows. clawTZ ≥ 0.5 (the default) is the FRONT
-   * row, preserving the original single-axis mapping. */
+   * lanes) × THREE depth stations. Station 0 (front, the rest default)
+   * preserves the original single-axis mapping. */
   private targetKey(): string {
     const { lo, hi } = this.moveBounds();
     const span = hi - lo || 1;
-    const row = this.clawTZ >= 0.5 ? FRONT_ROW : BACK_ROW;
+    const row = ROW_KEYS_BY_STATION[this.depthStation];
     const index = Math.floor(((this.clawTX - lo) / span) * row.length);
-    // fetchManifest validates every FRONT_ROW/BACK_ROW key exists, so
+    // fetchManifest validates every ROW_KEYS_BY_STATION key exists, so
     // this is always a real plush — no silent "D" redirect (audit
     // silent-failure #4).
     return row[clamp(index, 0, row.length - 1)];
   }
 
   /** Pile surface line at the CURRENT depth (front = lower on screen). */
+  /** Pile surface line = the STATION's own plush row (row1/2/3 rects
+   * came from the PSD, so landings align with Daidai's art exactly). */
   private pileY(): number {
-    const { h: dH } = this.manifest.design;
-    return dH * (PILE_Y_FRAC + (this.clawTZ - 0.5) * PILE_DEPTH_SPAN);
+    const rows = [this.manifest.row1, this.manifest.row2, this.manifest.row3];
+    const row = rows[this.depthStation];
+    return row.y + row.h * 0.55;
   }
 
   /** Design-space X the authored release claw is centred on (the chute). */
@@ -567,13 +568,13 @@ export class ClawMachine {
   /** Pseudo-perspective depth shift: the claw/cable hang lower closer to
    * the glass (the trolley itself stays on its rail). */
   private gantryY(): number {
-    return (this.clawTZ - 0.5) * this.manifest.design.h * GANTRY_DEPTH_FRAC;
+    return (this.clawTZ - 1) * this.manifest.design.h * GANTRY_DEPTH_FRAC;
   }
 
   /** Perspective scale for the claw sprite: 1 across the front half,
    * shrinking toward `1 - DEPTH_SHRINK_SPAN` at the full-back extreme. */
   private depthScale(): number {
-    return 1 - (Math.max(0, 0.5 - this.clawTZ) / 0.5) * DEPTH_SHRINK_SPAN;
+    return 1 - (1 - this.clawTZ) * DEPTH_SHRINK_SPAN;
   }
 
   private clawDesignX(): number {
@@ -582,20 +583,16 @@ export class ClawMachine {
     );
   }
 
-  /** How far the claw sinks to reach the pile at the CURRENT depth
-   * (front rows sit lower on screen; the gantry shift covers part). */
+  /** EXACT descent: tips (top + h·scale, top-anchored perspective) land
+   * on the station's own pile line — every station reaches its row
+   * (Daidai: "compensate the drop distance"). Replaces the old tuned
+   * 0.225·dH approximation. */
   private descentDepth(): number {
-    const { h: dH } = this.manifest.design;
     return (
-      dH * 0.225 +
-      (this.clawTZ - 0.5) * dH * (PILE_DEPTH_SPAN - GANTRY_DEPTH_FRAC) +
-      // The sprite is drawn TOP-anchored at depthScale(), so its tips sit
-      // h·scale below the top, not h: the descent must also cover the
-      // height the perspective shrink took away, or a back-row claw stops
-      // ~126 design px short of the pile (698px sprite × 18% at full
-      // back). With this term, tips-vs-pile alignment is depth-INVARIANT
-      // — regressed as exactly that in claw-v3-render.test.ts.
-      this.manifest.clawOpen.h * (1 - this.depthScale())
+      this.pileY() -
+      (this.manifest.clawOpen.y +
+        this.gantryY() +
+        this.manifest.clawOpen.h * this.depthScale())
     );
   }
 
@@ -606,7 +603,6 @@ export class ClawMachine {
     this.heldKey = this.targetKey(); // aim decides the plush, not RNG
     this.dropStartTX = this.clawTX;
     this.heldDir = 0;
-    this.heldDepth = 0; // aim committed — depth locks with the columns
     this.swing = 0;
     this.fallT = -1;
     this.winFallT = -1;
@@ -710,7 +706,7 @@ export class ClawMachine {
             // The carry also glides the DEPTH back to the front resting
             // row, so scale/height are neutral before the authored
             // release pose (drawn at front scale) snaps in.
-            this.clawTZ = lerp(grabTZ, 0.5, glide);
+            this.clawTZ = lerp(grabTZ, 1, glide);
             // Carry swing, damping as the trolley decelerates.
             this.swing =
               Math.sin(t * Math.PI * 3) * dW * 0.013 * (1 - 0.55 * t);
@@ -886,7 +882,6 @@ export class ClawMachine {
   private toReady(): void {
     this.phase = "ready";
     this.heldDir = 0;
-    this.heldDepth = 0;
     this.spriteState = "open";
     this.awaiting = false;
     // Drop the win-presentation pose (review P1): a practice replay comes
@@ -898,6 +893,12 @@ export class ClawMachine {
 
   private replay(): void {
     if (this.phase !== "won") return;
+    // The win carry eased clawTZ back to 1 (front) for the chute while
+    // depthStation kept the aimed row — replaying with them split left
+    // the claw LOOKING front-parked but targeting the old row, with Up
+    // clamped and Down jumping (audit P1). Rejoin them at the front.
+    this.depthStation = 0;
+    this.clawTZ = 1;
     this.toReady();
   }
 
@@ -947,8 +948,7 @@ export class ClawMachine {
     ctx.fillRect(-80, -80, dW + 160, dH + 160);
 
     // gentle idle sway only when parked (not while gliding under a held direction)
-    const idle =
-      this.phase === "ready" && this.heldDir === 0 && this.heldDepth === 0;
+    const idle = this.phase === "ready" && this.heldDir === 0;
     const sway = idle ? Math.sin(now * 0.0016) * dW * 0.0035 : 0;
     r.blit(this.bank.get(M.back), M.back);
     const claw = this.clawRect();
@@ -957,16 +957,25 @@ export class ClawMachine {
     // scene, so the claw always renders in front of them — sinking it
     // behind them on a back-row grab broke the depth illusion. Depth now
     // reads from the gantry shift + perspective shrink instead.
-    r.blit(this.bank.get(M.midPlush), M.midPlush);
-    // Depth reads as cable length: the trolley stays on its rail; the
+    // ALL plush rows draw BEHIND the claw assembly (Daidai's standing
+    // z-order rule; stations read from position + scale, not occlusion).
+    r.blit(this.bank.get(M.row3), M.row3);
+    r.blit(this.bank.get(M.row2), M.row2);
+    r.blit(this.bank.get(M.row1), M.row1);
+    // Depth reads as assembly position + scale (stations); the
     // claw hangs lower when "closer" to the glass (pseudo-perspective).
     const gY = this.gantryY();
+    // The WHOLE system reads as one machine in perspective (DaiDai,
+    // 2026-07-27 round 2): the trolley box shifts and shrinks with depth
+    // too — at HALF the claw's parallax, because the rail sits higher in
+    // the cabinet, closer to the vanishing area.
+    const trolleyY = gY * 0.5;
     // Cable: the claw sprite slides down leaving a gap above its top —
     // bridge it with a line from the ceiling anchor, slanting when the
     // load swings (presentation physics, M4 style pass).
     if (this.clawTY + gY > 2) {
       const anchorX = this.clawDesignX() + sway;
-      const topY = M.clawOpen.y + 3;
+      const topY = M.clawOpen.y + 3 + trolleyY; // cable follows the box
       const clawTopY = M.clawOpen.y + this.clawTY + gY + 4;
       ctx.strokeStyle = "#161022";
       ctx.lineWidth = dW * 0.006;
@@ -998,7 +1007,14 @@ export class ClawMachine {
       1,
       this.overChute ? 1 : this.depthScale(),
     );
-    r.blit(this.bank.get(M.trolley), M.trolley, this.clawTX + sway, 0);
+    r.blit(
+      this.bank.get(M.trolley),
+      M.trolley,
+      this.clawTX + sway,
+      trolleyY,
+      1,
+      this.overChute ? 1 : this.depthScale(),
+    );
     // Slip tumble: the AIMED plush (bottom crop of its carried sprite)
     // falls from the claw tips back onto the pile, tipping as it goes.
     if (this.fallT >= 0) {
@@ -1059,7 +1075,6 @@ export class ClawMachine {
         r.blit(img, rect);
       }
     }
-    r.blit(this.bank.get(M.frontPlush), M.frontPlush);
 
     // NO aim shadow under the claw (DaiDai, V3): the claw renders with no
     // shadow element at all. Aim stays readable from the claw's own

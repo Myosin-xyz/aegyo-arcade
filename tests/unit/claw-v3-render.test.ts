@@ -44,8 +44,9 @@ function manifest(): Manifest {
     scale: 1,
     design: { w: 100, h: 150 },
     back: rect("back"),
-    midPlush: rect("mid"),
-    frontPlush: rect("front"),
+    row1: rect("row1", 10, 100, 80, 12),
+    row2: rect("row2", 10, 84, 80, 12),
+    row3: rect("row3", 10, 68, 80, 12),
     frame: rect("frame"),
     trolley: rect("trolley"),
     clawOpen: rect("claw-open", 40, 10),
@@ -126,6 +127,7 @@ function stubCanvas(): void {
 
 interface EngineProbe {
   clawTZ: number;
+  depthStation: 0 | 1 | 2;
   clawTX: number;
   phase: string;
   spriteState: string;
@@ -255,75 +257,89 @@ describe("claw V3 presentation", () => {
     return machine;
   }
 
-  it("FRONT aim depth: claw in front of mid rows, native size, behind the front pile", async () => {
-    const machine = await mount();
-    machine.clawTZ = 0.8; // toward the glass
-    drawn.length = 0;
-    calls.length = 0;
-    machine.render(1000);
-
-    expect(drawn).toContain("mid"); // the rows are ALWAYS in the scene
-    const mid = drawn.indexOf("mid");
-    const claw = drawn.findIndex((s) => s.startsWith("claw-"));
-    const front = drawn.indexOf("front");
-    expect(claw).toBeGreaterThan(mid); // claw in front of the mid rows
-    expect(front).toBeGreaterThan(claw); // front rows still occlude it
-    // The front half draws at authored scale — no perspective shrink.
-    const clawCall = calls.find((c) => c.src.startsWith("claw-"));
-    expect(clawCall?.w).toBe(10);
-  });
-
-  it("BACK aim depth: claw STILL in front of mid rows, shrunken and higher (Daidai 2026-07-27)", async () => {
+  it("STATION 0 (rest): rows behind the claw, native scale, authored height", async () => {
     const machine = await mount();
     drawn.length = 0;
     calls.length = 0;
-    machine.clawTZ = 0.8;
-    machine.render(1000);
-    const frontY = calls.find((c) => c.src.startsWith("claw-"))!.y;
-
-    machine.clawTZ = 0.2; // away from the glass
-    drawn.length = 0;
-    calls.length = 0;
     machine.render(1000);
 
-    // Z-order: the background plush rows are the furthest element, so
-    // the claw NEVER sinks behind them (supersedes the occlusion model).
-    const mid = drawn.indexOf("mid");
+    // All three rows are ALWAYS in the scene, always BEHIND the claw
+    // (Daidai's standing z-order rule — stations read from position and
+    // scale, never occlusion).
     const claw = drawn.findIndex((s) => s.startsWith("claw-"));
-    expect(claw).toBeGreaterThan(mid);
-    expect(drawn.indexOf("front")).toBeGreaterThan(claw);
-
-    // Perspective: at clawTZ=0.2 the sprite shrinks by
-    // (0.3/0.5) · DEPTH_SHRINK_SPAN(0.18) = 10.8% and its top climbs —
-    // depth now reads from size + height, not occlusion.
+    for (const row of ["row1", "row2", "row3"]) {
+      expect(drawn).toContain(row);
+      expect(claw).toBeGreaterThan(drawn.indexOf(row));
+    }
     const clawCall = calls.find((c) => c.src.startsWith("claw-"))!;
-    expect(clawCall.w).toBeCloseTo(10 * 0.892, 5);
-    expect(clawCall.y).toBeLessThan(frontY);
+    expect(clawCall.w).toBe(10); // rest = authored scale
+    const trolleyCall = calls.find((c) => c.src === "trolley")!;
+    expect(trolleyCall.w).toBe(10);
   });
 
-  it("full descent lands the SCALED claw tips at the same pile offset at every depth (P1)", async () => {
-    // The renderer shrinks the claw from its TOP anchor, so at full
-    // descent the tips sit at `top + descent + gantry + h·scale`. Without
-    // the shrink-compensation term in descentDepth(), a back-row claw
-    // stopped ~87–137 design px above the pile (review, real 698px
-    // sprite). The invariant that catches this at ANY manifest tuning:
-    // (tips − pileY) must be CONSTANT across depths — the back-row claw
-    // reaches exactly as far relative to the pile as the front-row claw.
+  it("STATION 2 (two Up): whole assembly smaller and higher; rows still behind", async () => {
+    const machine = await mount();
+    drawn.length = 0;
+    calls.length = 0;
+    machine.render(1000);
+    const frontClaw = calls.find((c) => c.src.startsWith("claw-"))!;
+    const frontTrolley = calls.find((c) => c.src === "trolley")!;
+
+    machine.depthStation = 2;
+    machine.clawTZ = 0;
+    drawn.length = 0;
+    calls.length = 0;
+    machine.render(1000);
+
+    const claw = drawn.findIndex((s) => s.startsWith("claw-"));
+    for (const row of ["row1", "row2", "row3"]) {
+      expect(claw).toBeGreaterThan(drawn.indexOf(row));
+    }
+    // Perspective: CLAW and TROLLEY BOX shrink (0.82) and climb together
+    // — the whole system reads as one machine moving away.
+    const clawCall = calls.find((c) => c.src.startsWith("claw-"))!;
+    expect(clawCall.w).toBeCloseTo(10 * 0.82, 5);
+    expect(clawCall.y).toBeLessThan(frontClaw.y);
+    const trolleyCall = calls.find((c) => c.src === "trolley")!;
+    expect(trolleyCall.w).toBeCloseTo(10 * 0.82, 5);
+    expect(trolleyCall.y).toBeLessThan(frontTrolley.y);
+  });
+
+  it("scale and height are MONOTONIC front → middle → back", async () => {
+    const machine = await mount();
+    const at = (station: 0 | 1 | 2) => {
+      machine.depthStation = station;
+      machine.clawTZ = 1 - station / 2;
+      return { scale: machine.depthScale(), y: machine.gantryY() };
+    };
+    const s0 = at(0);
+    const s1 = at(1);
+    const s2 = at(2);
+    expect(s0.scale).toBe(1);
+    expect(s1.scale).toBeCloseTo(0.91, 5);
+    expect(s2.scale).toBeCloseTo(0.82, 5);
+    expect(s0.y).toBe(0); // rest = authored position
+    expect(s1.y).toBeLessThan(s0.y);
+    expect(s2.y).toBeLessThan(s1.y);
+  });
+
+  it("full descent lands the tips EXACTLY on each station's own plush row", async () => {
+    // descentDepth() is derived, not tuned: tips (top-anchored, so top +
+    // h·scale) land on pileY — the STATION's row rect — at every station
+    // ("compensate the drop distance so the claw reaches the correct
+    // plush row", Daidai).
     const machine = await mount();
     const m = manifest();
-    const tipsMinusPile = (z: number): number => {
-      machine.clawTZ = z;
+    for (const station of [0, 1, 2] as const) {
+      machine.depthStation = station;
+      machine.clawTZ = 1 - station / 2;
       const tips =
         m.clawOpen.y +
         machine.descentDepth() +
         machine.gantryY() +
         m.clawOpen.h * machine.depthScale();
-      return tips - machine.pileY();
-    };
-    const front = tipsMinusPile(0.8);
-    expect(tipsMinusPile(0.5)).toBeCloseTo(front, 6);
-    expect(tipsMinusPile(0.2)).toBeCloseTo(front, 6);
-    expect(tipsMinusPile(0)).toBeCloseTo(front, 6);
+      expect(tips, `station ${station}`).toBeCloseTo(machine.pileY(), 6);
+    }
   });
 
   it("SO CLOSE! renders Daidai's BOARD sprite, not canvas text (2026-07-27)", async () => {
@@ -386,6 +402,31 @@ describe("claw V3 presentation", () => {
     ).toBeLessThanOrEqual(2);
   });
 
+  it("a BACK-station win replays at the FRONT station — no station/render split (audit P1)", async () => {
+    // The win carry eases clawTZ back to 1 for the chute while
+    // depthStation kept the aimed row: replaying with them split left
+    // the claw LOOKING front-parked but targeting row 3, Up clamped and
+    // Down jumping to the middle. The old replay test started at
+    // station 0, so it could never catch this.
+    const machine = await mount();
+    machine.depthStation = 2; // aim from the BACK station
+    machine.clawTZ = 0;
+    machine.beginOutcome("win");
+    machine.phase = "dropping";
+    for (let i = 0; i < 600; i++) {
+      machine.update(40);
+      if (machine.phase === "won") break;
+    }
+    expect(machine.phase).toBe("won");
+    expect(machine.clawTZ).toBe(1); // the carry eased to the front...
+
+    machine.replay();
+    // ...and the STATION rejoins it: both reset to front, together.
+    expect(machine.depthStation).toBe(0);
+    expect(machine.clawTZ).toBe(1);
+    expect(machine.depthScale()).toBe(1);
+  });
+
   it("after a win REPLAY the chute pose is released: steering visibly moves the claw again (review P1)", async () => {
     const machine = await mount();
     machine.beginOutcome("win");
@@ -418,16 +459,23 @@ describe("claw V3 presentation", () => {
     expect(after.x - before.x).toBeCloseTo(30, 6);
   });
 
-  it("TRY AGAIN uses Daidai's sprite; SO CLOSE! stays canvas text", async () => {
+  it("TRY AGAIN and SO CLOSE! use Daidai's sprites; UNAVAILABLE stays canvas text", async () => {
     const machine = await mount();
     machine.flash("TRY AGAIN", "tryAgain");
     drawn.length = 0;
     machine.render(1000);
     expect(drawn).toContain("try-again");
 
-    machine.flash("SO CLOSE!");
+    machine.flash("SO CLOSE!", "soClose");
     drawn.length = 0;
     machine.render(1000);
+    expect(drawn).toContain("so-close");
+    expect(drawn).not.toContain("try-again");
+
+    machine.flash("UNAVAILABLE"); // no delivered art — canvas text
+    drawn.length = 0;
+    machine.render(1000);
+    expect(drawn).not.toContain("so-close");
     expect(drawn).not.toContain("try-again");
   });
 });

@@ -29,8 +29,9 @@ function fakeManifest(): Manifest {
     scale: 1,
     design: { w: 100, h: 150 },
     back: rect(),
-    midPlush: rect(),
-    frontPlush: rect(),
+    row1: rect(20, 100, 60, 20),
+    row2: rect(20, 80, 60, 20),
+    row3: rect(20, 60, 60, 20),
     frame: rect(),
     trolley: rect(),
     clawOpen: rect(40, 10),
@@ -42,7 +43,7 @@ function fakeManifest(): Manifest {
       E: rect(40, 10),
       B: rect(40, 10),
       K: rect(40, 10),
-      A2: rect(40, 10), // BACK_ROW key — fetchManifest now validates it exists
+      A2: rect(40, 10), // station-row key — fetchManifest validates it exists
     },
     winBoard: rect(20, 20, 60, 20),
     // fetchManifest requires exactly FALL_FRAME_COUNT (6) frames.

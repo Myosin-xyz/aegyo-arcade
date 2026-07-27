@@ -15,10 +15,12 @@ export interface Manifest {
   scale: number;
   design: { w: number; h: number };
   back: SpriteRect;
-  /** Plush rows between the two aim depths — occludes a BACK-row claw. */
-  midPlush: SpriteRect;
-  /** Front plush rows — occlude the claw at either aim depth. */
-  frontPlush: SpriteRect;
+  /** Playable plush rows (Daidai depth stations, 2026-07-27): 1 =
+   * front/closest = the REST station, 3 = deepest. All three draw
+   * BEHIND the claw assembly — depth reads from position + scale. */
+  row1: SpriteRect;
+  row2: SpriteRect;
+  row3: SpriteRect;
   frame: SpriteRect;
   trolley: SpriteRect;
   clawOpen: SpriteRect;

@@ -81,8 +81,9 @@ describe("claw input teardown (drop-light timer)", () => {
       scale: 1,
       design: { w: 100, h: 100 },
       back: zero,
-      midPlush: zero,
-      frontPlush: zero,
+      row1: zero,
+      row2: zero,
+      row3: zero,
       frame: zero,
       trolley: zero,
       clawOpen: zero,
@@ -109,7 +110,6 @@ describe("claw input teardown (drop-light timer)", () => {
     const dirCalls: number[] = [];
     const depthCalls: number[] = [];
     let dirUps = 0;
-    let depthUps = 0;
     // REAL cabinet geometry (public/games/claw/manifest.json) — the
     // overlap corners only exist at the true d-pad layout.
     const manifest = {
@@ -131,9 +131,6 @@ describe("claw input teardown (drop-light timer)", () => {
         dirUps += 1;
       },
       onDepthDown: (d) => depthCalls.push(d),
-      onDepthUp: () => {
-        depthUps += 1;
-      },
       onDrop: () => undefined,
     });
 
@@ -158,7 +155,7 @@ describe("claw input teardown (drop-light timer)", () => {
     expect(depthCalls).toEqual([-1]);
     expect(dirCalls).toEqual([]);
     lift(1);
-    expect(depthUps).toBe(1);
+    expect(depthCalls).toEqual([-1]); // releases NEVER emit depth steps
     // Lower mirror: visibly inside backward, inside left's pad.
     tap(130, 1430, 2);
     expect(depthCalls).toEqual([-1, 1]);
@@ -188,17 +185,27 @@ describe("claw input teardown (drop-light timer)", () => {
     lift(10);
     expect(dirUps).toBe(1);
 
-    // Opposite KEYBOARD holds on the depth axis behave the same way.
+    // DEPTH is EDGE-TRIGGERED (audit P1, 2026-07-27): a release must
+    // NEVER re-emit the surviving direction — with stations, the old
+    // re-emit minted a phantom extra hop. The reviewer's keyboard repro:
     depthCalls.length = 0;
-    depthUps = 0;
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
-    expect(depthCalls).toEqual([-1, 1]);
+    expect(depthCalls).toEqual([-1, 1]); // one step per physical press
     window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown" }));
-    expect(depthCalls).toEqual([-1, 1, -1]);
-    expect(depthUps).toBe(0);
+    expect(depthCalls).toEqual([-1, 1]); // NO phantom re-emit of Up
     window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp" }));
-    expect(depthUps).toBe(1);
+    expect(depthCalls).toEqual([-1, 1]); // releases stay silent
+
+    // Same with two POINTERS on opposite depth buttons.
+    depthCalls.length = 0;
+    tap(157, 1310, 20); // forward center
+    tap(157, 1447, 21); // backward center
+    expect(depthCalls).toEqual([-1, 1]);
+    lift(21); // release backward while forward is still held
+    expect(depthCalls).toEqual([-1, 1]); // no extra station hop
+    lift(20);
+    expect(depthCalls).toEqual([-1, 1]);
 
     input.destroy();
     canvas.remove();
@@ -217,7 +224,6 @@ describe("claw input teardown (drop-light timer)", () => {
     const dir: number[] = [];
     const depth: number[] = [];
     let dirUps = 0;
-    let depthUps = 0;
     const input = createInput({
       canvas,
       manifest,
@@ -227,9 +233,6 @@ describe("claw input teardown (drop-light timer)", () => {
         dirUps += 1;
       },
       onDepthDown: (d) => depth.push(d),
-      onDepthUp: () => {
-        depthUps += 1;
-      },
       onDrop: () => undefined,
     });
     const centerOf = (k: "left" | "right" | "forward" | "backward") => {
@@ -261,9 +264,6 @@ describe("claw input teardown (drop-light timer)", () => {
       get dirUps() {
         return dirUps;
       },
-      get depthUps() {
-        return depthUps;
-      },
     };
   }
 
@@ -277,9 +277,10 @@ describe("claw input teardown (drop-light timer)", () => {
     expect(h.input.state.pressed.has("left")).toBe(true);
     expect(h.input.state.pressed.has("forward")).toBe(true);
 
-    // Release the DEPTH key: X (left) must stay live and lit, no dir Up.
+    // Release the DEPTH key: X (left) must stay live and lit, no dir Up
+    // (depth releases are silent — stations are edge-triggered).
     window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp" }));
-    expect(h.depthUps).toBe(1);
+    expect(h.depth).toEqual([-1]);
     expect(h.dirUps).toBe(0);
     expect(h.dir).toEqual([-1]); // no spurious X re-emit
     expect(h.input.state.pressed.has("left")).toBe(true);
@@ -312,14 +313,14 @@ describe("claw input teardown (drop-light timer)", () => {
     const h = harness(realControlManifest());
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     expect(h.depth).toEqual([1]);
-    // Host pauses → setEnabled(false) drains holds and emits the Up.
+    // Host pauses → setEnabled(false) drains holds (silently for depth —
+    // stations are edge-triggered, so there is no Up event to emit).
     h.input.setEnabled(false);
-    expect(h.depthUps).toBe(1);
     expect(h.input.state.pressed.has("backward")).toBe(false);
     // The stale keyup after disable is inert.
     window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowDown" }));
-    // Resume, then re-press the SAME direction: must re-emit (would be
-    // dead if lastZ stayed 1 across the disable — the bug this pins).
+    // Resume, then re-press the SAME direction: edge-triggering fires a
+    // fresh step per press regardless of prior state.
     h.input.setEnabled(true);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     expect(h.depth).toEqual([1, 1]);
@@ -362,7 +363,6 @@ describe("claw input teardown (drop-light timer)", () => {
         dirUps += 1;
       },
       onDepthDown: () => undefined,
-      onDepthUp: () => undefined,
       onDrop: () => undefined,
     });
     const tap = (x: number, y: number, pointerId: number) => {
@@ -423,7 +423,6 @@ describe("claw input teardown (drop-light timer)", () => {
       onDirDown: () => undefined,
       onDirUp: () => undefined,
       onDepthDown: () => undefined,
-      onDepthUp: () => undefined,
       onDrop: () => {
         drops += 1;
       },

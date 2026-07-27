@@ -11,19 +11,26 @@
     "w": 941,
     "h": 1488
   },
-  "midPlush": {
-    "src": "mid-plush.webp",
-    "x": 195,
-    "y": 818,
-    "w": 578,
-    "h": 318
-  },
-  "frontPlush": {
-    "src": "front-plush.webp",
-    "x": 312,
+  "row3": {
+    "src": "row3.webp",
+    "x": 365,
     "y": 993,
+    "w": 433,
+    "h": 142
+  },
+  "row2": {
+    "src": "row2.webp",
+    "x": 329,
+    "y": 1041,
+    "w": 492,
+    "h": 130
+  },
+  "row1": {
+    "src": "row1.webp",
+    "x": 312,
+    "y": 1090,
     "w": 577,
-    "h": 241
+    "h": 144
   },
   "frame": {
     "src": "frame.webp",
@@ -162,6 +169,13 @@
     "w": 583,
     "h": 389
   },
+  "soClose": {
+    "src": "so-close.webp",
+    "x": 178,
+    "y": 610,
+    "w": 583,
+    "h": 232
+  },
   "controls": {
     "drop": {
       "src": "ctl-drop-on.webp",
@@ -198,12 +212,5 @@
       "w": 71,
       "h": 60
     }
-  },
-  "soClose": {
-    "src": "so-close.webp",
-    "x": 178,
-    "y": 614,
-    "w": 583,
-    "h": 232
   }
 }

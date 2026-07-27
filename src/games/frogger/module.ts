@@ -6,7 +6,8 @@
  * survive a pause): ArrowUp/Space = forward, ArrowDown = back, plus tap
  * zones on the delivered control strip (left half BACK, right half
  * FORWARD). Counted completion is the portal default (generic-submit);
- * score envelope 0–60 per the booked ranking decision.
+ * score envelope 0–30 per the booked ranking decision (5 levels since
+ * 2026-07-27).
  */
 
 import type {

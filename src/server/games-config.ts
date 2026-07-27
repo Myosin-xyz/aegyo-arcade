@@ -51,9 +51,12 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
     // ×1.2 ceiling and clean-clear bonuses included — exactly 2277
     // (docs/games/freebie.md max-score vector).
     freebie: { maxScore: 2277, scored: true },
-    // Progress score: 6 forward rows × 10 levels, monotonic new-best-row
-    // credit only — hard max 60 (docs/games/frogger.md ranking decision).
-    frogger: { maxScore: 60, scored: true },
+    // Progress score: 6 forward rows × 5 levels, monotonic new-best-row
+    // credit only — hard max 30 (Daidai 2026-07-27 cut the run from 10
+    // levels; docs/games/frogger.md). Envelope change is safe pre-launch
+    // for the same reason as snake's 400→1950: prod boards hold no real
+    // rows yet. That window closes at launch.
+    frogger: { maxScore: 30, scored: true },
     // Claw outcomes are server-drawn; no client score exists.
     claw: { maxScore: 0, scored: false },
   },

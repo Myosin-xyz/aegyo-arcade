@@ -64,7 +64,15 @@ const BACK_ROW = ["K", "E", "A2", "D", "B"] as const;
 // tuning it moves those presentation landings, not just the shadow.
 const PILE_Y_FRAC = 0.72; // pile surface line at center depth
 const PILE_DEPTH_SPAN = 0.1;
-const GANTRY_DEPTH_FRAC = 0.04; // claw/cable y-shift across full depth (of dH); trolley stays on rail
+// Depth presentation (DaiDai, 2026-07-27: "it needs to go further into the
+// machine"): the vertical shift across full depth DOUBLED (0.04 → 0.08 of
+// dH — still under PILE_DEPTH_SPAN so descentDepth() stays sane), and the
+// claw now SHRINKS as it pushes back — perspective, not just elevation.
+const GANTRY_DEPTH_FRAC = 0.08; // claw/cable y-shift across full depth (of dH); trolley stays on rail
+// Scale lost at the FULL-BACK extreme (clawTZ=0). The front half (≥ 0.5,
+// the resting row) stays at 1: the authored art is drawn at front scale,
+// so only the far half fakes distance.
+const DEPTH_SHRINK_SPAN = 0.18;
 const DEPTH_SPEED = 0.0011; // depth units per ms while forward/back held
 const DEPTH_FALL_TOP = 40; // slip tumble starts just under the claw tips
 // Beat the claw holds motionless over the chute before opening (DaiDai).
@@ -548,6 +556,12 @@ export class ClawMachine {
     return (this.clawTZ - 0.5) * this.manifest.design.h * GANTRY_DEPTH_FRAC;
   }
 
+  /** Perspective scale for the claw sprite: 1 across the front half,
+   * shrinking toward `1 - DEPTH_SHRINK_SPAN` at the full-back extreme. */
+  private depthScale(): number {
+    return 1 - (Math.max(0, 0.5 - this.clawTZ) / 0.5) * DEPTH_SHRINK_SPAN;
+  }
+
   private clawDesignX(): number {
     return (
       this.manifest.clawOpen.x + this.manifest.clawOpen.w / 2 + this.clawTX
@@ -560,7 +574,14 @@ export class ClawMachine {
     const { h: dH } = this.manifest.design;
     return (
       dH * 0.225 +
-      (this.clawTZ - 0.5) * dH * (PILE_DEPTH_SPAN - GANTRY_DEPTH_FRAC)
+      (this.clawTZ - 0.5) * dH * (PILE_DEPTH_SPAN - GANTRY_DEPTH_FRAC) +
+      // The sprite is drawn TOP-anchored at depthScale(), so its tips sit
+      // h·scale below the top, not h: the descent must also cover the
+      // height the perspective shrink took away, or a back-row claw stops
+      // ~126 design px short of the pile (698px sprite × 18% at full
+      // back). With this term, tips-vs-pile alignment is depth-INVARIANT
+      // — regressed as exactly that in claw-v3-render.test.ts.
+      this.manifest.clawOpen.h * (1 - this.depthScale())
     );
   }
 
@@ -629,6 +650,11 @@ export class ClawMachine {
 
     this.awaiting = false;
     this.dropOutcome = outcome;
+    // A back-row grab carries the prize FORWARD to the chute: the carry
+    // eases clawTZ to the front resting depth so the perspective scale
+    // and gantry height return to 1/0 before the authored release
+    // geometry (which is drawn at front scale) takes over.
+    const grabTZ = this.clawTZ;
 
     const segs: Segment[] = [
       {
@@ -664,8 +690,13 @@ export class ClawMachine {
           name: "toHole",
           dur: 840,
           apply: (t) => {
-            this.clawTX = lerp(this.dropStartTX, holeTX, easeInOutCubic(t));
+            const glide = easeInOutCubic(t);
+            this.clawTX = lerp(this.dropStartTX, holeTX, glide);
             this.clawTY = -dH * 0.012 * Math.sin(t * Math.PI);
+            // The carry also glides the DEPTH back to the front resting
+            // row, so scale/height are neutral before the authored
+            // release pose (drawn at front scale) snaps in.
+            this.clawTZ = lerp(grabTZ, 0.5, glide);
             // Carry swing, damping as the trolley decelerates.
             this.swing =
               Math.sin(t * Math.PI * 3) * dW * 0.013 * (1 - 0.55 * t);
@@ -895,13 +926,12 @@ export class ClawMachine {
     const sway = idle ? Math.sin(now * 0.0016) * dW * 0.0035 : 0;
     r.blit(this.bank.get(M.back), M.back);
     const claw = this.clawRect();
-    // DEPTH OCCLUSION (DaiDai): the middle plush rows are always part of
-    // the scene — only their Z relative to the claw changes. Aiming at
-    // the FRONT row puts the claw in front of them; aiming at the BACK
-    // row sinks it behind them (drawn after the claw, below), hiding
-    // whether it grabbed anything until it lifts clear.
-    const clawBehindMid = this.clawTZ < 0.5;
-    if (!clawBehindMid) r.blit(this.bank.get(M.midPlush), M.midPlush);
+    // Z-ORDER (DaiDai, 2026-07-27, SUPERSEDING the 2026-07-19 occlusion
+    // reading): the background plush rows are the FURTHEST element in the
+    // scene, so the claw always renders in front of them — sinking it
+    // behind them on a back-row grab broke the depth illusion. Depth now
+    // reads from the gantry shift + perspective shrink instead.
+    r.blit(this.bank.get(M.midPlush), M.midPlush);
     // Depth reads as cable length: the trolley stays on its rail; the
     // claw hangs lower when "closer" to the glass (pseudo-perspective).
     const gY = this.gantryY();
@@ -931,8 +961,17 @@ export class ClawMachine {
     const pose = this.overChute
       ? this.chuteOffset(claw)
       : { dx: this.clawTX + sway + this.swing, dy: this.clawTY + gY };
-    r.blit(this.bank.get(claw), claw, pose.dx, pose.dy);
-    if (clawBehindMid) r.blit(this.bank.get(M.midPlush), M.midPlush);
+    // Over the chute the AUTHORED geometry must be pixel-exact, so the
+    // perspective scale is forced off there (the win carry has already
+    // eased clawTZ back to 0.5, so this is belt-and-braces).
+    r.blit(
+      this.bank.get(claw),
+      claw,
+      pose.dx,
+      pose.dy,
+      1,
+      this.overChute ? 1 : this.depthScale(),
+    );
     r.blit(this.bank.get(M.trolley), M.trolley, this.clawTX + sway, 0);
     // Slip tumble: the AIMED plush (bottom crop of its carried sprite)
     // falls from the claw tips back onto the pile, tipping as it goes.
@@ -947,11 +986,13 @@ export class ClawMachine {
         const cropH = Math.min(iw, ih);
         const fx = this.clawDesignX();
         // Start at the claw's CURRENT tips (it slipped at ~55% lift).
+        // The sprite is perspective-scaled from its top, so the tips sit
+        // at top + h·scale, not top + h.
         const tipY =
           M.clawOpen.y +
           this.clawTY +
           this.gantryY() +
-          M.clawOpen.h -
+          M.clawOpen.h * this.depthScale() -
           DEPTH_FALL_TOP;
         const pileY = this.pileY() - size * 0.4;
         const fy = tipY + (pileY - tipY) * (t * t); // gravity-ish

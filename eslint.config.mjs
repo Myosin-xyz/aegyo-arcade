@@ -18,6 +18,7 @@ const eslintConfig = defineConfig([
     // intake docs). They are evidence of what was delivered, not our
     // source — holding them to our rules is noise we can never act on.
     "intake/**",
+    "bias-flap/**", // handoff parked at repo root, 2026-07-27
   ]),
   {
     rules: {

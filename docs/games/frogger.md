@@ -44,9 +44,12 @@ monolithic 781KB HTML build, 9.5MB PSD `crossed_the_street.psd`,
   are decorative only (drawn in front, no collision — matches PSD layer
   order).
 - **3 lives**; a hit returns the hero to the start of the CURRENT level.
-- **10 levels** with an EASED difficulty curve (1–3 nearly identical,
-  ramp in the back half, always beatable — playtested for kids).
-- Guard story beats: levels 1–9 end "ACCESS DENIED!"; level 10 ends
+- **5 levels** (Daidai 2026-07-27: cut from the delivered 10 — "10 was
+  too long") with a LINEAR ramp, +25% of base speed per level, 1.0× → 2.0×.
+  The delivery's EASED curve (1–3 nearly identical) and the first port's
+  +11%/level both played "way too easy and too constant" — this is the
+  second, steeper retune.
+- Guard story beats: levels 1–4 end "ACCESS DENIED!"; level 5 ends
   "CONGRATULATIONS, YOU'RE WELCOME!" → win.
 - **Stopwatch** (m:ss) runs per attempt; stops on win/lose; best time on
   start/win screens with new-best callout.
@@ -66,11 +69,24 @@ Daidai's brief itself scopes them out as "separate backend work item":
 | Leaderboard payload username/score/time | Shared board policy (competition ranking, flagged exclusion)   |
 
 **Ranking DECIDED (review, 2026-07-18)**: M3 preserves the delivered
-progress score, **envelope 0–60**, under the existing competition-ranking
-policy. Fastest time stays cosmetic/local initially. `server_elapsed_ms`
-is NOT a tie-break — it includes issuance, menus, pauses, and network
-time. A shared timed leaderboard requires a separate ADR with a
-shell-measured active-duration design.
+progress score, **envelope 0–30** (0–60 until the 2026-07-27 five-level
+cut), under the existing competition-ranking policy.
+
+**Envelope preflight — DEPLOY GATE (review P1, 2026-07-27)**: production
+has taken real runs, so 60 → 30 only ships after
+`PREFLIGHT_DATABASE_URL=<prod> node scripts/ops/preflight-frogger-envelope.mjs`
+confirms NO historical Frogger board row or acceptance receipt above 30
+(a surviving 31–60 row would be unbeatable forever; an old receipt would
+replay a score the server now rejects). Paste the CLEAR output below
+when run; if it reports BLOCKED, version the season/game or migrate the
+rows explicitly first.
+
+> Preflight record — **CLEAR**, production, 2026-07-27T14:11:45.810Z:
+> board rows total `0`; attempts total `1`; board rows above 30 `0`;
+> receipts above 30 `0`. Fastest time stays cosmetic/local initially. `server_elapsed_ms`
+> is NOT a tie-break — it includes issuance, menus, pauses, and network
+> time. A shared timed leaderboard requires a separate ADR with a
+> shell-measured active-duration design.
 
 ## Migration requirements (mirrors M2.5 Freebie Frenzy pattern)
 
@@ -82,8 +98,8 @@ shell-measured active-duration design.
 - Centralize strings (guard copy is i18n-able; fan terms stay English).
 - Deterministic vectors: eased per-level speed table, seeded obstacle
   spawn sequences, collision/checkpoint reset, one-credit-per-lane
-  scoring, guard-beat transitions, level-10 completion, 3rd-life loss,
-  end-at-most-once, seeded replay.
+  scoring, guard-beat transitions, level-5 completion (10 until the
+  2026-07-27 cut), 3rd-life loss, end-at-most-once, seeded replay.
 
 ## Ported constants (delivery-verified, M3 build 2026-07-18)
 
@@ -97,11 +113,12 @@ shell-measured active-duration design.
   guard `0.58 → L→R, 34, 83×128`. **2 instances/lane, always** at
   `180·i + seeded·40` jitter (the delivery's ONLY RNG), re-rolled each
   level. Independent wrap at `±drawW` past the edges.
-- Linear ramp `speedMult(L) = 1 + (L−1)/9` — 1.0× at L1 → 2.0× at L10,
-  +1/9 per level (L1–5 = 1.00, 1.11, 1.22, 1.33, 1.44). **Team tuning
-  2026-07-24**: replaced the delivery's eased `1 + ((L−1)/9)^1.6` curve,
-  which was flat over the early levels so players never felt the
-  difficulty climb (Daidai feedback). This is a deliberate design change
+- Linear ramp `speedMult(L) = 1 + (L−1)/4` — 1.0× at L1 → 2.0× at L5,
+  +25% of base per level (L1–5 = 1.00, 1.25, 1.50, 1.75, 2.00). **Second
+  retune, Daidai 2026-07-27** — the 2026-07-24 `+1/9`-over-10-levels
+  linear ramp (which had replaced the delivery's flat-early eased
+  `^1.6` curve) still played "way too easy and too constant". This is a
+  deliberate design change
   from delivery parity, not a port bug; portal ranking stays
   progress-based (fastest time cosmetic — the intro must not claim
   "fastest time wins").
@@ -109,11 +126,12 @@ shell-measured active-duration design.
   90-tick invuln with blink; hit → hero to start row of CURRENT level,
   obstacles NOT reset, bestRow retained (no re-earning), stopwatch keeps
   counting.
-- Checkpoint beat: 105 ticks, obstacles frozen, ACCESS DENIED (L1–9,
-  then level++ + lane re-roll) / CONGRATULATIONS (L10 → won).
+- Checkpoint beat: 105 ticks, obstacles frozen, ACCESS DENIED (L1–4,
+  then level++ + lane re-roll) / CONGRATULATIONS (L5 → won).
 - Scoring: `newRow < bestRow` credits the difference; monotonic;
-  **6/level, hard max 60** — the L10 6th point lands before the congrats
-  beat, so a perfect run submits exactly 60.
+  **6/level, hard max 30** (5 levels since 2026-07-27) — the final
+  level's 6th point lands before the congrats beat, so a perfect run
+  submits exactly 30.
 - Stopwatch: sim ticks → m:ss (checkpoint beats count, delivery parity;
   pause does NOT — an improvement over the delivery's wall-clock).
 

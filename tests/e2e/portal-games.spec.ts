@@ -140,7 +140,7 @@ const SMOKE_ACTIONS: Record<
     // idle hero, nothing animated there in the port) — after ArrowUp the
     // hero leaves it, so the pixels MUST change. Then keep marching
     // forward: every crossing attempt ends in a hit (3 lives) or a level
-    // beat (10 levels), so the run is BOUNDED to end either way — the
+    // beat (5 levels), so the run is BOUNDED to end either way — the
     // smoke asserts `ended`, not which side of it.
     act: async (page) => {
       const surface = page.getByTestId("game-surface");
@@ -224,6 +224,9 @@ for (const entry of listGames()) {
         timeout: smoke.endTimeoutMs ?? 20_000,
       });
       await expect(page.getByTestId("play-again")).toBeVisible();
+      // Simon 2026-07-27: every end panel — scrimmed or game-authored —
+      // carries the Challenge-your-friend share CTA.
+      await expect(page.getByTestId("challenge-friend")).toBeVisible();
     } else {
       await page.waitForTimeout(600);
       await expect(host).toHaveAttribute("data-lifecycle", "running");

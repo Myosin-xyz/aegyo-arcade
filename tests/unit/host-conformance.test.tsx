@@ -528,6 +528,42 @@ describe("GameHostInner lifecycle enforcement", () => {
     });
   });
 
+  it("ended surfaces offer Challenge-your-friend; clipboard fallback carries the game link", async () => {
+    // jsdom has no navigator.share, so the button exercises the clipboard
+    // fallback — the same path a desktop browser takes.
+    const written: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: (s: string) => (written.push(s), Promise.resolve()) },
+    });
+
+    const { container, root } = await renderHost({ endOnStart: true });
+    await act(async () => {
+      (
+        container.querySelector('[data-testid="start-run"]') as HTMLElement
+      ).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(lifecycleOf(container)).toBe("ended");
+
+    const btn = container.querySelector(
+      '[data-testid="challenge-friend"]',
+    ) as HTMLElement;
+    expect(btn, "share CTA missing from the ended overlay").toBeTruthy();
+    await act(async () => {
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(written).toHaveLength(1);
+    expect(written[0]).toContain(`/play/${hostileMeta.id}`);
+    // Confirmation state so the tap visibly did something. (The button
+    // resolves copy via the global i18n `t`, not the ctx stub, so the
+    // real EN string is what renders here.)
+    expect(btn.textContent).toBe("Link copied!");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
   it("a game-authored ended result stays reachable (NOT inert)", async () => {
     // This case has no scrim: the game's own result IS the content, so
     // making it inert would hide the outcome from assistive tech.

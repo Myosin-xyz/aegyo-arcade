@@ -51,15 +51,32 @@ export class Renderer {
     return { x: (clientX - rect.left) / s, y: (clientY - rect.top) / s };
   }
 
+  /**
+   * `scale` shrinks/grows around the sprite's TOP-CENTER: x stays centred
+   * and the top edge stays put — chosen for the claw, which hangs from a
+   * cable anchored at its top (a centred or top-left origin would detach
+   * the sprite from its cable as it scales).
+   */
   blit(
     img: HTMLImageElement,
     rect: SpriteRect,
     dx = 0,
     dy = 0,
     alpha = 1,
+    scale = 1,
   ): void {
     if (alpha !== 1) this.ctx.globalAlpha = alpha;
-    this.ctx.drawImage(img, rect.x + dx, rect.y + dy, rect.w, rect.h);
+    if (scale === 1) {
+      this.ctx.drawImage(img, rect.x + dx, rect.y + dy, rect.w, rect.h);
+    } else {
+      this.ctx.drawImage(
+        img,
+        rect.x + dx + (rect.w * (1 - scale)) / 2,
+        rect.y + dy,
+        rect.w * scale,
+        rect.h * scale,
+      );
+    }
     if (alpha !== 1) this.ctx.globalAlpha = 1;
   }
 }

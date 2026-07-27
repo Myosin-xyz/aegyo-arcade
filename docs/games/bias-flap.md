@@ -1,0 +1,101 @@
+# Bias Flap — intake (Daidai delivery, 2026-07-27)
+
+Status: **INTAKE ONLY — port is the next slice.** The delivery will
+REPLACE the code-drawn flyer in the `flappy` slot the way Snake Freebies
+replaced POCA Snake. Reference build: https://precious-arithmetic-db1e00.netlify.app/
+(bias-flap at the app root).
+
+Source: `~/Downloads/bias-flap` (static site: index.html + 3 JS + 1 CSS +
+5 assets, 304 KB). No build step, no JS dependencies. One external request
+(Bungee via Google Fonts) which the port will drop — the shell self-hosts
+fonts. Copied to gitignored `intake/bias-flap/`.
+
+## Provenance (SHA-256)
+
+| File                    | sha256                                                             |
+| ----------------------- | ------------------------------------------------------------------ |
+| `BACKEND_INTERFACE.md`  | `e3e70f999d45e3398cf2fbc83d75563a7136e46a7ef40d147873a17d979be124` |
+| `PRODUCT_BRIEF.md`      | `62225682309e32e42a05a347fc9ba04a9b01f67b229b566f9b0bb1d3504bb03d` |
+| `README.md`             | `0bc16cdb516703b304053455d8c3ccffc015f556e839d6b371414bbb51f1a4e6` |
+| `assets/bg.jpg`         | `bd3944a079f4ba5ec7716a5359cb93458624174b24340e25c9e162354705e1f1` |
+| `assets/coeur.png`      | `4d3103a0d61358de9ea3fe0edf5df95177a690cdc98097a993440baa8be0f449` |
+| `assets/hero.png`       | `2dc13ad5eb2a5b923d8d0a754892358d2e855a3976824b4ce9a06786d87ea1a3` |
+| `assets/stick_down.png` | `89cc04594ea5a750ae89f1b8835f9f65183f9807911993c2d03a409e50783172` |
+| `assets/stick_up.png`   | `158a50036d6c9546591618b52fa36787786952b62d19fad30bfa60b8b6bad059` |
+| `css/style.css`         | `e01ddc47eea3a1389b73ef934da7a0a70bec3fd69e949557d32fbb220a7e04d0` |
+| `index.html`            | `688b72ad36f8d3968553948d206dbe419586fc1ca587c72e331673d656264ddf` |
+| `js/backend.js`         | `a66493d2a0adf08a5c220fa0d987e3f7588319630df379ac3b48910b09d8fca4` |
+| `js/config.js`          | `f5b6223163ec089f52b2e1c789fe778e98fd89ac4faf2168751608137668649d` |
+| `js/game.js`            | `8df972d17eb4f7cc7ee6b18f6c2378d53a1212b4fed9504a077b03e490ecbe77` |
+
+## Rights / IP — ⛔ ONE FINDING
+
+Visual review of every asset (same standard as the frogger intake):
+
+- `hero.png` — **clean**, original pixel stan girl. **Resolves the
+  standing ⛔ on the current Bias Flap**: the code-drawn flyer was styled
+  as a real BTS member (publicity-rights gate, EXT-LEGAL). Daidai's
+  original character replaces it at the port.
+- `bg.jpg`, `coeur.png` — clean (generic purple city night, hearts).
+- `stick_up.png` / `stick_down.png` — ⛔ **the orb carries the BTS logo
+  mark (the angular double-door emblem), and the black-handle/round-orb
+  silhouette reads as the official ARMY Bomb lightstick.** This
+  CONTRADICTS the PRODUCT_BRIEF, which claims a "generic lightstick
+  design (star emblem) — deliberately not any real group's lightstick" —
+  the delivered art does not match its own brief. Same class as the
+  frogger `bg.webp` BTS marks: **RESKIN REQUIRED before public access**
+  (swap the orb emblem for the promised generic star and ideally recolor
+  the handle). Internal/preview use behind Vercel SSO only until then.
+  Ask Daidai for corrected stick sprites BEFORE the port lands, so the
+  port ships clean instead of inheriting a gate.
+
+Grep over delivered code + copy: no band names or agency marks in text.
+Flavour phrases are generic concert culture ("PAST THE MERCH STANDS!",
+"SECURITY DIDN'T SEE YOU!").
+
+## Mechanics (delivery, to preserve)
+
+Flappy reinterpretation: a stan girl flies through giant lightsticks
+toward the front row. Per `config.js` (all tuning lives there):
+
+- **5 levels**: gates 6/8/10/12/14; scroll speed 2.4→3.2; gap height
+  33.5%→27% of screen height. Spacing 0.60 of canvas width.
+- **Fairness constraint**: consecutive gap centers shift ≤ 24% of screen
+  height — no impossible sequences.
+- **Crash = restart the CURRENT level**, unlimited retries, no lives;
+  attempt score rolls back to the level-start value.
+- **Cash-out**: ⏹ HUD button → confirm ("LEAVE THE PIT?") → run ends,
+  score saved. Every run can post a score — the leveled structure needs
+  an exit path the endless original didn't.
+- **Scoring**: `10 × levelNumber` per gate → 10/20/30/40/50. **Perfect
+  run = 1700** (60+160+300+480+700), only by finishing all 5 levels.
+- **Timer** counts active play seconds (keeps running through crashes,
+  pauses on overlays) — delivery tiebreaker `score DESC, time ASC`.
+- **GATES stat** counts every gate passed INCLUDING retried levels (the
+  reference screenshot shows 196 gates on a 50-gate perfect run).
+- Hearts trail the hero on flap; victory = "FRONT ROW, BABY!" + confetti.
+- CRT scanlines + vignette, consistent with Snake Freebies.
+
+## Portal policy replacements (booked at intake)
+
+- `backend.js` (2 plays/day + subscription + prize eligibility) will be
+  DELETED — portal policy is OD-1 (one counted run per device per local
+  day) + OD-3 (cosmetic boards). Same replacement as Snake Freebies.
+- Gap-center placement moves to the run's seeded RNG (counted replay).
+- The delivery's `setInterval`-style loop becomes the shell's fixed-step
+  accumulator; intro screen → `introKeys` ready card; terminal panels →
+  the host's ended overlay (now incl. the Challenge-your-friend CTA).
+- Server `maxScore` for `flappy` moves to **1700** at the port (same
+  pre-launch-window justification as snake 400→1950 and frogger 60→30).
+- Cash-out maps to a game-initiated `report.end({ reason: "completed" })`
+  mid-run — supported by the frozen contract; the confirm overlay is
+  game-side.
+- Timer/tiebreaker: the portal board ranks `score DESC, acceptedAt ASC`;
+  the delivery wants `time ASC` among finishers. Decision needed at port
+  time: adopt time as a secondary sort (schema change) or drop the
+  tiebreaker for V1 (document as deviation).
+
+## Asset budget
+
+Trivial: 5 assets, ~290 KB raw; bg.jpg dominates and will convert to
+WebP well under the per-game transfer budget. No atlasing needed.

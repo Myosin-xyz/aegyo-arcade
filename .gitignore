@@ -52,6 +52,11 @@ playwright-report/
 /files_freebie_frenzy/
 /cross-to-the-concert/
 /intake/
+# Bias Flap handoff parked at the repo root (2026-07-27); the canonical
+# hash-recorded copy lives in intake/bias-flap. Ignoring it also keeps
+# `prettier --write .` (which respects .gitignore) from reformatting the
+# delivery's bytes — that ALREADY happened once and was restored.
+/bias-flap/
 
 # Source art for the claw pipeline (read by scripts/export-claw-layers.py; only built webp ships)
 intake/

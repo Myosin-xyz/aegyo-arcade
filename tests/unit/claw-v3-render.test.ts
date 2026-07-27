@@ -1,8 +1,12 @@
 /**
- * Claw V3 presentation contract (Daidai delivery, 2026-07-25):
- *  - DEPTH MASKING: the middle plush rows are always in the scene; the
- *    claw draws in FRONT of them at the front aim depth and BEHIND them
- *    at the back aim depth (so a back-row grab hides its result).
+ * Claw V3 presentation contract (Daidai delivery, 2025-07-25; depth model
+ * revised per Daidai 2026-07-27):
+ *  - Z-ORDER: the background plush rows are the FURTHEST element — the
+ *    claw ALWAYS draws in front of them, at either aim depth. (This
+ *    supersedes the earlier occlusion reading where a back-row grab sank
+ *    the claw behind them.)
+ *  - PERSPECTIVE: pushing back moves the claw further up into the machine
+ *    (doubled gantry shift) AND shrinks it toward the vanishing area.
  *  - NO shadow element under the claw.
  *  - The win timeline holds motionless over the chute before releasing,
  *    then plays the authored fall frames.
@@ -132,6 +136,11 @@ interface EngineProbe {
   beginOutcome(outcome: string): void;
   segs: { name: string }[];
   flashKind: string;
+  // Private geometry, probed for the descent/scale alignment regression.
+  descentDepth(): number;
+  gantryY(): number;
+  depthScale(): number;
+  pileY(): number;
   flash(text: string, kind?: string): void;
 }
 
@@ -224,10 +233,11 @@ describe("claw V3 presentation", () => {
     return machine;
   }
 
-  it("FRONT aim depth: the claw draws IN FRONT of the middle plush rows (mid before claw)", async () => {
+  it("FRONT aim depth: claw in front of mid rows, native size, behind the front pile", async () => {
     const machine = await mount();
     machine.clawTZ = 0.8; // toward the glass
     drawn.length = 0;
+    calls.length = 0;
     machine.render(1000);
 
     expect(drawn).toContain("mid"); // the rows are ALWAYS in the scene
@@ -236,18 +246,62 @@ describe("claw V3 presentation", () => {
     const front = drawn.indexOf("front");
     expect(claw).toBeGreaterThan(mid); // claw in front of the mid rows
     expect(front).toBeGreaterThan(claw); // front rows still occlude it
+    // The front half draws at authored scale — no perspective shrink.
+    const clawCall = calls.find((c) => c.src.startsWith("claw-"));
+    expect(clawCall?.w).toBe(10);
   });
 
-  it("BACK aim depth: the claw sinks BEHIND the middle plush rows (mid after claw)", async () => {
+  it("BACK aim depth: claw STILL in front of mid rows, shrunken and higher (Daidai 2026-07-27)", async () => {
     const machine = await mount();
+    drawn.length = 0;
+    calls.length = 0;
+    machine.clawTZ = 0.8;
+    machine.render(1000);
+    const frontY = calls.find((c) => c.src.startsWith("claw-"))!.y;
+
     machine.clawTZ = 0.2; // away from the glass
     drawn.length = 0;
+    calls.length = 0;
     machine.render(1000);
 
+    // Z-order: the background plush rows are the furthest element, so
+    // the claw NEVER sinks behind them (supersedes the occlusion model).
     const mid = drawn.indexOf("mid");
     const claw = drawn.findIndex((s) => s.startsWith("claw-"));
-    expect(mid).toBeGreaterThan(claw); // hides whether the grab worked
-    expect(drawn.indexOf("front")).toBeGreaterThan(mid);
+    expect(claw).toBeGreaterThan(mid);
+    expect(drawn.indexOf("front")).toBeGreaterThan(claw);
+
+    // Perspective: at clawTZ=0.2 the sprite shrinks by
+    // (0.3/0.5) · DEPTH_SHRINK_SPAN(0.18) = 10.8% and its top climbs —
+    // depth now reads from size + height, not occlusion.
+    const clawCall = calls.find((c) => c.src.startsWith("claw-"))!;
+    expect(clawCall.w).toBeCloseTo(10 * 0.892, 5);
+    expect(clawCall.y).toBeLessThan(frontY);
+  });
+
+  it("full descent lands the SCALED claw tips at the same pile offset at every depth (P1)", async () => {
+    // The renderer shrinks the claw from its TOP anchor, so at full
+    // descent the tips sit at `top + descent + gantry + h·scale`. Without
+    // the shrink-compensation term in descentDepth(), a back-row claw
+    // stopped ~87–137 design px above the pile (review, real 698px
+    // sprite). The invariant that catches this at ANY manifest tuning:
+    // (tips − pileY) must be CONSTANT across depths — the back-row claw
+    // reaches exactly as far relative to the pile as the front-row claw.
+    const machine = await mount();
+    const m = manifest();
+    const tipsMinusPile = (z: number): number => {
+      machine.clawTZ = z;
+      const tips =
+        m.clawOpen.y +
+        machine.descentDepth() +
+        machine.gantryY() +
+        m.clawOpen.h * machine.depthScale();
+      return tips - machine.pileY();
+    };
+    const front = tipsMinusPile(0.8);
+    expect(tipsMinusPile(0.5)).toBeCloseTo(front, 6);
+    expect(tipsMinusPile(0.2)).toBeCloseTo(front, 6);
+    expect(tipsMinusPile(0)).toBeCloseTo(front, 6);
   });
 
   it("the win timeline HOLDS over the chute between lowering and releasing", async () => {

@@ -3,7 +3,7 @@
  * acceptance): eased speed table, seeded lane build, new-best-row
  * scoring, collision boundary + invuln, hit consequences (current-level
  * checkpoint reset, obstacles untouched), guard-beat transitions, the
- * exact 60 maximum, 3rd-life loss, and seeded replay.
+ * exact 30 maximum, 3rd-life loss, and seeded replay.
  */
 
 import { describe, expect, it } from "vitest";
@@ -48,20 +48,20 @@ function crossLevelClean(state: FroggerState, rng: () => number): void {
   for (let i = 0; i <= CHECKPOINT_TICKS + 1; i++) step(state, rng);
 }
 
-describe("frogger — linear speed ramp (V1, 2026-07-24 tuning)", () => {
-  it("1.0 at L1, 2.0 at L10, +1/9 per level (felt on every advance)", () => {
+describe("frogger — linear speed ramp (V1, Daidai 2026-07-27 tuning)", () => {
+  it("5 levels: 1.0 at L1 → 2.0 at L5, a full +25% per level", () => {
+    expect(TOTAL_LEVELS).toBe(5); // 10 was too long (Daidai)
     expect(speedMult(1)).toBe(1);
-    expect(speedMult(3)).toBeCloseTo(1.2222, 3); // 1 + 2/9
-    expect(speedMult(5)).toBeCloseTo(1.4444, 3); // 1 + 4/9
-    expect(speedMult(10)).toBe(2);
-    // Levels 1–5 table Daidai/Mateo signed off on.
+    expect(speedMult(5)).toBe(2);
+    // The full run table: the climb must be FELT on every advance — the
+    // prior +11%/level over 10 levels played as flat.
     expect([1, 2, 3, 4, 5].map((l) => +speedMult(l).toFixed(2))).toEqual([
-      1.0, 1.11, 1.22, 1.33, 1.44,
+      1.0, 1.25, 1.5, 1.75, 2.0,
     ]);
-    // Strictly increasing with a CONSTANT per-level gain of 1/9 (linear).
-    for (let level = 2; level <= 10; level++) {
+    // Strictly increasing with a CONSTANT per-level gain of 1/4 (linear).
+    for (let level = 2; level <= TOTAL_LEVELS; level++) {
       const gain = speedMult(level) - speedMult(level - 1);
-      expect(gain).toBeCloseTo(1 / 9, 10);
+      expect(gain).toBeCloseTo(1 / 4, 10);
     }
   });
 });
@@ -182,7 +182,7 @@ describe("frogger — guard beats + level flow (V5)", () => {
     expect(state.lanes.map((l) => [...l.xs])).not.toEqual(frozen); // re-rolled
   });
 
-  it("a perfect 10-level run scores EXACTLY 60 and ends won (V6)", () => {
+  it("a perfect 5-level run scores EXACTLY 30 and ends won (V6)", () => {
     const state = createFroggerState(seededRandom("perfect"));
     const rng = seededRandom("perfect-rng");
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
@@ -191,7 +191,7 @@ describe("frogger — guard beats + level flow (V5)", () => {
     }
     expect(state.status).toBe("won");
     expect(state.score).toBe(MAX_SCORE);
-    expect(state.score).toBe(60);
+    expect(state.score).toBe(30); // 5 levels × 6 rows
   });
 
   it("the 3rd hit ends the run as lost (V7)", () => {

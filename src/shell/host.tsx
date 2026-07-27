@@ -32,6 +32,7 @@ import { practiceSeed, seededRandom } from "./rng";
 import { bootstrapSession } from "./session";
 import { t } from "@/i18n/t";
 import { getRegistryEntry } from "@/games/registry";
+import { ChallengeShareButton } from "./challenge-share";
 
 /** Counted-run UI state (M2): issuance → active → submit → receipt. */
 type CountedPhase =
@@ -782,7 +783,7 @@ export function GameHostInner({
           // The game's own in-DOM result stays visible (M4.5 review P1):
           // no dark overlay — just the host-owned restart (fresh
           // RunContext through the normal startRun path).
-          <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-center justify-center gap-2 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               className="btn-arcade px-8 py-3 text-lg"
@@ -791,6 +792,13 @@ export function GameHostInner({
             >
               {t("host.playAgain")}
             </button>
+            <ChallengeShareButton
+              gameId={gameId}
+              gameTitle={t(entry.meta.titleKey)}
+              score={
+                (entry.scorePresentation ?? "shell") === "none" ? null : score
+              }
+            />
           </div>
         )}
         {lifecycle === "ended" && entry.endPresentation !== "game-authored" && (
@@ -873,6 +881,13 @@ export function GameHostInner({
             >
               {t("host.playAgain")}
             </button>
+            <ChallengeShareButton
+              gameId={gameId}
+              gameTitle={t(entry.meta.titleKey)}
+              score={
+                (entry.scorePresentation ?? "shell") === "none" ? null : score
+              }
+            />
           </Overlay>
         )}
       </div>

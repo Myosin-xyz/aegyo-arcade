@@ -322,6 +322,32 @@ describe("submission (§9.2/§9.3)", () => {
     expect(max.kind).toBe("accepted");
   });
 
+  it("frogger envelope: the perfect-run 30 is accepted, 31 is rejected (5 levels, 2026-07-27)", async () => {
+    const device = await seedDevice();
+    const issued = await issueCountedAttempt(db, {
+      deviceId: device.deviceId,
+      timeZone: device.timeZone,
+      gameId: "frogger",
+    });
+    if (issued.kind !== "issued")
+      throw new Error(`issue failed: ${issued.kind}`);
+    expect(
+      (
+        await submitCountedResult(db, {
+          deviceId: device.deviceId,
+          attemptId: issued.attemptId,
+          score: 31, // one past the 5-level maximum (was 60 at 10 levels)
+        })
+      ).kind,
+    ).toBe("bad_score");
+    const max = await submitCountedResult(db, {
+      deviceId: device.deviceId,
+      attemptId: issued.attemptId,
+      score: 30, // docs/games/frogger.md max-score vector
+    });
+    expect(max.kind).toBe("accepted");
+  });
+
   it("freebie envelope: the perfect-run 2277 is accepted, 2278 is rejected (M2.5 review P1)", async () => {
     const device = await seedDevice();
     const issued = await issueCountedAttempt(db, {

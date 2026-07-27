@@ -4,12 +4,13 @@
  * Ported verbatim from Daidai's delivered build (M3 acceptance rubric):
  * 360×467 playfield, 7 rows (goal, 5 hazard lanes, start), two obstacle
  * instances per lane at 180·i + seeded 0–40px jitter, per-frame speeds ×
- * a LINEAR ramp `1 + (level−1)/9` (1.0× at L1 → 2.0× at L10; team tuning
- * 2026-07-24 — the delivery's eased `^1.6` curve was flat early and
- * players didn't feel the difficulty climb), 1-D collision on the hero's
- * row with `|x−180| < 9 + 0.3·drawW`, 90-tick invulnerability, 105-tick
- * frozen checkpoint beats, monotonic new-best-row scoring (6 per level,
- * hard max 60 across 10 levels).
+ * a LINEAR ramp `1 + (level−1)/4` (1.0× at L1 → 2.0× at L5; Daidai
+ * 2026-07-27 — 5 levels CONFIRMED, 10 was too long, and the earlier
+ * +11%/level ramp still read as flat: obstacles now gain a full +25% of
+ * base speed per level), 1-D collision on the hero's row with
+ * `|x−180| < 9 + 0.3·drawW`, 90-tick invulnerability, 105-tick frozen
+ * checkpoint beats, monotonic new-best-row scoring (6 per level, hard
+ * max 30 across 5 levels).
  *
  * The delivery ran these constants per FRAME with dt=1 (frame-rate
  * dependent); this port fixes them at 60Hz ticks, which reproduces the
@@ -36,10 +37,10 @@ export const HERO_X = GAME_W / 2; // fixed forever — single-axis game
 export const HERO_HALF = 9;
 export const HERO_TARGET_H = 30;
 
-export const TOTAL_LEVELS = 10;
+export const TOTAL_LEVELS = 5;
 export const LIVES = 3;
 export const POINTS_PER_LEVEL = START_ROW - GOAL_ROW; // 6
-export const MAX_SCORE = TOTAL_LEVELS * POINTS_PER_LEVEL; // 60
+export const MAX_SCORE = TOTAL_LEVELS * POINTS_PER_LEVEL; // 30
 
 export const INVULN_TICKS = 90;
 export const CHECKPOINT_TICKS = 105;
@@ -111,12 +112,14 @@ export function laneDrawWidth(lane: LaneSpec): number {
 }
 
 /**
- * Linear difficulty ramp: 1.0× at L1 → 2.0× at L10, +1/9 per level so the
- * climb is felt on every advance (team tuning 2026-07-24; replaced the
- * delivery's flat-early `^1.6` eased curve — see docs/games/frogger.md).
+ * Linear difficulty ramp: 1.0× at L1 → 2.0× at L5, a full +25% of base
+ * speed per level (Daidai 2026-07-27: with the run cut from 10 levels to
+ * 5, the old +11%/level still played "too easy and too constant" — the
+ * final level keeps the same 2.0× ceiling but the climb per advance is
+ * more than double).
  */
 export function speedMult(level: number): number {
-  return 1 + (level - 1) / 9;
+  return 1 + (level - 1) / (TOTAL_LEVELS - 1);
 }
 
 export function rowCenterY(row: number): number {
@@ -194,7 +197,7 @@ export function createFroggerState(rng: Rng): FroggerState {
  * Scores only NEW best rows — backward moves never subtract, re-crossing
  * after a hit re-earns nothing. Reaching the goal starts the checkpoint
  * beat (the level's 6th point is credited first, so a full clean run
- * submits exactly 60).
+ * submits exactly 30).
  */
 export function move(state: FroggerState, delta: -1 | 1): void {
   if (state.status !== "playing") return;

@@ -64,3 +64,23 @@ Corrections applied:
    The original 150 KB provisional was near-achievable after all; 175 keeps
    honest headroom instead of inheriting the inflated 200.
 4. The decoded-memory and per-game budgets are unaffected.
+
+## Amendment (2026-07-29, GA4 production measurement)
+
+Google Analytics 4 now loads after hydration on production deployments
+through measurement ID `G-700MXJM1FW`; local development and Vercel
+Preview remain excluded.
+
+The integration adds only a small first-party wrapper: the production
+home build measures **164.6 KB gz / 175 KB** for `/_next/` scripts.
+Google's separately hosted `gtag.js` measured **183,876 bytes
+(179.6 KiB)** transferred on 2026-07-29. The earlier provisional
+"analytics ≤25 KB" assumption was not compatible with the selected GA4
+tag. The standing gates are therefore:
+
+1. First-party home JavaScript remains hard-capped at 175 KB.
+2. The Google-hosted tag has a 200 KB observational budget; it is not
+   folded into the deterministic first-party CI gate because Google owns
+   and can revise that response.
+3. The 500 KB total-home-transfer gate remains the user-facing aggregate
+   budget and must include the GA request in field measurement.

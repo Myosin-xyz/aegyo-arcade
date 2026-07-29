@@ -17,6 +17,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@next/third-parties": "16.2.10",
     "@vercel/functions": "^3.7.5",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.10",

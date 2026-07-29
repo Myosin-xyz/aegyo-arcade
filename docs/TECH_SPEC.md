@@ -132,7 +132,7 @@ Claw + Simon's five = six playable games. Photo Chase and Spot the Bias remain f
 - Claw runs in clearly labeled gameplay-only mode. Material-prize mode stays kill-switched and unconfigured.
 - PWA manifest/installability only; no offline game cache or background submission queue.
 - Pseudonymous arcade-host-only identity; no account, email, phone, birth date, wallet, or cross-product cookie.
-- Explicit analytics events through a provider-neutral sink, initialized only after the approved privacy/consent condition.
+- GA4 page/session measurement through `G-700MXJM1FW`; provider-neutral gameplay events remain in the transactional outbox until a publisher is approved. Consent/banner posture remains an `EXT-LEGAL` gate.
 - V1.1 includes a static Markets teaser tile; it remains a plain link surface with no Daebak code or cross-product identity.
 
 ### 3.4 Explicit non-goals
@@ -693,7 +693,7 @@ References:
 
 - Persistent device/session tokens, scores, behavior, coarse device metadata, IP-derived abuse signals, and analytics identifiers are treated as personal/pseudonymous data where applicable.
 - Autocapture and session recording are off.
-- Analytics initializes only under the approved consent/legal condition and uses the event whitelist in §17.
+- GA4 page/session measurement is installed in the root layout. It does not receive the app device UUID, generated handle, run ID, score, or User-ID. Consent/banner posture remains an `EXT-LEGAL` gate.
 - No ad pixel or retargeting tag ships under this spec.
 - Campaign attribution is allowlisted link metadata, not cross-site person tracking.
 - Privacy notice states purposes, providers, retention, deletion path, and promotion-specific collection.
@@ -742,19 +742,20 @@ No public admin dashboard is required at initial volume. Human-run `scripts/ops/
 
 Budgets marked provisional become hard only after M0 measures a clean Next.js 16 production scaffold with the selected analytics loading strategy.
 
-| Budget                                 | Provisional value                                                                                                                                                         | Enforcement                                                                                                                                          |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home transferred JS, clean cache, gzip | ≤ 175KB — corrected M0 evidence (145.3KB modern-browser floor, `nomodule` polyfill excluded; ADR 0002 amendment); analytics fits inside or defers with a ≤25KB sub-budget | Count only scripts a modern browser executes: shared runtime + home route + initialized analytics; exclude game chunks and `nomodule` legacy scripts |
-| Home total transfer, clean cache       | ≤ 500KB                                                                                                                                                                   | HTML/CSS/JS/fonts/images                                                                                                                             |
-| Per-game JS chunk                      | ≤ 100KB gzip                                                                                                                                                              | Lazy route load                                                                                                                                      |
-| Per-game art transfer                  | ≤ 300KB; claw ≤ 350KB                                                                                                                                                     | Versioned assets                                                                                                                                     |
-| Decoded game assets                    | ≤ 16 MiB typical; claw target ≤ 32 MiB                                                                                                                                    | Dimension-based CI report + real-device peak check                                                                                                   |
-| Canvas backing stores                  | DPR cap 2; document peak allocation                                                                                                                                       | Per-game report                                                                                                                                      |
-| LCP / INP / CLS                        | ≤2.5s / ≤200ms / ≤0.1 at p75 field                                                                                                                                        | RUM after sufficient sample                                                                                                                          |
-| Input-to-next-frame                    | ≤50ms p95 in lab                                                                                                                                                          | Instrumented game test                                                                                                                               |
-| Frame delivery                         | 60fps target; 30fps floor on floor device                                                                                                                                 | p95 frame ≤33ms during representative run                                                                                                            |
-| Long task                              | No game-created task >100ms in representative run                                                                                                                         | Performance trace                                                                                                                                    |
-| Time to playable                       | Set hard value from M0/M1 device baseline                                                                                                                                 | Portal click → first accepted input                                                                                                                  |
+| Budget                                             | Provisional value                                                                                                | Enforcement                                                                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Home first-party transferred JS, clean cache, gzip | ≤ 175KB — corrected M0 evidence (145.3KB modern-browser floor, `nomodule` polyfill excluded; ADR 0002 amendment) | Count modern-browser `/_next/` scripts: shared runtime + home route; exclude game chunks and `nomodule` legacy scripts |
+| Google Analytics hosted tag, clean cache           | ≤ 200KB observed transfer; 179.6KB measured 2026-07-29 for `G-700MXJM1FW`                                        | Production-only, after hydration; observational check because Google owns and can revise the payload                   |
+| Home total transfer, clean cache                   | ≤ 500KB                                                                                                          | HTML/CSS/JS/fonts/images                                                                                               |
+| Per-game JS chunk                                  | ≤ 100KB gzip                                                                                                     | Lazy route load                                                                                                        |
+| Per-game art transfer                              | ≤ 300KB; claw ≤ 350KB                                                                                            | Versioned assets                                                                                                       |
+| Decoded game assets                                | ≤ 16 MiB typical; claw target ≤ 32 MiB                                                                           | Dimension-based CI report + real-device peak check                                                                     |
+| Canvas backing stores                              | DPR cap 2; document peak allocation                                                                              | Per-game report                                                                                                        |
+| LCP / INP / CLS                                    | ≤2.5s / ≤200ms / ≤0.1 at p75 field                                                                               | RUM after sufficient sample                                                                                            |
+| Input-to-next-frame                                | ≤50ms p95 in lab                                                                                                 | Instrumented game test                                                                                                 |
+| Frame delivery                                     | 60fps target; 30fps floor on floor device                                                                        | p95 frame ≤33ms during representative run                                                                              |
+| Long task                                          | No game-created task >100ms in representative run                                                                | Performance trace                                                                                                      |
+| Time to playable                                   | Set hard value from M0/M1 device baseline                                                                        | Portal click → first accepted input                                                                                    |
 
 `next build` output alone is not the transfer oracle. CI records actual preview resource transfers from a clean browser profile. Lighthouse is advisory/synthetic; regressions fail on size and deterministic lab thresholds, while Core Web Vitals are judged from field p75.
 
@@ -813,7 +814,7 @@ No global coverage percentage is required. Contract, database invariants, game r
 
 ### 17.1 Event interface
 
-Gameplay calls a provider-neutral sink. Critical counted/prize events are written to `analytics_outbox` with the committed transaction and published post-commit; client events are behavioral only.
+GA4 (`G-700MXJM1FW`) supplies automatic page/session measurement. Gameplay calls a separate provider-neutral sink: critical counted/prize events are written to `analytics_outbox` with the committed transaction and would be published post-commit; no publisher drains that outbox today. Client gameplay events are behavioral only and are not yet wired to GA4.
 
 Approved event names:
 
@@ -847,7 +848,7 @@ No raw score is required in third-party analytics. Prize outcomes, claim states,
 - **Streak rate**: devices eligible under the adopted OD-1 policy; denominator and timezone are displayed.
 - **Paid cohort**: allowlisted campaign parameter passed from the main-site link; never inferred from a shared person cookie.
 
-Provider selection, region, retention, DPA, consent mode, and final SDK configuration are deployment decisions under `EXT-LEGAL`. Analytics loads after consent/idle as required; gameplay cannot depend on it.
+Google Analytics 4 is the selected page/session provider and loads after hydration through the production root layout; local development and Vercel Preview are excluded to keep QA traffic out of the property. GA property retention, region/data-sharing settings, DPA, notice/banner, and Consent Mode remain deployment decisions under `EXT-LEGAL`. Gameplay cannot depend on analytics, and the transactional gameplay outbox stays unpublished until its separate publisher is approved.
 
 ---
 

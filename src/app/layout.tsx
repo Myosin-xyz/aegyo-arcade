@@ -2,8 +2,13 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Silkscreen } from "next/font/google";
 import "./globals.css";
 import { Suspense } from "react";
-import { CampaignCapture } from "./campaign-capture";
+import { AnalyticsBootstrap } from "./analytics-bootstrap";
 import { LocaleBoundary } from "./locale-boundary";
+
+const GOOGLE_ANALYTICS_ID = "G-700MXJM1FW";
+const googleAnalyticsEnabled =
+  process.env.VERCEL_ENV === "production" ||
+  (!process.env.VERCEL_ENV && process.env.NODE_ENV === "production");
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,7 +54,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Suspense fallback={null}>
-          <CampaignCapture />
+          <AnalyticsBootstrap
+            enabled={googleAnalyticsEnabled}
+            measurementId={GOOGLE_ANALYTICS_ID}
+          />
         </Suspense>
         <LocaleBoundary>{children}</LocaleBoundary>
       </body>

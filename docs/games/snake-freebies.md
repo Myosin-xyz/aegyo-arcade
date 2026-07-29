@@ -175,7 +175,7 @@ the frozen runtime contract:
   connected controller D-pad, deterministic catch callouts, and the
   delivery's short red-flash/shake collision beat.
 - All new copy ships in EN + es-419 and uses the self-hosted arcade font;
-  there are no Google Fonts or other third-party runtime requests.
+  the game itself adds no Google Fonts or other third-party runtime requests.
 - Gift callouts rotate by the in-level gift ordinal instead of consuming
   `RunContext.random`, so visual flavour cannot perturb counted replay.
 

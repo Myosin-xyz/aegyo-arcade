@@ -27,7 +27,11 @@ import {
 /** One storage write per minute is plenty against a 30-minute window. */
 export const ACTIVITY_THROTTLE_MS = 60_000;
 
-export function CampaignCapture() {
+export function CampaignCapture({
+  onLocationSanitized,
+}: {
+  onLocationSanitized?: () => void;
+} = {}) {
   const pathname = usePathname();
   // Query-only client transitions don't change pathname (M3 review P2)
   // — observe the search string too, so EVERY route change runs the
@@ -45,7 +49,8 @@ export function CampaignCapture() {
     if (cleaned !== null) {
       window.history.replaceState(window.history.state, "", cleaned);
     }
-  }, [pathname, search]);
+    onLocationSanitized?.();
+  }, [pathname, search, onLocationSanitized]);
 
   // Raw input activity, throttled.
   useEffect(() => {

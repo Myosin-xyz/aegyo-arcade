@@ -1,5 +1,5 @@
 /**
- * Home-route JS transfer budget check (TECH_SPEC §15, ADR 0002).
+ * First-party home-route JS transfer budget check (TECH_SPEC §15, ADR 0002).
  *
  * Starts the production server, fetches `/`, gzips every referenced script,
  * and fails if the total exceeds the budget. Run after `next build`.

@@ -1,8 +1,8 @@
 /**
- * Browser-level bundle budget (TECH_SPEC §15; M1 review B7): measures what
- * the browser ACTUALLY transferred for the landing page — including any
- * dynamically injected scripts HTML parsing would miss — and asserts no
- * game-route prefetch fires from the portal home.
+ * Browser-level FIRST-PARTY bundle budget (TECH_SPEC §15; M1 review B7):
+ * measures what the browser actually transferred from /_next/ and asserts
+ * no game-route prefetch fires from the portal home. Third-party GA is
+ * verified separately; its hosted script has its own observational budget.
  *
  * Runs against the production server only (CI); the dev server is
  * unminified and would measure fiction. scripts/check-bundle-budget.mjs
@@ -13,7 +13,7 @@ import { expect, test } from "@playwright/test";
 
 const BUDGET_BYTES = 175 * 1024;
 
-test("home transfers ≤ budget JS and no game prefetch (production)", async ({
+test("home transfers ≤ first-party JS budget and no game prefetch (production)", async ({
   page,
 }) => {
   test.skip(

@@ -38,9 +38,9 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
     // cap (800 → 1700) strands no historical row — old scores stay valid
     // and beatable — so no preflight is needed for this direction.
     flappy: { maxScore: 1700, scored: true },
-    // Chart climb #100 → #1: score = positions climbed, hard max 99
-    // (docs/games/jumper.md).
-    jumper: { maxScore: 99, scored: true },
+    // DaiDai Comeback Climb: rank component max 990 plus the delivered
+    // collectible/full-life bound of 1500 (docs/games/jumper.md).
+    jumper: { maxScore: 2490, scored: true },
     // Solve score = remaining lives 1–6; daily server-selected term
     // (docs/games/hangman.md). SINGLE SOURCE: the content module's own
     // version constant — config can't drift from the dictionary.

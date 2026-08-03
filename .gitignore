@@ -57,6 +57,10 @@ playwright-report/
 # `prettier --write .` (which respects .gitignore) from reformatting the
 # delivery's bytes — that ALREADY happened once and was restored.
 /bias-flap/
+# Comeback Climb + soundtrack handoffs parked at the repo root (2026-08-03).
+# Preserve their source bytes as intake evidence; only migrated assets ship.
+/comeback-climb/
+/music_aegyo_game/
 
 # Source art for the claw pipeline (read by scripts/export-claw-layers.py; only built webp ships)
 intake/

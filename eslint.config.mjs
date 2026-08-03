@@ -19,6 +19,8 @@ const eslintConfig = defineConfig([
     // source — holding them to our rules is noise we can never act on.
     "intake/**",
     "bias-flap/**", // handoff parked at repo root, 2026-07-27
+    "comeback-climb/**", // DaiDai source delivery, 2026-08-03
+    "music_aegyo_game/**", // raw internal soundtrack delivery
   ]),
   {
     rules: {

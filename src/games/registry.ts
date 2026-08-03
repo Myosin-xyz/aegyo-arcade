@@ -53,6 +53,12 @@ export interface RegistryEntry {
    * lifecycle, abort — no lifecycle exception).
    */
   endPresentation?: "game-authored";
+  /** Optional host-owned completion animation. It runs after report.end,
+   * so counted submission begins immediately while the presentation plays. */
+  completionPresentation?: "bias-stage";
+  /** Optional lazy background track. Shell-owned presentation only: it
+   * follows the global mute/pause lifecycle without changing AudioBus v1. */
+  musicTrack?: string;
   /**
    * Optional "how to play" bullet i18n keys shown on the host's ready
    * card BEFORE any run is issued/started (Daidai: the originals had a
@@ -85,6 +91,7 @@ const entries: RegistryEntry[] = [
     // announcement (audit A5, 2026-07-21). Its counted rank/streak
     // receipt is a separate host branch and is unaffected.
     scorePresentation: "none",
+    musicTrack: "/games/music/claw.mp3",
     load: () => import("./claw/module").then((m) => m.clawDefinition),
   },
   {
@@ -105,6 +112,7 @@ const entries: RegistryEntry[] = [
       bulletIcons: ["🕹️", "🎁", "🏟️", "💖"],
       variant: "neon",
     },
+    musicTrack: "/games/music/snake.mp3",
     load: () => import("./snake/module").then((m) => m.snakeDefinition),
   },
   {
@@ -116,6 +124,8 @@ const entries: RegistryEntry[] = [
     // the result, the host adds only Play Again + the Challenge CTA.
     scorePresentation: "authored",
     endPresentation: "game-authored",
+    completionPresentation: "bias-stage",
+    musicTrack: "/games/music/flappy.mp3",
     introKeys: [
       "game.flappy.intro.1",
       "game.flappy.intro.2",
@@ -127,10 +137,20 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: jumperMeta,
+    scorePresentation: "authored",
+    musicTrack: "/games/music/jumper.mp3",
+    introKeys: [
+      "game.jumper.intro.1",
+      "game.jumper.intro.2",
+      "game.jumper.intro.3",
+      "game.jumper.intro.4",
+      "game.jumper.intro.5",
+    ],
     load: () => import("./jumper/module").then((m) => m.jumperDefinition),
   },
   {
     meta: hangmanMeta,
+    musicTrack: "/games/music/hangman.mp3",
     load: () => import("./hangman/module").then((m) => m.hangmanDefinition),
   },
   {
@@ -142,6 +162,7 @@ const entries: RegistryEntry[] = [
       "game.freebie.intro.3",
       "game.freebie.intro.4",
     ],
+    musicTrack: "/games/music/freebie.mp3",
     load: () => import("./freebie/module").then((m) => m.freebieDefinition),
   },
   {
@@ -153,6 +174,7 @@ const entries: RegistryEntry[] = [
       "game.frogger.intro.3",
       "game.frogger.intro.4",
     ],
+    musicTrack: "/games/music/frogger.mp3",
     load: () => import("./frogger/module").then((m) => m.froggerDefinition),
   },
   {
@@ -162,6 +184,7 @@ const entries: RegistryEntry[] = [
     // The vibe result is the payoff — keep it visible after the run
     // ends instead of dimming it under the host overlay.
     endPresentation: "game-authored",
+    musicTrack: "/games/music/this-or-that.mp3",
     load: () =>
       import("./thisorthat/module").then((m) => m.thisorthatDefinition),
   },

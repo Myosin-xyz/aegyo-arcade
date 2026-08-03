@@ -1,9 +1,4 @@
-/**
- * Comeback Climb — ShellLoopGame (docs/games/jumper.md). Horizontal
- * drag/touch steering through the InputBus (pointer position sets the
- * steering target); arrows nudge as a keyboard enhancement; the HUD shows
- * the current chart rank (#100 → #1).
- */
+/** Comeback Climb — ShellLoopGame port of DaiDai's delivered build. */
 
 import type {
   GameContext,
@@ -13,19 +8,17 @@ import type {
   ShellLoopGame,
 } from "@/shell/contract";
 import { jumperMeta } from "./meta";
-import { arp, blip, sweep } from "@/shell/sfx-presets";
 import {
+  applyThumbImpulse,
   createJumperState,
-  rankOf,
-  steer,
   step,
-  DESIGN,
-  PLATFORM_H,
-  PLATFORM_W,
-  PLAYER_H,
-  PLAYER_W,
+  STEP_MS,
+  type JumperInput,
   type JumperState,
+  type Rng,
 } from "./logic";
+import { renderJumper, type JumperImages } from "./render";
+import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
 import {
   createHitFeedback,
   drawHitFlash,
@@ -34,54 +27,98 @@ import {
   triggerHitFeedback,
 } from "@/shell/feedback";
 
-const SIM_STEP_MS = 1000 / 60;
-const KEY_NUDGE = 60;
+const ASSETS_BASE = "/games/jumper/";
+const TERMINAL_HOLD_MS = 300;
 
-const COLORS = {
-  background: "#2b1146",
-  platform: "#ffd166",
-  player: "#ff4f8b",
-  rankText: "rgba(255, 255, 255, 0.85)",
-} as const;
+const ASSET_NAMES = [
+  "cd",
+  "drone",
+  "heart_bonus",
+  "heart_small",
+  "hero",
+  "micro",
+  "note_cyan",
+  "note_gold",
+  "photocard",
+  "photocard_cracked",
+  "plat_cyan",
+  "plat_pink",
+  "speaker",
+] as const satisfies readonly (keyof JumperImages)[];
+
+function loadImage(
+  src: string,
+  signal: AbortSignal,
+): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("jumper init aborted", "AbortError"));
+      return;
+    }
+    const image = new Image();
+    const onAbort = () =>
+      reject(new DOMException("jumper init aborted", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    image.onload = () => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(image);
+    };
+    image.onerror = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(new Error(`jumper asset failed: ${src}`));
+    };
+    image.src = src;
+  });
+}
 
 class JumperGame implements ShellLoopGame {
   readonly loop = "shell" as const;
   private state: JumperState | null = null;
-  private rng: (() => number) | null = null;
+  private rng: Rng | null = null;
+  private images: JumperImages | null = null;
+  private input: JumperInput = { left: false, right: false };
   private accumulator = 0;
   private hitFx = createHitFeedback();
-  /** Terminal-loss hold: the flash must PAINT before report.end stops
-   * the loop (audit P1 — the flappy endRun lesson, loss-side). */
-  private endHoldMs = 0;
+  private terminalHoldMs = 0;
   private paused = false;
   private endedReported = false;
-  private dragging = false;
-  /** First steer input starts the run (M4 UX P1: drag steering is
-   * invisible — nothing should move before the player engages). */
-  private armed = false;
-  /** Constant draw-only gradients, built once (lazy) — see render(). */
-  private skyGradient: CanvasGradient | null = null;
-  private jacketGradient: CanvasGradient | null = null;
-  private vignetteGradient: CanvasGradient | null = null;
+  private lastReportedScore = 0;
   private unsubscribers: (() => void)[] = [];
 
   constructor(private readonly ctx: GameContext) {}
 
-  init(): void {
+  async init(signal: AbortSignal): Promise<void> {
+    if (this.ctx.surface.kind !== "canvas") {
+      throw new Error("jumper requires a canvas surface");
+    }
+    const loaded = await Promise.all(
+      ASSET_NAMES.map((name) =>
+        loadImage(`${ASSETS_BASE}${name}.webp`, signal),
+      ),
+    );
+    this.images = Object.fromEntries(
+      ASSET_NAMES.map((name, index) => [name, loaded[index]]),
+    ) as unknown as JumperImages;
     this.ctx.audio.register("bounce", sweep(210, 430, 0.08, "triangle", 0.035));
-    this.ctx.audio.register("point", blip(988, 0.06, "square", 0.04));
-    this.ctx.audio.register("win", arp([523, 659, 784, 1047]));
+    this.ctx.audio.register("speaker", arp([330, 523, 784], 0.055));
+    this.ctx.audio.register("collect", blip(988, 0.06, "square", 0.04));
+    this.ctx.audio.register("hit", thud(140, 0.13, 0.06));
+    this.ctx.audio.register("zone", arp([523, 659, 784], 0.07));
+    this.ctx.audio.register("win", arp([523, 659, 784, 1047, 1319], 0.07));
     this.ctx.audio.register("lose", sweep(460, 70, 0.3, "sawtooth", 0.045));
     this.unsubscribers.push(
-      this.ctx.input.onPointer((p) => this.onPointer(p)),
-      this.ctx.input.onKey((k) => {
-        if (k.action !== "down" || !this.state) return;
-        if (k.code === "ArrowLeft") {
-          this.armed = true;
-          steer(this.state, this.state.x - KEY_NUDGE);
-        } else if (k.code === "ArrowRight") {
-          this.armed = true;
-          steer(this.state, this.state.x + KEY_NUDGE);
+      this.ctx.input.onPointer((pointer) => this.onPointer(pointer)),
+      this.ctx.input.onKey((key) => {
+        const down = key.action === "down";
+        if (
+          key.code === "ArrowLeft" ||
+          key.code === "KeyA" ||
+          key.code === "KeyQ"
+        ) {
+          this.input.left = down;
+        }
+        if (key.code === "ArrowRight" || key.code === "KeyD") {
+          this.input.right = down;
         }
       }),
     );
@@ -90,18 +127,20 @@ class JumperGame implements ShellLoopGame {
   start(run: RunContext): void {
     this.rng = run.random;
     this.state = createJumperState(run.random);
+    this.input = { left: false, right: false };
     this.accumulator = 0;
-    this.endedReported = false;
     this.hitFx = createHitFeedback();
-    this.endHoldMs = 0;
-    this.armed = false; // stand on the platform until the first steer
-    this.dragging = false;
+    this.terminalHoldMs = 0;
+    this.paused = false;
+    this.endedReported = false;
+    this.lastReportedScore = 0;
     this.ctx.report.score(0);
   }
 
   pause(): void {
     this.paused = true;
-    this.dragging = false; // no drag survives a pause
+    this.input.left = false;
+    this.input.right = false;
   }
 
   resume(): void {
@@ -109,226 +148,53 @@ class JumperGame implements ShellLoopGame {
   }
 
   update(dtMs: number): void {
-    tickHitFeedback(this.hitFx, dtMs);
     const state = this.state;
     const rng = this.rng;
-    if (!state || !rng || this.paused) return;
-    if (state.status !== "running") {
-      // The terminal hold spans UPDATES — without re-entering the finish
-      // path here, this guard would stall the pending end forever (the
-      // same trap the snake top guard had, audit P1).
-      if (!this.endedReported) this.finishTerminal(state.status, dtMs);
+    if (!state || !rng || this.paused || this.endedReported) return;
+    tickHitFeedback(this.hitFx, dtMs);
+
+    if (this.terminalHoldMs > 0) {
+      this.terminalHoldMs = Math.max(0, this.terminalHoldMs - dtMs);
+      if (this.terminalHoldMs === 0) this.reportTerminal();
       return;
     }
-    if (!this.armed) return; // frozen until the first steer
+
     this.accumulator += dtMs;
-    while (this.accumulator >= SIM_STEP_MS) {
-      this.accumulator -= SIM_STEP_MS;
-      const before = state.climbed;
-      const vyBefore = state.vy;
-      step(state, rng);
-      if (vyBefore >= 0 && state.vy < 0) this.ctx.audio.play("bounce");
-      if (state.climbed !== before) {
-        this.ctx.audio.play("point");
-        this.ctx.report.score(state.climbed);
+    while (this.accumulator >= STEP_MS) {
+      this.accumulator -= STEP_MS;
+      const events = step(state, this.input, rng);
+      if (events.bounce === "speaker") this.ctx.audio.play("speaker");
+      else if (events.bounce) this.ctx.audio.play("bounce");
+      if (events.collected) this.ctx.audio.play("collect");
+      if (events.zoneChanged) this.ctx.audio.play("zone");
+      if (events.hit) {
+        this.ctx.audio.play("hit");
+        triggerHitFeedback(this.hitFx);
       }
-      if (state.status !== "running") {
-        if (!this.endedReported) this.finishTerminal(state.status, dtMs);
+      if (state.score !== this.lastReportedScore) {
+        this.lastReportedScore = state.score;
+        this.ctx.report.score(state.score);
+      }
+      if (events.ended) {
+        if (events.ended === "lost") {
+          this.terminalHoldMs = TERMINAL_HOLD_MS;
+          return;
+        }
+        this.reportTerminal();
         return;
       }
     }
   }
 
-  /**
-   * Build the three constant (position-independent) gradients once. Stops
-   * and coords never change, so per-frame rebuilds were waste. The jacket
-   * and vignette coords are mapped by the CTM at paint (the jacket under
-   * the player translate/scale), so caching stays draw-identical. Local
-   * vars let the compiler narrow away the null without an assertion.
-   */
-  private ensureGradients(g: CanvasRenderingContext2D): {
-    sky: CanvasGradient;
-    jacket: CanvasGradient;
-    vignette: CanvasGradient;
-  } {
-    let sky = this.skyGradient;
-    let jacket = this.jacketGradient;
-    let vignette = this.vignetteGradient;
-    if (!sky || !jacket || !vignette) {
-      sky = g.createLinearGradient(0, 0, 0, DESIGN.h);
-      sky.addColorStop(0, "#1a0c33");
-      sky.addColorStop(1, "#2b1146");
-      // Rose quartz / serenity duo-tone with a hard split at 0.5.
-      jacket = g.createLinearGradient(-PLAYER_W / 2, 0, PLAYER_W / 2, 0);
-      jacket.addColorStop(0, "#f7cac9");
-      jacket.addColorStop(0.5, "#f7cac9");
-      jacket.addColorStop(0.5, "#92a8d1");
-      jacket.addColorStop(1, "#92a8d1");
-      vignette = g.createLinearGradient(0, 0, DESIGN.w, 0);
-      vignette.addColorStop(0, "rgba(10, 4, 20, 0.35)");
-      vignette.addColorStop(0.18, "rgba(10, 4, 20, 0)");
-      vignette.addColorStop(0.82, "rgba(10, 4, 20, 0)");
-      vignette.addColorStop(1, "rgba(10, 4, 20, 0.35)");
-      this.skyGradient = sky;
-      this.jacketGradient = jacket;
-      this.vignetteGradient = vignette;
-    }
-    return { sky, jacket, vignette };
-  }
-
-  /** Report the end once; a LOST run holds ~300ms so the red wash
-   * paints before report.end stops the loop (audit P1). */
-  private finishTerminal(status: string, dtMs: number): void {
-    if (this.endedReported) return;
-    if (status !== "completed") {
-      if (this.endHoldMs === 0 && this.hitFx.flashMs === 0) {
-        triggerHitFeedback(this.hitFx);
-        this.endHoldMs = 300;
-      }
-      this.endHoldMs = Math.max(0, this.endHoldMs - dtMs);
-      if (this.endHoldMs > 0) return;
-    }
-    this.endedReported = true;
-    this.ctx.audio.play(status === "completed" ? "win" : "lose");
-    this.ctx.report.end({
-      reason: status === "completed" ? "completed" : "lost",
-    });
-  }
-
   render(): void {
-    if (this.ctx.surface.kind !== "canvas" || !this.state) return;
-    const { context2d: g } = this.ctx.surface;
-    const off = shakeOffset(this.hitFx);
-    g.save();
-    g.translate(off.x, off.y);
-    const state = this.state;
-    const grad = this.ensureGradients(g);
-
-    // Venue depth: gradient + two parallax speck layers keyed to camera.
-    g.fillStyle = grad.sky;
-    g.fillRect(0, 0, DESIGN.w, DESIGN.h);
-    for (let layer = 0; layer < 2; layer++) {
-      const speed = layer === 0 ? 0.25 : 0.55;
-      g.fillStyle =
-        layer === 0 ? "rgba(139,124,255,0.22)" : "rgba(255,143,184,0.26)";
-      for (let i = 0; i < 26; i++) {
-        const px = (i * 89 + layer * 41) % DESIGN.w;
-        const py =
-          (((i * 53 + layer * 17) % DESIGN.h) -
-            ((state.cameraY * speed) % DESIGN.h) +
-            DESIGN.h * 2) %
-          DESIGN.h;
-        g.fillRect(px, py, 2, 2);
-      }
+    if (this.ctx.surface.kind !== "canvas" || !this.state || !this.images) {
+      return;
     }
-
-    // Platforms as neon stage bars: soft under-glow, body, lit top edge.
-    for (const platform of state.platforms) {
-      const screenY = platform.y - state.cameraY;
-      if (screenY < -PLATFORM_H || screenY > DESIGN.h) continue;
-      g.fillStyle = "rgba(139, 124, 255, 0.25)";
-      g.beginPath();
-      g.roundRect(
-        platform.x - 3,
-        screenY - 2,
-        PLATFORM_W + 6,
-        PLATFORM_H + 6,
-        7,
-      );
-      g.fill();
-      g.fillStyle = COLORS.platform;
-      g.beginPath();
-      g.roundRect(platform.x, screenY, PLATFORM_W, PLATFORM_H, 5);
-      g.fill();
-      g.fillStyle = "rgba(244, 236, 255, 0.65)";
-      g.fillRect(platform.x + 4, screenY + 1, PLATFORM_W - 8, 2);
-      // Speaker-grill dots on every third platform (hash by y, stable
-      // per platform — deterministic detail, no RNG).
-      if (Math.abs(Math.round(platform.y)) % 3 === 0) {
-        g.fillStyle = "rgba(20, 10, 38, 0.5)";
-        for (let dcol = 0; dcol < 4; dcol++) {
-          g.beginPath();
-          g.arc(
-            platform.x + 14 + dcol * 12,
-            screenY + PLATFORM_H - 3.5,
-            1.6,
-            0,
-            Math.PI * 2,
-          );
-          g.fill();
-        }
-      }
-    }
-
-    // The climber: an idol in a rose-quartz + serenity stage jacket with
-    // a diamond chest motif (team feedback 2026-07-19 — Seventeen-
-    // inspired theme; see CONTENT_REGISTER for the gate). Hitbox rect
-    // unchanged; squash by vertical velocity for landing/launch feel.
-    const px = state.x;
-    const py = state.y - state.cameraY;
-    const vy = (state as { vy?: number }).vy ?? 0;
-    const squash = Math.max(0.82, Math.min(1.18, 1 - vy * 0.012));
+    const g = this.ctx.surface.context2d;
+    const offset = shakeOffset(this.hitFx);
     g.save();
-    g.translate(px + PLAYER_W / 2, py + PLAYER_H);
-    g.scale(2 - squash, squash);
-    // Jacket: rose quartz / serenity split (the duo-tone stage fit).
-    // Cached gradient; the player translate/scale maps it at paint time.
-    g.fillStyle = grad.jacket;
-    g.beginPath();
-    g.roundRect(-PLAYER_W / 2, -PLAYER_H * 0.72, PLAYER_W, PLAYER_H * 0.72, 7);
-    g.fill();
-    // Diamond chest motif.
-    g.fillStyle = "#fff6ff";
-    g.save();
-    g.translate(0, -PLAYER_H * 0.38);
-    g.rotate(Math.PI / 4);
-    g.fillRect(-3.4, -3.4, 6.8, 6.8);
-    g.restore();
-    g.strokeStyle = "rgba(43, 17, 70, 0.4)";
-    g.lineWidth = 1;
-    g.strokeRect(-0.5, -PLAYER_H * 0.72, 1, PLAYER_H * 0.72);
-    // Head: soft face + dark side-part hair.
-    g.fillStyle = "#f6d0ab";
-    g.beginPath();
-    g.arc(0, -PLAYER_H * 0.82, PLAYER_W * 0.28, 0, Math.PI * 2);
-    g.fill();
-    g.fillStyle = "#241430";
-    g.beginPath();
-    g.arc(0, -PLAYER_H * 0.9, PLAYER_W * 0.28, Math.PI * 0.85, Math.PI * 2.05);
-    g.fill();
-    g.beginPath();
-    g.ellipse(
-      -PLAYER_W * 0.1,
-      -PLAYER_H * 0.98,
-      PLAYER_W * 0.14,
-      PLAYER_W * 0.1,
-      0.6,
-      0,
-      Math.PI * 2,
-    );
-    g.fill();
-    // eyes
-    g.fillStyle = "#241430";
-    g.beginPath();
-    g.arc(-5, -PLAYER_H * 0.8, 1.8, 0, Math.PI * 2);
-    g.arc(5, -PLAYER_H * 0.8, 1.8, 0, Math.PI * 2);
-    g.fill();
-    g.restore();
-
-    // Side vignette: pulls the eye toward the climb column.
-    g.fillStyle = grad.vignette;
-    g.fillRect(0, 0, DESIGN.w, DESIGN.h);
-
-    // Chart-position HUD — the progression hook (docs: visible rank).
-    g.fillStyle = "rgba(20, 10, 38, 0.55)";
-    g.beginPath();
-    g.roundRect(8, 8, 76, 34, 10);
-    g.fill();
-    g.fillStyle = COLORS.rankText;
-    g.font = "800 22px system-ui, sans-serif";
-    g.textAlign = "left";
-    g.textBaseline = "top";
-    g.fillText(`#${rankOf(state)}`, 16, 14);
+    g.translate(offset.x, offset.y);
+    renderJumper(g, this.state, this.images, (key) => this.ctx.t(key));
     g.restore();
     drawHitFlash(g, this.hitFx, 360, 640);
   }
@@ -337,24 +203,28 @@ class JumperGame implements ShellLoopGame {
     for (const unsubscribe of this.unsubscribers) unsubscribe();
     this.unsubscribers = [];
     this.state = null;
-    this.dragging = false;
+    this.images = null;
+    this.input = { left: false, right: false };
   }
 
-  private onPointer(p: NormalizedPointer): void {
-    if (!this.state) return;
-    if (p.action === "down") {
-      this.armed = true;
-      this.dragging = true;
-      steer(this.state, p.x - PLAYER_W / 2);
+  private onPointer(pointer: NormalizedPointer): void {
+    if (
+      pointer.action !== "down" ||
+      this.paused ||
+      this.terminalHoldMs > 0 ||
+      !this.state
+    ) {
       return;
     }
-    if (p.action === "move" && this.dragging) {
-      steer(this.state, p.x - PLAYER_W / 2);
-      return;
-    }
-    if (p.action === "up" || p.action === "cancel") {
-      this.dragging = false;
-    }
+    applyThumbImpulse(this.state, pointer.x);
+  }
+
+  private reportTerminal(): void {
+    if (!this.state || this.endedReported) return;
+    this.endedReported = true;
+    const completed = this.state.status === "won";
+    this.ctx.audio.play(completed ? "win" : "lose");
+    this.ctx.report.end({ reason: completed ? "completed" : "lost" });
   }
 }
 

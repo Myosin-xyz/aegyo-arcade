@@ -348,6 +348,32 @@ describe("submission (§9.2/§9.3)", () => {
     expect(max.kind).toBe("accepted");
   });
 
+  it("jumper envelope: 2490 is accepted and 2491 is rejected (Comeback Climb port)", async () => {
+    const device = await seedDevice();
+    const issued = await issueCountedAttempt(db, {
+      deviceId: device.deviceId,
+      timeZone: device.timeZone,
+      gameId: "jumper",
+    });
+    if (issued.kind !== "issued")
+      throw new Error(`issue failed: ${issued.kind}`);
+    expect(
+      (
+        await submitCountedResult(db, {
+          deviceId: device.deviceId,
+          attemptId: issued.attemptId,
+          score: 2491,
+        })
+      ).kind,
+    ).toBe("bad_score");
+    const max = await submitCountedResult(db, {
+      deviceId: device.deviceId,
+      attemptId: issued.attemptId,
+      score: 2490,
+    });
+    expect(max.kind).toBe("accepted");
+  });
+
   it("frogger envelope: the perfect-run 30 is accepted, 31 is rejected (5 levels, 2026-07-27)", async () => {
     const device = await seedDevice();
     const issued = await issueCountedAttempt(db, {

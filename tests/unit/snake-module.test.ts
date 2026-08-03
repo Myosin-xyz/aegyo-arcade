@@ -317,6 +317,14 @@ describe("snake module — touch targets", () => {
     }
     // Arena occupies y ∈ [96, 408] at the fixed 13×13 grid.
     expect(rects.up.y).toBeGreaterThan(408);
+
+    // DaiDai's mobile pass requires visible separation between adjacent
+    // directions; a connected cross made neighbouring thumb presses feel
+    // ambiguous even though the hit targets themselves were large enough.
+    expect(rects.down.y - (rects.up.y + rects.up.h)).toBeGreaterThanOrEqual(20);
+    expect(
+      rects.right.x - (rects.left.x + rects.left.w),
+    ).toBeGreaterThanOrEqual(20);
   });
 });
 

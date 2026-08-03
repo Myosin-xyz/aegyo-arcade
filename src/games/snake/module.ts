@@ -50,8 +50,9 @@ const SWIPE_MIN = 18;
 /** D-pad geometry, below the arena (see `dpadRects` for the sizing math). */
 const DPAD_CY = 528;
 const DPAD_BTN = 58;
-/** Zero gap reproduces the delivery's connected controller cross. */
-const DPAD_GAP = 0;
+/** DaiDai mobile UX pass (2026-08-03): separate the four thumb targets
+ * so adjacent directions do not read or feel like one connected pad. */
+const DPAD_GAP = 10;
 const TOAST_MS = 900;
 const GIFT_TOAST_COUNT = 6;
 
@@ -443,23 +444,6 @@ class SnakeGame implements ShellLoopGame {
       g.fill();
       g.restore();
     }
-
-    // Controller pivot connects the four authored buttons into one cross.
-    const centre = {
-      x: DESIGN_W / 2 - DPAD_BTN / 2,
-      y: DPAD_CY - DPAD_BTN / 2,
-    };
-    g.save();
-    g.fillStyle = "#241040";
-    g.fillRect(centre.x, centre.y, DPAD_BTN, DPAD_BTN);
-    g.beginPath();
-    g.arc(DESIGN_W / 2, DPAD_CY, 12, 0, Math.PI * 2);
-    g.fillStyle = "#16072b";
-    g.fill();
-    g.strokeStyle = "rgba(79, 240, 255, 0.55)";
-    g.lineWidth = 1.5;
-    g.stroke();
-    g.restore();
   }
 }
 

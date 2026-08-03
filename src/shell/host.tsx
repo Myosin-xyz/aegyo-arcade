@@ -33,6 +33,8 @@ import { bootstrapSession } from "./session";
 import { t } from "@/i18n/t";
 import { getRegistryEntry } from "@/games/registry";
 import { ChallengeShareButton } from "./challenge-share";
+import { BiasFlapVictory } from "./bias-flap-victory";
+import { createMusicController } from "./music";
 
 /** Counted-run UI state (M2): issuance → active → submit → receipt. */
 type CountedPhase =
@@ -57,6 +59,7 @@ interface Mounted {
   surfaceManager: CanvasSurfaceManager | null;
   input: ReturnType<typeof createInputBus>;
   audio: ReturnType<typeof createAudioBus>;
+  music: ReturnType<typeof createMusicController>;
   loop: FixedLoop | null;
   runAbort: AbortController | null;
   endedThisRun: boolean;
@@ -89,6 +92,10 @@ export function GameHostInner({
   const [muted, setMuted] = useState(false);
   const [initNonce, setInitNonce] = useState(0);
   const [counted, setCounted] = useState<CountedPhase>({ kind: "idle" });
+  const [endReason, setEndReason] = useState<
+    "completed" | "lost" | "quit" | null
+  >(null);
+  const [completionActive, setCompletionActive] = useState(false);
   const countedAttemptRef = useRef<string | null>(null);
   const scoreRef = useRef(0);
   const runStartedAtRef = useRef(0);
@@ -106,6 +113,10 @@ export function GameHostInner({
     lifecycleRef.current = next;
     setLifecycle(next);
   }, []);
+  const finishCompletionPresentation = useCallback(() => {
+    mountedRef.current?.music.stop();
+    setCompletionActive(false);
+  }, []);
 
   const teardown = useCallback(() => {
     initAbortRef.current?.abort();
@@ -121,6 +132,7 @@ export function GameHostInner({
       // destroy() is contractually idempotent/safe; never break unmount.
     }
     mounted.input.destroy();
+    mounted.music.destroy();
     mounted.audio.destroy();
     mounted.surfaceManager?.destroy();
   }, []);
@@ -279,6 +291,10 @@ export function GameHostInner({
             : relativeToHost(inputTarget, x, y),
       });
       const audio = createAudioBus();
+      const music = createMusicController({
+        src: entry.musicTrack,
+        audioBus: audio,
+      });
       setMuted(audio.muted);
 
       const ctx: GameContext = {
@@ -299,6 +315,16 @@ export function GameHostInner({
             mounted.endedThisRun = true;
             mounted.loop?.stop();
             mounted.runAbort?.abort();
+            const reason = result?.reason ?? null;
+            const hasCompletionPresentation =
+              reason === "completed" &&
+              entry.completionPresentation === "bias-stage";
+            // Keep the game track under the short authored victory beat;
+            // counted submission still starts immediately below. Every
+            // other terminal path stops music at once.
+            if (!hasCompletionPresentation) mounted.music.stop();
+            setEndReason(reason);
+            setCompletionActive(hasCompletionPresentation);
             transition("ended");
             if (entry.countedCompletion === "game-owned") {
               // A refusal-end ("quit") must NOT render the saved receipt
@@ -325,6 +351,7 @@ export function GameHostInner({
         surfaceManager,
         input,
         audio,
+        music,
         loop,
         runAbort: null,
         endedThisRun: false,
@@ -393,6 +420,8 @@ export function GameHostInner({
     mounted.runAbort = runAbort;
     mounted.endedThisRun = false;
     setScore(0);
+    setEndReason(null);
+    setCompletionActive(false);
     scoreRef.current = 0;
     runStartedAtRef.current = performance.now();
     countedAttemptRef.current = null; // practice never submits
@@ -402,6 +431,7 @@ export function GameHostInner({
         : { kind: "idle" },
     );
     try {
+      mounted.music.start();
       mounted.instance.start(run);
     } catch (error) {
       // A game rejecting the run context (e.g. malformed non-practice run)
@@ -464,6 +494,8 @@ export function GameHostInner({
       mounted.runAbort = runAbort;
       mounted.endedThisRun = false;
       setScore(0);
+      setEndReason(null);
+      setCompletionActive(false);
       scoreRef.current = 0;
       // Refs BEFORE start(): a synchronously-ending game must still find
       // the attempt id when report.end fires the submission.
@@ -471,6 +503,7 @@ export function GameHostInner({
       runStartedAtRef.current = performance.now();
       setCounted({ kind: "active", attemptId: issued.attemptId });
       try {
+        mounted.music.start();
         mounted.instance.start(run);
       } catch (error) {
         console.error("[host] counted start rejected", error);
@@ -500,6 +533,7 @@ export function GameHostInner({
       // frozen state — no pointer/keyboard event may reach the game while
       // the pause overlay is up.
       mounted.input.setEnabled(false);
+      mounted.music.pause();
       mounted.instance.pause(reason);
       transition("paused");
     },
@@ -510,6 +544,7 @@ export function GameHostInner({
     const mounted = mountedRef.current;
     if (!mounted || lifecycleRef.current !== "paused") return;
     mounted.input.setEnabled(true);
+    mounted.music.resume();
     mounted.instance.resume();
     mounted.loop?.start();
     transition("running");
@@ -779,36 +814,85 @@ export function GameHostInner({
             </button>
           </Overlay>
         )}
-        {lifecycle === "ended" && entry.endPresentation === "game-authored" && (
-          // The game's own in-DOM result stays visible (M4.5 review P1):
-          // no dark overlay — just the host-owned restart (fresh
-          // RunContext through the normal startRun path).
-          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-2 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            {/* Only phases CountedStatus actually renders — a blocked/
+        {lifecycle === "ended" &&
+          completionActive &&
+          endReason === "completed" &&
+          entry.completionPresentation === "bias-stage" && (
+            <BiasFlapVictory onComplete={finishCompletionPresentation} />
+          )}
+        {lifecycle === "ended" &&
+          !completionActive &&
+          entry.endPresentation === "game-authored" && (
+            // The game's own in-DOM result stays visible (M4.5 review P1):
+            // no dark overlay — just the host-owned restart (fresh
+            // RunContext through the normal startRun path).
+            <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-2 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              {/* Only phases CountedStatus actually renders — a blocked/
                 issuing phase must not paint an EMPTY card (audit P3). */}
-            {["submitting", "submitted", "owned-complete", "error"].includes(
-              counted.kind,
-            ) && (
-              // Counted receipts must SURVIVE the authored end (review P1:
-              // this branch showed only Play Again, so a counted run could
-              // commit — or fail — invisibly). Card backdrop: the game's
-              // own art is behind, not the host scrim.
-              <div className="card-arcade w-full max-w-xs bg-surface/95 px-4 py-2.5 text-white">
-                <CountedStatus
-                  counted={counted}
+              {["submitting", "submitted", "owned-complete", "error"].includes(
+                counted.kind,
+              ) && (
+                // Counted receipts must SURVIVE the authored end (review P1:
+                // this branch showed only Play Again, so a counted run could
+                // commit — or fail — invisibly). Card backdrop: the game's
+                // own art is behind, not the host scrim.
+                <div className="card-arcade w-full max-w-xs bg-surface/95 px-4 py-2.5 text-white">
+                  <CountedStatus
+                    counted={counted}
+                    gameId={gameId}
+                    onRetry={() => void attemptCountedSubmit()}
+                  />
+                </div>
+              )}
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  className="btn-arcade px-8 py-3 text-lg"
+                  onClick={startRun}
+                  // Same save-race guard as the standard ended branch (audit
+                  // P1 recurrence): starting Practice mid-PUT would hide the
+                  // pending receipt/retry state.
+                  disabled={counted.kind === "submitting"}
+                  data-testid="play-again"
+                >
+                  {t("host.playAgain")}
+                </button>
+                <ChallengeShareButton
                   gameId={gameId}
-                  onRetry={() => void attemptCountedSubmit()}
+                  gameTitle={t(entry.meta.titleKey)}
+                  score={
+                    (entry.scorePresentation ?? "shell") === "none"
+                      ? null
+                      : score
+                  }
                 />
               </div>
-            )}
-            <div className="flex flex-wrap items-center justify-center gap-2">
+            </div>
+          )}
+        {lifecycle === "ended" &&
+          !completionActive &&
+          entry.endPresentation !== "game-authored" && (
+            <Overlay>
+              {(entry.scorePresentation ?? "shell") !== "none" && (
+                // A "none" game has NO score concept — a fictional
+                // "Score: 0" may not appear anywhere, visible or
+                // accessible (M4.5 review P2, enum-complete).
+                <p
+                  className="font-arcade text-xl text-gold"
+                  data-testid="ended-score"
+                >
+                  {t("host.score")}: {score}
+                </p>
+              )}
+              <CountedStatus
+                counted={counted}
+                gameId={gameId}
+                onRetry={() => void attemptCountedSubmit()}
+              />
               <button
                 type="button"
                 className="btn-arcade px-8 py-3 text-lg"
                 onClick={startRun}
-                // Same save-race guard as the standard ended branch (audit
-                // P1 recurrence): starting Practice mid-PUT would hide the
-                // pending receipt/retry state.
                 disabled={counted.kind === "submitting"}
                 data-testid="play-again"
               >
@@ -821,45 +905,8 @@ export function GameHostInner({
                   (entry.scorePresentation ?? "shell") === "none" ? null : score
                 }
               />
-            </div>
-          </div>
-        )}
-        {lifecycle === "ended" && entry.endPresentation !== "game-authored" && (
-          <Overlay>
-            {(entry.scorePresentation ?? "shell") !== "none" && (
-              // A "none" game has NO score concept — a fictional
-              // "Score: 0" may not appear anywhere, visible or
-              // accessible (M4.5 review P2, enum-complete).
-              <p
-                className="font-arcade text-xl text-gold"
-                data-testid="ended-score"
-              >
-                {t("host.score")}: {score}
-              </p>
-            )}
-            <CountedStatus
-              counted={counted}
-              gameId={gameId}
-              onRetry={() => void attemptCountedSubmit()}
-            />
-            <button
-              type="button"
-              className="btn-arcade px-8 py-3 text-lg"
-              onClick={startRun}
-              disabled={counted.kind === "submitting"}
-              data-testid="play-again"
-            >
-              {t("host.playAgain")}
-            </button>
-            <ChallengeShareButton
-              gameId={gameId}
-              gameTitle={t(entry.meta.titleKey)}
-              score={
-                (entry.scorePresentation ?? "shell") === "none" ? null : score
-              }
-            />
-          </Overlay>
-        )}
+            </Overlay>
+          )}
       </div>
     </div>
   );

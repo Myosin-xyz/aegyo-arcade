@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-Aegyo Arena is a mobile-first K-pop-themed mini-game portal intended to turn short-lived social traffic into repeat visits. It ships the existing claw machine plus Simon's required five games: Snake, Frogger, infinite jumper, Flappy, and Hangman.
+Aegyo Arena is a mobile-first K-pop-themed mini-game portal intended to turn short-lived social traffic into repeat visits. It ships the existing claw machine plus Simon's required five games: Snake, Frogger, Comeback Climb, Flappy, and Hangman.
 
 The high-level architecture remains locked: standalone Next.js 16 PWA on Vercel, Railway PostgreSQL + Drizzle (ADR 0004; originally Neon), no game engine, and framework-free TypeScript game modules behind a shared runtime shell.
 
@@ -112,14 +112,14 @@ External gates cannot be responsibly guessed and are not Simon memo items:
 
 Launch catalog means **playable catalog**, not automatic authorization to run promotions.
 
-| #   | Game            | Working title   | Source                         | Path                                                                                |
-| --- | --------------- | --------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
-| 0   | Claw machine    | Aegyo Claw      | Existing Vite/vanilla-TS app   | Migrate and adapt (§7.1)                                                            |
-| 1   | Snake           | Snake Freebies  | Daidai delivery (2026-07-26)   | Ported to shell (replaced the POCA Snake placeholder; docs/games/snake-freebies.md) |
-| 2   | Flappy          | Bias Flap       | Daidai delivery (2026-07-27)   | Ported to shell (replaced the code-drawn rebuild; docs/games/bias-flap.md)          |
-| 3   | Infinite jumper | Comeback Climb  | Nicole mock                    | Rebuild against shell                                                               |
-| 4   | Hangman         | Guess the Slang | Nicole mock                    | DOM module                                                                          |
-| 5   | Frogger         | Name pending    | Daidai, with internal fallback | Intake or rebuild                                                                   |
+| #   | Game          | Working title   | Source                         | Path                                                                                |
+| --- | ------------- | --------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| 0   | Claw machine  | Aegyo Claw      | Existing Vite/vanilla-TS app   | Migrate and adapt (§7.1)                                                            |
+| 1   | Snake         | Snake Freebies  | Daidai delivery (2026-07-26)   | Ported to shell (replaced the POCA Snake placeholder; docs/games/snake-freebies.md) |
+| 2   | Flappy        | Bias Flap       | Daidai delivery (2026-07-27)   | Ported to shell (replaced the code-drawn rebuild; docs/games/bias-flap.md)          |
+| 3   | Chart climber | Comeback Climb  | DaiDai delivery (2026-08-03)   | Deterministic shell port; invisible mobile thumb zones; #100→#1                     |
+| 4   | Hangman       | Guess the Slang | Nicole mock                    | DOM module                                                                          |
+| 5   | Frogger       | Name pending    | Daidai, with internal fallback | Intake or rebuild                                                                   |
 
 Claw + Simon's five = six playable games. Photo Chase and Spot the Bias remain fast-follow candidates, not launch dependencies.
 

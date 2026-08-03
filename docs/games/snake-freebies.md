@@ -108,10 +108,11 @@ the measured 320×568 worst case the canvas is 298×531 → scale 0.83,
 turning 46 design px into **38 CSS px** with only 15 px of clearance
 under the Down button — inside a typical 34 px iOS home-indicator inset.
 
-Buttons are now a connected **58 design px** controller cross centred at
-y=528, which at that same viewport gives ≈48 CSS px with ≈45 px of
-clearance. This also restores the delivery's cyan-outlined controller
-appearance instead of four visually unrelated shell buttons.
+Buttons are **58 design px** and centred around y=528. DaiDai's 2026-08-03
+mobile pass separated each direction by 10 design px from the centre (20 px
+between opposing button edges), preventing adjacent thumb targets from
+reading as one connected control. At the same 320×568 viewport they remain
+≈48 CSS px with ≥34 px of home-indicator clearance.
 
 Two tests guard this, at different levels. `tests/unit/snake-module.test.ts`
 pins the design-space CONSTANTS against the captured 531 px canvas height —

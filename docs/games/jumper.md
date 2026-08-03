@@ -1,44 +1,94 @@
-# Game Rules Seed — Comeback Climb
+# Game Rules — Comeback Climb
 
-**Status**: Recovered v0.1 design baseline; finalize bounce constants/vectors before M2 implementation
-**Source**: Nicole's playable mock and v0.1 keep/change review
-**Surface**: `canvas`
-**Reference box**: 360×640 logical px (confirm during implementation)
+**Status**: IMPLEMENTED — DaiDai delivery port (2026-08-03)
 
-## Product baseline
+**Surface**: `canvas`, shell-owned fixed 60Hz loop
 
-- Framing: climb the chart from **#100 to #1** by landing on platforms.
-- Each newly cleared platform advances one chart place; score is positions climbed (`100 - bestRank`).
-- Reaching #1 ends the run as `completed` with score 99.
-- Falling below the camera's loss boundary ends the run as `lost`.
-- Launch input: horizontal drag/touch steering through `InputBus`. Tilt is deferred as an optional accessibility-reviewed experiment.
+**Reference box**: 360×640 logical px
+**Source of truth**: local gitignored `comeback-climb/` delivery; Netlify is
+the visual reference. The prior M2 code-drawn jumper is superseded.
 
-**Adopted M2 units (per fixed 60Hz simulation step):** gravity 0.32 px/step², bounce impulse −9.5 px/step, steering `x += clamp((steerX − x) · 0.15, ±8)`, platform 64×10, player 30×28, seeded spawn dy ∈ [55, 85] with |dx| ≤ 140 (reachable under the movement limits: apex ≈ 141 px, horizontal reach ≈ 200 px per hop), camera lead 220 px (up only), loss when the player is 640 px below the camera top. Score envelope 99.
+## Product rules
 
-## Keep
+- Auto-bounce from chart rank **#100 to #1**; 99 ranks, 10 points each.
+- Three lives. A fall or paparazzi-drone hit respawns on a safe platform
+  after 700ms with 150 simulation steps of invincibility; the clock keeps
+  running through the beat.
+- Tutorial ranks #100–#91 contain static neon platforms only.
+- Later zones introduce moving CDs, two-hit breakable photocards, and
+  drones using the delivery's exact probability/gap table.
+- Speakers give a ×1.65 bounce. A golden mic attracts notes for 360
+  steps. Hearts refill a life or score +50 at full lives. Notes score
+  +5/+10/+20.
+- Every mechanical random draw uses `RunContext.random`. Equal seed and
+  input replay exactly.
 
-- The chart-position progression hook and visible current rank.
-- The mock's platform-bounce feel, subject to measured parity constants.
-- Upward camera progression and the #1 completion moment.
+## Mobile controls (portal adaptation)
 
-## Change from the mock
+The delivery's two visible 74px hold buttons are intentionally replaced
+for the 95%-mobile-social audience by an invisible four-zone surface:
 
-- Remove mousemove-only steering; use surface-scoped pointer input.
-- Cleanly separate simulation, camera, and platform spawning.
-- Make platform generation seeded and guarantee a reachable path under documented movement limits.
-- Use shell-owned loop, canvas, pause, audio, restart, and teardown.
+| Touch x         | Effect                                |
+| --------------- | ------------------------------------- |
+| outer-left 25%  | large impulse left (90% of max speed) |
+| inner-left 25%  | small impulse left (42%)              |
+| inner-right 25% | small impulse right (42%)             |
+| outer-right 25% | large impulse right (90%)             |
 
-## Rule edges
+One pointer-down produces one impulse: near the centre is a small course
+correction; nearer an edge is a committed jump. The zones have no visual
+overlay and therefore never cover the playfield. Arrow/A-D/Q hold
+steering stays as a desktop/accessibility enhancement. Pause and restart
+clear held keys.
 
-- A platform advances rank only on its first qualifying landing.
-- Side/bottom contacts do not count as landings.
-- Camera movement never changes world-space collision outcomes.
-- Rank cannot improve beyond #1 or decrease after a platform is credited.
+## Score envelope
 
-## Required vectors before implementation
+The rank component is `(100 - rank) × 10`, 0–990. The delivered backend
+brief bounds collectible/full-life points at 1,500, so the portal accepts
+integer scores from 0 through **2,490**. The old 99-point implementation
+is replaced before public contest use. This is an upward cap change: old
+rows remain valid and cannot exceed the new run; no rejection/backfill is
+required. Time remains cosmetic under the shared V1 board policy.
 
-1. Bounce and horizontal-drag trajectories.
-2. First-N seeded platforms and reachability assertion.
-3. One-credit-per-platform behavior.
-4. Camera/world-coordinate collision cases.
-5. #1 completion and fall-boundary end-at-most-once.
+## Delivery adaptations
+
+- `Math.random()` → seeded run RNG for layouts, pickups, notes, hazards,
+  and safe deterministic replay.
+- Delivery `requestAnimationFrame` + `setInterval` → shell fixed-step
+  loop; the shell owns pause/resume/destroy.
+- Delivery backend, username, subscription, two-plays/day, and prize
+  assumptions are deleted. Portal device sessions and OD-1 counted runs
+  own access and submission.
+- The delivered PNGs are repeatably exported as 13 lazy WebPs by
+  `scripts/export-comeback-climb-assets.sh` (about 104KB total).
+- Game music is lazy host presentation audio; synth SFX remain on the
+  frozen `AudioBus`.
+
+## Required vectors (implemented)
+
+1. Exact zone/progression/bounce constants.
+2. Seeded world equality, reachable gaps, no consecutive photocards.
+3. All four invisible thumb zones and impulse strengths.
+4. Delivered keyboard acceleration/friction/max-speed behavior.
+5. Photocard crack-then-break sequence.
+6. Rank scoring and #1 completion.
+7. Life loss, 700ms safe respawn, invincibility, and running clock.
+8. 2,490 score cap.
+9. Identical seeded replay.
+10. Real module input routing, pause cleanup, terminal red-flash hold,
+    restart, and end-at-most-once.
+
+## Intake hashes
+
+Core delivery:
+
+- `README.md` — `e6e1031ca8fbe793fb2ef5622469172147b75aee736f2fd4d1802aca462eb229`
+- `PRODUCT_BRIEF.md` — `4add6671702caf753423662d6dbc292a38d62fb1869cef1c142dbabad66376ca`
+- `BACKEND_INTERFACE.md` — `14341f860932e0a941cc80dec490c149c76999e375e23488d5533326507dbf62`
+- `js/config.js` — `ab986e9303b0293efb7bcf1b72fd95864ee4f16a5419511adab222e5cd956cab`
+- `js/game.js` — `65e57bae0bfa7285f51991994ac68d2f82de220d4ca605fa057ae0fe96fccb57`
+- `css/style.css` — `544460347780dd5ae26c32fa6875c48539c2bd5f37bb26e7ebe6094ca9f4e848`
+
+The complete 21-file manifest is committed as
+`docs/games/comeback-climb-intake.sha256`; the raw folder stays
+gitignored and is never served by Next.js.

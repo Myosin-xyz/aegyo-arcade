@@ -67,22 +67,27 @@ const SMOKE_ACTIONS: Record<
     terminal: true,
   },
   jumper: {
-    // PINNED practice seed (M3 review P2: random layouts sometimes catch
-    // the player at the right edge, so a fixed press count was flaky).
-    // "jumper-smoke-0" is sim-verified: idling survives ≥4s and
-    // continuous right-nudges die for every press cadence 5–14 ticks ×
-    // start offset 0–160 ticks — robust to e2e wall-clock jitter. Keep
-    // pressing until the run actually ends.
-    urlQuery: "?seed=jumper-smoke-0",
+    // DaiDai port: exercise the MOBILE path, not the keyboard fallback.
+    // Repeated taps in the outer-right quarter produce large impulses;
+    // eventually all three safe-respawn lives are spent. A pinned seed
+    // makes the generated platform/hazard field replayable.
+    urlQuery: "?seed=comeback-smoke-0",
     act: async (page) => {
       const host = page.getByTestId("game-host");
-      for (let i = 0; i < 120; i++) {
+      const surface = page.getByTestId("game-surface");
+      const box = await surface.boundingBox();
+      if (!box) throw new Error("jumper: no game-surface bounding box");
+      for (let i = 0; i < 300; i++) {
         if ((await host.getAttribute("data-lifecycle")) === "ended") return;
-        await page.keyboard.press("ArrowRight");
-        await page.waitForTimeout(130);
+        await page.mouse.click(
+          box.x + box.width * 0.94,
+          box.y + box.height * 0.55,
+        );
+        await page.waitForTimeout(120);
       }
     },
     terminal: true,
+    endTimeoutMs: 60_000,
   },
   hangman: {
     // Six letters absent from every dictionary term → lost.

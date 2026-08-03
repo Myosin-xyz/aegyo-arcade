@@ -46,7 +46,7 @@ export interface Heart {
 
 type Translate = (key: string, params?: Record<string, string>) => string;
 
-/** The ⏹ leave (cash-out) zone, top-right. 72×54 design px ≈ 60×45 CSS
+/** The exit/cash-out zone, top-right. 72×54 design px ≈ 60×45 CSS
  * at the height-limited 320×568 floor — clear of the 44px minimum. */
 export function leaveRect(): { x: number; y: number; w: number; h: number } {
   return { x: DESIGN_W - 84, y: 12, w: 72, h: 54 };
@@ -163,7 +163,9 @@ function drawHud(
     g.fillText(value, x + 8, 43);
   });
 
-  // ⏹ leave button (cash-out) — always visible while a run is live.
+  // Leave button (cash-out) — always visible while a run is live. The
+  // door-and-arrow glyph is drawn geometrically so it never degrades into
+  // the ambiguous white square produced by the old stop-character icon.
   const r = leaveRect();
   g.fillStyle = "rgba(20, 8, 40, 0.85)";
   roundedRect(g, r.x, r.y, r.w, r.h, 10);
@@ -174,8 +176,20 @@ function drawHud(
   g.font = "800 11px system-ui, sans-serif";
   g.textAlign = "center";
   g.fillText(t("game.flappy.leave").toUpperCase(), r.x + r.w / 2, r.y + 22);
-  g.fillStyle = "#ffffff";
-  g.fillRect(r.x + r.w / 2 - 6, r.y + 32, 12, 12);
+  const iconX = r.x + r.w / 2;
+  const iconY = r.y + 40;
+  g.strokeStyle = "#ffffff";
+  g.lineWidth = 1.8;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  g.strokeRect(iconX - 8, iconY - 7, 10, 14);
+  g.beginPath();
+  g.moveTo(iconX - 3, iconY);
+  g.lineTo(iconX + 8, iconY);
+  g.moveTo(iconX + 4, iconY - 4);
+  g.lineTo(iconX + 8, iconY);
+  g.lineTo(iconX + 4, iconY + 4);
+  g.stroke();
 }
 
 function overlayScrim(g: CanvasRenderingContext2D): void {

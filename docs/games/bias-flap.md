@@ -127,6 +127,11 @@ toward the front row. Per `config.js` (all tuning lives there):
   NOTHING (no accidental exits). Crash never ends the run; only victory
   (`completed`) or confirmed cash-out (`quit`) reports end — the host's
   generic-submit saves the score on both.
+- A completed level-5 run briefly overlays DaiDai's supplied concert
+  victory video before returning to the authored result screen. The
+  runtime asset is a muted, inline, mobile-safe H.264 transcode at
+  480×854; it preserves the full 5.04-second animation while keeping all
+  Bias Flap art at 297.3 KiB total. Reduced-motion users skip the video.
 - Deviations (documented): the delivery's leaderboard tiebreaker
   `score DESC, time ASC` is NOT adopted — the portal board keeps
   `score DESC, acceptedAt ASC`; TIME is shown cosmetically on the end
@@ -137,5 +142,7 @@ toward the front row. Per `config.js` (all tuning lives there):
 
 ## Asset budget
 
-Trivial: 5 assets, ~290 KB raw; bg.jpg dominates and will convert to
-WebP well under the per-game transfer budget. No atlasing needed.
+Six runtime assets total **297.3 KiB**, within the 300 KiB per-game art
+budget. The five gameplay WebPs total 57.5 KiB; `victory-v1.mp4` is a
+245,582-byte H.264 transcode of DaiDai's 5.04-second, 1440×2560 reference
+video. It is loaded only after a completed run.

@@ -7,62 +7,60 @@ import { BiasFlapVictory } from "@/shell/bias-flap-victory";
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-function canvasContext(): CanvasRenderingContext2D {
-  const gradient = { addColorStop: vi.fn() };
-  return new Proxy(
-    {},
-    {
-      get(target, property) {
-        if (property === "createLinearGradient") return () => gradient;
-        const value = (target as Record<PropertyKey, unknown>)[property];
-        return value ?? (() => undefined);
-      },
-      set(target, property, value) {
-        (target as Record<PropertyKey, unknown>)[property] = value;
-        return true;
-      },
-    },
-  ) as CanvasRenderingContext2D;
-}
-
 describe("Bias Flap victory presentation", () => {
-  let frames: FrameRequestCallback[];
-
   beforeEach(() => {
-    frames = [];
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
-      canvasContext(),
-    );
-    vi.spyOn(performance, "now").mockReturnValue(0);
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      frames.push(callback);
-      return frames.length;
-    });
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.useFakeTimers();
     vi.stubGlobal("matchMedia", () => ({ matches: false }));
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     document.body.replaceChildren();
   });
 
-  it("draws the reference-inspired sequence for five seconds, then completes once", async () => {
+  async function renderVictory(props: { respectReducedMotion?: boolean } = {}) {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const root = createRoot(host);
     const complete = vi.fn();
     await act(async () => {
-      root.render(<BiasFlapVictory onComplete={complete} />);
+      root.render(<BiasFlapVictory onComplete={complete} {...props} />);
     });
-    expect(host.querySelector("canvas")).toBeTruthy();
-    expect(frames).toHaveLength(1);
+    return { host, root, complete };
+  }
 
-    act(() => frames.shift()?.(2_500));
+  it("plays the supplied inline video and completes once when it ends", async () => {
+    const { host, root, complete } = await renderVictory();
+    const video = host.querySelector("video");
+    expect(video).toBeTruthy();
+    expect(video?.getAttribute("src")).toBe("/games/flappy/victory-v1.mp4");
+    expect(video?.autoplay).toBe(true);
+    expect(video?.muted).toBe(true);
+    expect(video?.playsInline).toBe(true);
+
+    act(() => video?.dispatchEvent(new Event("ended")));
+    act(() => video?.dispatchEvent(new Event("ended")));
+    expect(complete).toHaveBeenCalledTimes(1);
+
+    await act(async () => root.unmount());
+  });
+
+  it("fails open if the video cannot load or emit an ended event", async () => {
+    const { host, root, complete } = await renderVictory();
+    const video = host.querySelector("video");
+    act(() => video?.dispatchEvent(new Event("error")));
+    expect(complete).toHaveBeenCalledTimes(1);
+
+    await act(async () => root.unmount());
+  });
+
+  it("uses a bounded fallback if an embedded browser stalls playback", async () => {
+    const { root, complete } = await renderVictory();
+    act(() => vi.advanceTimersByTime(6_499));
     expect(complete).not.toHaveBeenCalled();
-    expect(frames).toHaveLength(1);
-    act(() => frames.shift()?.(5_001));
+    act(() => vi.advanceTimersByTime(1));
     expect(complete).toHaveBeenCalledTimes(1);
 
     await act(async () => root.unmount());
@@ -70,15 +68,17 @@ describe("Bias Flap victory presentation", () => {
 
   it("skips motion immediately for reduced-motion users", async () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
-    const host = document.createElement("div");
-    document.body.appendChild(host);
-    const root = createRoot(host);
-    const complete = vi.fn();
-    await act(async () => {
-      root.render(<BiasFlapVictory onComplete={complete} />);
-    });
+    const { root, complete } = await renderVictory();
     expect(complete).toHaveBeenCalledTimes(1);
-    expect(frames).toHaveLength(0);
+    await act(async () => root.unmount());
+  });
+
+  it("can override reduced motion on the local visual-QA surface", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const { root, complete } = await renderVictory({
+      respectReducedMotion: false,
+    });
+    expect(complete).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
 });

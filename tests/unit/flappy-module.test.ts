@@ -125,7 +125,7 @@ afterEach(() => {
 });
 
 describe("bias flap module — input routing", () => {
-  it("tap = flap; ⏹ zone = confirm; confirm zones resolve keep/leave", async () => {
+  it("tap = flap; exit zone = confirm; confirm zones resolve keep/leave", async () => {
     const { game, ends, pointer, teardown } = mount();
     await game.init(new AbortController().signal);
     game.start(makeRun("routing"));

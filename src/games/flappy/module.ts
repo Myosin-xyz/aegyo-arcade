@@ -3,7 +3,7 @@
  *
  * The shell owns the loop and canvas; this module feeds real time into
  * the pure core and wires input through the InputBus. Tap anywhere (or
- * Space/ArrowUp/KeyW) flaps; the ⏹ HUD zone opens the cash-out confirm;
+ * Space/ArrowUp/KeyW) flaps; the exit HUD zone opens the cash-out confirm;
  * level breaks advance on tap. Crash does NOT end the run — only victory
  * or a confirmed cash-out reports `end`, so unlimited retries and the
  * leave-and-save path both match the delivery.
@@ -309,7 +309,7 @@ class FlappyGame {
       }
       return; // taps outside the zones do nothing — no accidental exits
     }
-    // The ⏹ leave zone opens the confirm; anywhere else flaps.
+    // The exit zone opens the confirm; anywhere else flaps.
     if (
       (state.status === "flying" || state.status === "waiting") &&
       within(p, leaveRect())

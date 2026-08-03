@@ -220,7 +220,7 @@ export function flap(state: FlappyState): boolean {
   return true;
 }
 
-/** Open the cash-out confirmation (the delivery's ⏹ leave button). */
+/** Open the cash-out confirmation from the HUD exit button. */
 export function openQuitConfirm(state: FlappyState): boolean {
   if (state.status !== "flying" && state.status !== "waiting") return false;
   state.resumeStatus = state.status;

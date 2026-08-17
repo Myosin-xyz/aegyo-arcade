@@ -38,7 +38,10 @@
   --font-arcade: var(--font-arcade);
 }
 
-body {
+/* Paint the decorative backdrop on the root canvas, not body. Long portal
+ * pages can make a propagated body background rasterize in viewport-sized
+ * bands on some browsers, leaving a horizontal seam after scrolling. */
+html {
   background:
     radial-gradient(
       1100px 500px at 50% -10%,
@@ -51,6 +54,12 @@ body {
       transparent 55%
     ),
     var(--background);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+body {
+  background: transparent;
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }

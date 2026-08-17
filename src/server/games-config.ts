@@ -6,6 +6,11 @@
  */
 
 import { HANGMAN_CONTENT_VERSION } from "@/games/hangman/content";
+import {
+  MAX_VALIDATED_HEIGHT as PHOTOCARD_MAX_HEIGHT,
+  maximumScoreForHeight,
+} from "@/games/photocard-stack/logic";
+import { MAX_SCORE as FANCHANT_MAX_SCORE } from "@/games/fanchant-hero/logic";
 
 export interface CountedGameConfig {
   /** Inclusive max plausible score (docs/games/<id>.md rules). */
@@ -41,6 +46,16 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
     // DaiDai Comeback Climb: rank component max 990 plus the delivered
     // collectible/full-life bound of 1500 (docs/games/jumper.md).
     jumper: { maxScore: 2490, scored: true },
+    // Photocard Stack's supplied validation envelope allows at most 1000
+    // cards. The perfect-combo triangular growth plus every-10th holo
+    // bonus yields the exact score ceiling below.
+    "photocard-stack": {
+      maxScore: maximumScoreForHeight(PHOTOCARD_MAX_HEIGHT),
+      scored: true,
+    },
+    // The shipped seeded chart is capped at 115 notes. Every note at
+    // PERFECT with one uninterrupted combo reaches exactly 24,840.
+    "fanchant-hero": { maxScore: FANCHANT_MAX_SCORE, scored: true },
     // Solve score = remaining lives 1–6; daily server-selected term
     // (docs/games/hangman.md). SINGLE SOURCE: the content module's own
     // version constant — config can't drift from the dictionary.

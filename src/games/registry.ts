@@ -14,6 +14,8 @@ import { hangmanMeta } from "./hangman/meta";
 import { freebieMeta } from "./freebie/meta";
 import { froggerMeta } from "./frogger/meta";
 import { thisorthatMeta } from "./thisorthat/meta";
+import { photocardStackMeta } from "./photocard-stack/meta";
+import { fanchantHeroMeta } from "./fanchant-hero/meta";
 
 export interface RegistryEntry {
   meta: GameMeta;
@@ -147,6 +149,47 @@ const entries: RegistryEntry[] = [
       "game.jumper.intro.5",
     ],
     load: () => import("./jumper/module").then((m) => m.jumperDefinition),
+  },
+  {
+    meta: photocardStackMeta,
+    scorePresentation: "authored",
+    endPresentation: "game-authored",
+    musicTrack: "/games/music/freebie.mp3",
+    introKeys: [
+      "game.photocard-stack.intro.1",
+      "game.photocard-stack.intro.2",
+      "game.photocard-stack.intro.3",
+      "game.photocard-stack.intro.4",
+    ],
+    introPresentation: {
+      titleKey: "game.photocard-stack.intro.title",
+      subtitleKey: "game.photocard-stack.intro.subtitle",
+      bulletIcons: ["👆", "🎯", "✨", "🏆"],
+      variant: "neon",
+    },
+    load: () =>
+      import("./photocard-stack/module").then(
+        (m) => m.photocardStackDefinition,
+      ),
+  },
+  {
+    meta: fanchantHeroMeta,
+    scorePresentation: "authored",
+    endPresentation: "game-authored",
+    introKeys: [
+      "game.fanchant-hero.intro.1",
+      "game.fanchant-hero.intro.2",
+      "game.fanchant-hero.intro.3",
+      "game.fanchant-hero.intro.4",
+    ],
+    introPresentation: {
+      titleKey: "game.fanchant-hero.intro.title",
+      subtitleKey: "game.fanchant-hero.intro.subtitle",
+      bulletIcons: ["🎁", "👆", "🎯", "🔥"],
+      variant: "neon",
+    },
+    load: () =>
+      import("./fanchant-hero/module").then((m) => m.fanchantHeroDefinition),
   },
   {
     meta: hangmanMeta,

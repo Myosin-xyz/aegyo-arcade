@@ -11,9 +11,17 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
+import {
+  APPROACH_START_MS,
+  BEAT_MS,
+  buildChart,
+} from "../../src/games/fanchant-hero/logic";
 import { listGames } from "../../src/games/registry";
+import { seededRandom } from "../../src/shell/rng";
 
 const needsDb = Boolean(process.env.CI) && !process.env.DATABASE_URL;
+const FANCHANT_SMOKE_SEED = "fanchant-smoke-0";
+const FANCHANT_SMOKE_NOTE = buildChart(seededRandom(FANCHANT_SMOKE_SEED))[0];
 
 /** Game-specific input that drives the run to its terminal state. */
 const SMOKE_ACTIONS: Record<
@@ -88,6 +96,42 @@ const SMOKE_ACTIONS: Record<
     },
     terminal: true,
     endTimeoutMs: 60_000,
+  },
+  "photocard-stack": {
+    // One-button input proof: the opening card begins completely off the
+    // stack, so an immediate tap is a deterministic total miss/end.
+    act: async (page) => {
+      await page
+        .getByTestId("game-surface")
+        .click({ position: { x: 20, y: 320 } });
+    },
+    terminal: true,
+  },
+  "fanchant-hero": {
+    // Pin the chart, catch its first note through the primary mobile pointer
+    // path, and require an observable score change before waiting for the
+    // fixed-duration chart to complete.
+    urlQuery: `?seed=${FANCHANT_SMOKE_SEED}`,
+    act: async (page) => {
+      const host = page.getByTestId("game-host");
+      const surface = page.getByTestId("game-surface");
+      const box = await surface.boundingBox();
+      if (!box) throw new Error("fanchant-hero: no game-surface bounding box");
+
+      const laneCenter = 0.08 + (FANCHANT_SMOKE_NOTE.lane + 0.5) * (0.84 / 4);
+      const hitAtMs = APPROACH_START_MS + FANCHANT_SMOKE_NOTE.beat * BEAT_MS;
+      await page.waitForTimeout(hitAtMs - 100);
+      await page.mouse.click(
+        box.x + box.width * laneCenter,
+        box.y + box.height * 0.8,
+      );
+      await expect
+        .poll(async () => Number(await host.getAttribute("data-score")))
+        .toBeGreaterThan(0);
+      await page.waitForTimeout(60_000);
+    },
+    terminal: true,
+    endTimeoutMs: 70_000,
   },
   hangman: {
     // Six letters absent from every dictionary term → lost.

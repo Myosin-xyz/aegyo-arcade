@@ -37,4 +37,6 @@ export const GAME_ACCENTS: Record<string, string> = {
   hangman: "#7dffd9",
   freebie: "#ff7a3d",
   frogger: PALETTE.brandSoft,
+  "photocard-stack": PALETTE.gold,
+  "fanchant-hero": PALETTE.accent,
 };

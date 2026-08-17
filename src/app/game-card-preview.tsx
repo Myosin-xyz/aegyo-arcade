@@ -6,6 +6,36 @@ type NavigatorWithConnection = Navigator & {
   connection?: { saveData?: boolean };
 };
 
+interface TouchPreviewCandidate {
+  ratio: number;
+  centerY: number;
+  select: (selected: boolean) => void;
+}
+
+const touchPreviewCandidates = new Map<string, TouchPreviewCandidate>();
+let touchSelectionScheduled = false;
+
+function scheduleTouchPreviewSelection() {
+  if (touchSelectionScheduled) return;
+  touchSelectionScheduled = true;
+  queueMicrotask(() => {
+    touchSelectionScheduled = false;
+    const viewportCenter = window.innerHeight / 2;
+    const winner = [...touchPreviewCandidates.entries()]
+      .filter(([, candidate]) => candidate.ratio >= 0.75)
+      .sort(
+        ([, a], [, b]) =>
+          b.ratio - a.ratio ||
+          Math.abs(a.centerY - viewportCenter) -
+            Math.abs(b.centerY - viewportCenter),
+      )[0]?.[0];
+
+    for (const [id, candidate] of touchPreviewCandidates) {
+      candidate.select(id === winner);
+    }
+  });
+}
+
 export function GameCardPreview({
   poster,
   video,
@@ -59,13 +89,30 @@ export function GameCardPreview({
     if (!container || hasHover || !canAnimate || !window.IntersectionObserver) {
       return;
     }
+    touchPreviewCandidates.set(testId, {
+      ratio: 0,
+      centerY: Number.POSITIVE_INFINITY,
+      select: setVisibleOnTouch,
+    });
     const observer = new IntersectionObserver(
-      ([entry]) => setVisibleOnTouch(entry.intersectionRatio >= 0.75),
+      ([entry]) => {
+        const candidate = touchPreviewCandidates.get(testId);
+        if (!candidate) return;
+        candidate.ratio = entry.intersectionRatio;
+        candidate.centerY = entry.boundingClientRect
+          ? entry.boundingClientRect.top + entry.boundingClientRect.height / 2
+          : Number.POSITIVE_INFINITY;
+        scheduleTouchPreviewSelection();
+      },
       { threshold: [0, 0.75, 1] },
     );
     observer.observe(container);
-    return () => observer.disconnect();
-  }, [canAnimate, hasHover]);
+    return () => {
+      observer.disconnect();
+      touchPreviewCandidates.delete(testId);
+      scheduleTouchPreviewSelection();
+    };
+  }, [canAnimate, hasHover, testId]);
 
   const active =
     canAnimate && (interactionActive || (!hasHover && visibleOnTouch));

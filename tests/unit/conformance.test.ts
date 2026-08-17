@@ -6,6 +6,8 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type {
   GameContext,
   GameDefinition,
@@ -259,6 +261,24 @@ describe("hostile init paths", () => {
 });
 
 describe("registry integrity", () => {
+  it("every portal card ships a localized poster and video", () => {
+    for (const entry of listGames()) {
+      expect(entry.preview, entry.meta.id).toBeDefined();
+      for (const locale of ["en", "es-419"] as const) {
+        for (const asset of [
+          entry.preview?.poster[locale],
+          entry.preview?.video[locale],
+        ]) {
+          expect(asset, `${entry.meta.id} (${locale})`).toBeTruthy();
+          expect(
+            existsSync(join(process.cwd(), "public", asset?.slice(1) ?? "")),
+            asset,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
   it("every definition's metadata matches its registry entry", async () => {
     for (const entry of listGames()) {
       const definition = await entry.load();

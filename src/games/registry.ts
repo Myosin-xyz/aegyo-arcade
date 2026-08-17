@@ -91,9 +91,23 @@ export interface RegistryEntry {
   load: () => Promise<GameDefinition>;
 }
 
+function landingPreview(gameId: string): NonNullable<RegistryEntry["preview"]> {
+  return {
+    poster: {
+      en: `/games/${gameId}/preview-v1-en.webp`,
+      "es-419": `/games/${gameId}/preview-v1-es-419.webp`,
+    },
+    video: {
+      en: `/games/${gameId}/preview-v1-en.mp4`,
+      "es-419": `/games/${gameId}/preview-v1-es-419.mp4`,
+    },
+  };
+}
+
 const entries: RegistryEntry[] = [
   {
     meta: clawMeta,
+    preview: landingPreview("claw"),
     hostManagedCanvas: false,
     countedCompletion: "game-owned",
     // The claw has no score concept (capabilities = counted + prize, no
@@ -107,6 +121,7 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: snakeMeta,
+    preview: landingPreview("snake"),
     // Snake Freebies draws its own LEVEL/SCORE/TIME HUD inside the arena
     // (delivered design), so the host header must not print the score a
     // second time. The ended announcement still speaks it.
@@ -128,6 +143,7 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: flappyMeta,
+    preview: landingPreview("flappy"),
     // Bias Flap (Daidai delivery, ported 2026-07-27) draws its own
     // LEVEL/GATES/TIME HUD; score appears only on its own end screens —
     // which is also why the ended presentation is game-authored: the
@@ -148,6 +164,7 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: jumperMeta,
+    preview: landingPreview("jumper"),
     scorePresentation: "authored",
     musicTrack: "/games/music/jumper.mp3",
     introKeys: [
@@ -161,16 +178,7 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: photocardStackMeta,
-    preview: {
-      poster: {
-        en: "/games/photocard-stack/preview-v1-en.webp",
-        "es-419": "/games/photocard-stack/preview-v1-es-419.webp",
-      },
-      video: {
-        en: "/games/photocard-stack/preview-v1-en.mp4",
-        "es-419": "/games/photocard-stack/preview-v1-es-419.mp4",
-      },
-    },
+    preview: landingPreview("photocard-stack"),
     scorePresentation: "authored",
     endPresentation: "game-authored",
     musicTrack: "/games/music/freebie.mp3",
@@ -193,16 +201,7 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: fanchantHeroMeta,
-    preview: {
-      poster: {
-        en: "/games/fanchant-hero/preview-v1-en.webp",
-        "es-419": "/games/fanchant-hero/preview-v1-es-419.webp",
-      },
-      video: {
-        en: "/games/fanchant-hero/preview-v1-en.mp4",
-        "es-419": "/games/fanchant-hero/preview-v1-es-419.mp4",
-      },
-    },
+    preview: landingPreview("fanchant-hero"),
     scorePresentation: "authored",
     endPresentation: "game-authored",
     introKeys: [
@@ -222,16 +221,7 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: biasMatchMeta,
-    preview: {
-      poster: {
-        en: "/games/bias-match/preview-v1-en.webp",
-        "es-419": "/games/bias-match/preview-v1-es-419.webp",
-      },
-      video: {
-        en: "/games/bias-match/preview-v1-en.mp4",
-        "es-419": "/games/bias-match/preview-v1-es-419.mp4",
-      },
-    },
+    preview: landingPreview("bias-match"),
     scorePresentation: "authored",
     endPresentation: "game-authored",
     // Reuse the slower puzzle track from Guess the Slang: it fits a
@@ -255,11 +245,13 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: hangmanMeta,
+    preview: landingPreview("hangman"),
     musicTrack: "/games/music/hangman.mp3",
     load: () => import("./hangman/module").then((m) => m.hangmanDefinition),
   },
   {
     meta: freebieMeta,
+    preview: landingPreview("freebie"),
     scorePresentation: "authored",
     introKeys: [
       "game.freebie.intro.1",
@@ -272,6 +264,7 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: froggerMeta,
+    preview: landingPreview("frogger"),
     scorePresentation: "authored",
     introKeys: [
       "game.frogger.intro.1",
@@ -284,6 +277,7 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: thisorthatMeta,
+    preview: landingPreview("thisorthat"),
     // No score concept at all (prototype).
     scorePresentation: "none",
     // The vibe result is the payoff — keep it visible after the run

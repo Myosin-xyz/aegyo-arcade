@@ -137,4 +137,73 @@ describe("game card preview", () => {
     await act(async () => root.unmount());
     expect(disconnect).toHaveBeenCalledOnce();
   });
+
+  it("activates only the best-visible preview when several mobile cards qualify", async () => {
+    stubMedia({ hover: false });
+    const callbacks: IntersectionObserverCallback[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          callbacks.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        takeRecords() {
+          return [];
+        }
+        disconnect() {}
+        root = null;
+        rootMargin = "0px";
+        thresholds = [0, 0.75, 1];
+      },
+    );
+
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <>
+          {[0, 1, 2].map((index) => (
+            <a href={`/play/${index}`} key={index}>
+              <GameCardPreview
+                poster={`/preview-${index}.webp`}
+                video={`/preview-${index}.mp4`}
+                testId={`preview-${index}`}
+              />
+            </a>
+          ))}
+        </>,
+      );
+    });
+    expect(callbacks).toHaveLength(3);
+
+    await act(async () => {
+      callbacks.forEach((callback, index) =>
+        callback(
+          [
+            {
+              intersectionRatio: 1,
+              boundingClientRect: {
+                top: index * 300,
+                height: 300,
+              },
+            } as IntersectionObserverEntry,
+          ],
+          {} as IntersectionObserver,
+        ),
+      );
+      await Promise.resolve();
+    });
+
+    const videos = [...host.querySelectorAll("video")];
+    expect(videos.filter((video) => video.dataset.active === "true")).toEqual([
+      videos[1],
+    ]);
+    expect(videos.filter((video) => video.getAttribute("src"))).toEqual([
+      videos[1],
+    ]);
+    await act(async () => root.unmount());
+  });
 });

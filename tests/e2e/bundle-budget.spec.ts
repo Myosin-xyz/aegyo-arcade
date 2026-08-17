@@ -47,4 +47,19 @@ test("home transfers ≤ first-party JS budget and no game prefetch (production)
   // §15: game-card prefetch stays off — landing must not fetch /play/*.
   const gameFetches = resources.filter((r) => r.name.includes("/play/"));
   expect(gameFetches).toEqual([]);
+
+  // Posters may load with the landing card. On this mobile profile there
+  // is no hover, so the first card that is >=75% visible intentionally
+  // activates one tiny demo; every other MP4 remains source-less.
+  const previewVideoFetches = resources.filter((r) =>
+    /\/preview-v1-[^/]+\.mp4(?:\?|$)/.test(r.name),
+  );
+  expect(previewVideoFetches.length).toBeLessThanOrEqual(1);
+  expect(
+    previewVideoFetches.reduce(
+      (sum, resource) =>
+        sum + (resource.transferSize || resource.encodedBodySize),
+      0,
+    ),
+  ).toBeLessThanOrEqual(40 * 1024);
 });

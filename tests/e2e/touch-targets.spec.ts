@@ -17,6 +17,7 @@ import { dpadRects } from "../../src/games/snake/module";
 import { DESIGN_H } from "../../src/games/snake/render";
 import { HIT_PAD } from "../../src/games/claw/engine/input";
 import clawManifest from "../../public/games/claw/manifest.json";
+import { LEVELS as BIAS_MATCH_LEVELS } from "../../src/games/bias-match/logic";
 
 /** iOS touch-target guidance. */
 const MIN_TOUCH_CSS_PX = 44;
@@ -91,6 +92,61 @@ test.describe("touch targets at the 320px floor", () => {
         document.documentElement.clientWidth,
     );
     expect(overflow, "hangman keyboard overflows at 320px").toBeLessThanOrEqual(
+      0,
+    );
+  });
+
+  test("Bias Match keeps 44px cards reachable on its level-five grid", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await startRun(page, "bias-match");
+
+    // Clear levels 1–4 through the real buttons. Grouping by the shipped
+    // image URL follows the same information the opening peek presents;
+    // it does not reach into module state or skip the production input path.
+    for (let level = 0; level < 4; level += 1) {
+      await page.waitForTimeout(BIAS_MATCH_LEVELS[level].peekMs + 100);
+      const cards = page.locator("button[data-card-index]");
+      const groups = new Map<string, number[]>();
+      for (let index = 0; index < (await cards.count()); index += 1) {
+        const src = await cards.nth(index).locator("img").getAttribute("src");
+        if (!src) throw new Error(`Bias Match level ${level + 1}: no face`);
+        groups.set(src, [...(groups.get(src) ?? []), index]);
+      }
+      for (const [first, second] of groups.values()) {
+        // Dispatch directly to the real buttons so Next's dev-only floating
+        // tools portal cannot intercept a setup click after the internal
+        // board scrolls. The product handler/lifecycle still runs, and the
+        // separate registry smoke proves ordinary pointer clicks.
+        await cards.nth(first).dispatchEvent("click");
+        await cards.nth(second).dispatchEvent("click");
+        await page.waitForTimeout(400);
+      }
+      await page.locator("button[data-continue]").click();
+    }
+
+    await page.waitForTimeout(BIAS_MATCH_LEVELS[4].peekMs + 100);
+    const levelFiveCards = page.locator("button[data-card-index]");
+    expect(await levelFiveCards.count()).toBe(28);
+    for (const index of [0, 27]) {
+      const card = levelFiveCards.nth(index);
+      await card.scrollIntoViewIfNeeded();
+      const box = await card.boundingBox();
+      expect(box, `Bias Match level-five card ${index} missing`).not.toBeNull();
+      if (!box) continue;
+      expect(box.width).toBeGreaterThanOrEqual(MIN_TOUCH_CSS_PX);
+      expect(box.height).toBeGreaterThanOrEqual(MIN_TOUCH_CSS_PX);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(568);
+    }
+
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow, "Bias Match page overflows at 320px").toBeLessThanOrEqual(
       0,
     );
   });

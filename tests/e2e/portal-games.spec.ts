@@ -133,6 +133,32 @@ const SMOKE_ACTIONS: Record<
     terminal: true,
     endTimeoutMs: 70_000,
   },
+  "bias-match": {
+    // Wait out the level-one peek, then deliberately repeat one wrong
+    // pair five times. This exercises real card buttons, miss feedback,
+    // lives, and the authored game-over presentation in under 8 seconds.
+    urlQuery: "?seed=bias-match-smoke-0",
+    act: async (page) => {
+      await page.waitForTimeout(2400);
+      const cards = page.locator("button[data-card-index]");
+      const firstSrc = await cards.nth(0).locator("img").getAttribute("src");
+      let secondIndex = 1;
+      for (; secondIndex < (await cards.count()); secondIndex += 1) {
+        if (
+          (await cards.nth(secondIndex).locator("img").getAttribute("src")) !==
+          firstSrc
+        ) {
+          break;
+        }
+      }
+      for (let miss = 0; miss < 5; miss += 1) {
+        await cards.nth(0).click();
+        await cards.nth(secondIndex).click();
+        await page.waitForTimeout(800);
+      }
+    },
+    terminal: true,
+  },
   hangman: {
     // Six letters absent from every dictionary term → lost.
     act: async (page) => {

@@ -6,13 +6,15 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { listGames } from "@/games/registry";
 import { GAME_ACCENTS, PALETTE } from "@/shell/palette";
-import { t } from "@/i18n/t";
+import { getLocale, t } from "@/i18n/t";
 import { StreakStrip } from "./streak-strip";
 import { AegyoLogo } from "./logo";
+import { GameCardPreview } from "./game-card-preview";
 import { LocaleToggle } from "./locale-toggle";
 
 export default function Home() {
   const games = listGames();
+  const locale = getLocale();
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 px-5 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[env(safe-area-inset-top)]">
       <header className="flex flex-col items-center gap-2 pt-10 text-center">
@@ -36,24 +38,35 @@ export default function Home() {
                 // §15: game-card route prefetch stays OFF — RSC prefetches
                 // were firing on landing (M0 review), paid-traffic transfer.
                 prefetch={false}
-                className="card-arcade block h-full p-4 transition-[transform,border-color] active:scale-95"
+                className={`card-arcade block h-full transition-[transform,border-color] active:scale-95 ${
+                  game.preview ? "overflow-hidden" : "p-4"
+                }`}
                 style={{ "--game-accent": accent } as CSSProperties}
                 data-testid={`game-card-${game.meta.id}`}
               >
-                <span
-                  aria-hidden
-                  className="mb-2.5 block h-1.5 w-8 rounded-full"
-                  style={{
-                    background: accent,
-                    boxShadow: `0 0 12px ${accent}`,
-                  }}
-                />
-                <h2 className="font-bold leading-tight">
-                  {t(game.meta.titleKey)}
-                </h2>
-                <p className="mt-1 text-xs leading-snug text-muted">
-                  {t(game.meta.taglineKey)}
-                </p>
+                {game.preview && (
+                  <GameCardPreview
+                    poster={game.preview.poster[locale]}
+                    video={game.preview.video[locale]}
+                    testId={`game-preview-${game.meta.id}`}
+                  />
+                )}
+                <div className={game.preview ? "p-4" : undefined}>
+                  <span
+                    aria-hidden
+                    className="mb-2.5 block h-1.5 w-8 rounded-full"
+                    style={{
+                      background: accent,
+                      boxShadow: `0 0 12px ${accent}`,
+                    }}
+                  />
+                  <h2 className="font-bold leading-tight">
+                    {t(game.meta.titleKey)}
+                  </h2>
+                  <p className="mt-1 text-xs leading-snug text-muted">
+                    {t(game.meta.taglineKey)}
+                  </p>
+                </div>
               </Link>
             </li>
           );

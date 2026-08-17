@@ -11,6 +11,7 @@ import {
   maximumScoreForHeight,
 } from "@/games/photocard-stack/logic";
 import { MAX_SCORE as FANCHANT_MAX_SCORE } from "@/games/fanchant-hero/logic";
+import { MAX_SCORE as BIAS_MATCH_MAX_SCORE } from "@/games/bias-match/logic";
 
 export interface CountedGameConfig {
   /** Inclusive max plausible score (docs/games/<id>.md rules). */
@@ -56,6 +57,9 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
     // The shipped seeded chart is capped at 115 notes. Every note at
     // PERFECT with one uninterrupted combo reaches exactly 24,840.
     "fanchant-hero": { maxScore: FANCHANT_MAX_SCORE, scored: true },
+    // Five fully-gold boards: 90 + 280 + 540 + 1040 + 1500.
+    // The deterministic rules module derives this exact 3450 ceiling.
+    "bias-match": { maxScore: BIAS_MATCH_MAX_SCORE, scored: true },
     // Solve score = remaining lives 1–6; daily server-selected term
     // (docs/games/hangman.md). SINGLE SOURCE: the content module's own
     // version constant — config can't drift from the dictionary.

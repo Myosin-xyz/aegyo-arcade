@@ -5,6 +5,7 @@
  * definition's metadata matches the registry entry.
  */
 
+import type { Locale } from "@/i18n/t";
 import type { GameDefinition, GameMeta } from "@/shell/contract";
 import { clawMeta } from "./claw/meta";
 import { snakeMeta } from "./snake/meta";
@@ -16,9 +17,17 @@ import { froggerMeta } from "./frogger/meta";
 import { thisorthatMeta } from "./thisorthat/meta";
 import { photocardStackMeta } from "./photocard-stack/meta";
 import { fanchantHeroMeta } from "./fanchant-hero/meta";
+import { biasMatchMeta } from "./bias-match/meta";
 
 export interface RegistryEntry {
   meta: GameMeta;
+  /** Optional, pre-rendered landing-card preview. Keeping this as static
+   * metadata avoids importing a game's runtime chunk on the paid landing
+   * route; videos stay `preload="none"` until the card is activated. */
+  preview?: {
+    poster: Record<Locale, string>;
+    video: Record<Locale, string>;
+  };
   /**
    * CANVAS-ONLY host-loading hint (ADR 0005: deliberately outside
    * GameMeta — it configures how the host mounts, not the game
@@ -152,6 +161,16 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: photocardStackMeta,
+    preview: {
+      poster: {
+        en: "/games/photocard-stack/preview-v1-en.webp",
+        "es-419": "/games/photocard-stack/preview-v1-es-419.webp",
+      },
+      video: {
+        en: "/games/photocard-stack/preview-v1-en.mp4",
+        "es-419": "/games/photocard-stack/preview-v1-es-419.mp4",
+      },
+    },
     scorePresentation: "authored",
     endPresentation: "game-authored",
     musicTrack: "/games/music/freebie.mp3",
@@ -174,6 +193,16 @@ const entries: RegistryEntry[] = [
   },
   {
     meta: fanchantHeroMeta,
+    preview: {
+      poster: {
+        en: "/games/fanchant-hero/preview-v1-en.webp",
+        "es-419": "/games/fanchant-hero/preview-v1-es-419.webp",
+      },
+      video: {
+        en: "/games/fanchant-hero/preview-v1-en.mp4",
+        "es-419": "/games/fanchant-hero/preview-v1-es-419.mp4",
+      },
+    },
     scorePresentation: "authored",
     endPresentation: "game-authored",
     introKeys: [
@@ -190,6 +219,39 @@ const entries: RegistryEntry[] = [
     },
     load: () =>
       import("./fanchant-hero/module").then((m) => m.fanchantHeroDefinition),
+  },
+  {
+    meta: biasMatchMeta,
+    preview: {
+      poster: {
+        en: "/games/bias-match/preview-v1-en.webp",
+        "es-419": "/games/bias-match/preview-v1-es-419.webp",
+      },
+      video: {
+        en: "/games/bias-match/preview-v1-en.mp4",
+        "es-419": "/games/bias-match/preview-v1-es-419.mp4",
+      },
+    },
+    scorePresentation: "authored",
+    endPresentation: "game-authored",
+    // Reuse the slower puzzle track from Guess the Slang: it fits a
+    // memory game and avoids shipping a ninth near-duplicate catalog MP3.
+    musicTrack: "/games/music/hangman.mp3",
+    introKeys: [
+      "game.bias-match.intro.1",
+      "game.bias-match.intro.2",
+      "game.bias-match.intro.3",
+      "game.bias-match.intro.4",
+      "game.bias-match.intro.5",
+    ],
+    introPresentation: {
+      titleKey: "game.bias-match.intro.title",
+      subtitleKey: "game.bias-match.intro.subtitle",
+      bulletIcons: ["🃏", "👀", "💔", "✨", "🏆"],
+      variant: "neon",
+    },
+    load: () =>
+      import("./bias-match/module").then((m) => m.biasMatchDefinition),
   },
   {
     meta: hangmanMeta,

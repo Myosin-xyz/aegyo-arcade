@@ -16,8 +16,9 @@ encode() {
     "$output_dir/$output_name"
 }
 
-# One lazy track per game. The ninth handoff file remains an archived
-# alternate rather than shipping an unreferenced asset.
+# Eight lazy catalog tracks. Games may share a fitting track (for example,
+# Bias Match reuses hangman.mp3) instead of shipping a duplicate file. The
+# ninth handoff file remains an archived alternate.
 encode "Arcade_Heartbeat_2026-08-01T212624 (1).mp3" "claw.mp3"
 encode "Arcade_Heartbeat_2026-08-01T212624.mp3" "snake.mp3"
 encode "Arcade_Heartbeat_2026-08-01T212740.mp3" "jumper.mp3"

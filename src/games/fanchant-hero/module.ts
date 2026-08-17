@@ -5,6 +5,12 @@ import type {
   RunContext,
   ShellLoopGame,
 } from "@/shell/contract";
+import {
+  createHitFeedback,
+  shakeOffset,
+  tickHitFeedback,
+  triggerHitFeedback,
+} from "@/shell/feedback";
 import { arp, blip, thud } from "@/shell/sfx-presets";
 import {
   GOODIE_KEYS,
@@ -70,6 +76,7 @@ class FanchantHeroGame implements ShellLoopGame {
   private particles: FanchantParticle[] = [];
   private laneFlash = [0, 0, 0, 0];
   private judgement: JudgementToast | null = null;
+  private missFx = createHitFeedback();
   private melodyIndex = 0;
   private paused = false;
   private endedReported = false;
@@ -121,6 +128,7 @@ class FanchantHeroGame implements ShellLoopGame {
     this.particles = [];
     this.laneFlash = [0, 0, 0, 0];
     this.judgement = null;
+    this.missFx = createHitFeedback();
     this.melodyIndex = 0;
     this.paused = false;
     this.endedReported = false;
@@ -139,6 +147,7 @@ class FanchantHeroGame implements ShellLoopGame {
   update(dtMs: number): void {
     const state = this.state;
     if (!state || this.paused || this.endedReported) return;
+    tickHitFeedback(this.missFx, dtMs);
     const events = stepFanchant(state, dtMs);
     for (const beat of events.beats) {
       if (beat % 2 === 0) this.ctx.audio.play("fanchant-beat");
@@ -146,6 +155,10 @@ class FanchantHeroGame implements ShellLoopGame {
     if (events.missed > 0) {
       this.ctx.audio.play("fanchant-miss");
       this.judgement = { kind: "missed", color: "#ff5a7a", life: 450 };
+      // DaiDai polish: make a drop tactile without adding another flash.
+      // The shared feedback helper suppresses this motion for players who
+      // request reduced motion.
+      triggerHitFeedback(this.missFx);
     }
 
     const decay = Math.pow(0.85, dtMs / (1000 / 60));
@@ -166,8 +179,12 @@ class FanchantHeroGame implements ShellLoopGame {
     if (this.ctx.surface.kind !== "canvas" || !this.state || !this.images) {
       return;
     }
+    const g = this.ctx.surface.context2d;
+    const offset = shakeOffset(this.missFx);
+    g.save();
+    g.translate(offset.x, offset.y);
     renderFanchantHero(
-      this.ctx.surface.context2d,
+      g,
       this.state,
       this.images,
       this.laneFlash,
@@ -175,6 +192,7 @@ class FanchantHeroGame implements ShellLoopGame {
       this.judgement,
       this.ctx.t,
     );
+    g.restore();
   }
 
   destroy(): void {
@@ -184,6 +202,7 @@ class FanchantHeroGame implements ShellLoopGame {
     this.images = null;
     this.particles = [];
     this.judgement = null;
+    this.missFx = createHitFeedback();
   }
 
   private onPointer(pointer: NormalizedPointer): void {

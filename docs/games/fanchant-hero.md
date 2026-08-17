@@ -37,6 +37,9 @@
 - Fourteen transparent PNG goodies are exported to lazy lossless WebPs.
 - The shell owns the fixed loop, pause/resume, input listeners, and WebAudio
   lifetime. No game-created animation frame, timer, or audio context remains.
+- A missed note adds a brief, decaying whole-canvas shake. The existing miss
+  label and sound remain the primary feedback, and the motion is suppressed
+  when the player prefers reduced motion.
 - Fanchant Hero deliberately does not reuse an unrelated background loop:
   the supplied 120-BPM metronome and original catch melody stay aligned with
   the procedural chart until a final licensed beat-mapped track exists.

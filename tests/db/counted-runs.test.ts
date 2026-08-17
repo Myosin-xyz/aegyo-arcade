@@ -426,6 +426,38 @@ describe("submission (§9.2/§9.3)", () => {
     expect(max.kind).toBe("accepted");
   });
 
+  it.each([
+    { gameId: "photocard-stack", maxScore: 1_016_000 },
+    { gameId: "fanchant-hero", maxScore: 24_840 },
+  ])(
+    "$gameId envelope: the documented maximum is accepted and max + 1 is rejected",
+    async ({ gameId, maxScore }) => {
+      const device = await seedDevice();
+      const issued = await issueCountedAttempt(db, {
+        deviceId: device.deviceId,
+        timeZone: device.timeZone,
+        gameId,
+      });
+      if (issued.kind !== "issued")
+        throw new Error(`issue failed: ${issued.kind}`);
+      expect(
+        (
+          await submitCountedResult(db, {
+            deviceId: device.deviceId,
+            attemptId: issued.attemptId,
+            score: maxScore + 1,
+          })
+        ).kind,
+      ).toBe("bad_score");
+      const max = await submitCountedResult(db, {
+        deviceId: device.deviceId,
+        attemptId: issued.attemptId,
+        score: maxScore,
+      });
+      expect(max.kind).toBe("accepted");
+    },
+  );
+
   it("expired attempts are rejected and replaceable (OD-1: never burned)", async () => {
     const device = await seedDevice();
     const issued = await issueSnake(device);

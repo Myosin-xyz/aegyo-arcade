@@ -23,6 +23,10 @@ const ASSET_DIR = path.join(
 const DECODED_BUDGET = 32 * 1024 * 1024;
 const TRANSFER_BUDGET = 350 * 1024;
 const EXPECTED_DESIGN = { w: 941, h: 1488 }; // mirrors src/games/claw/meta.ts
+const NON_SPRITE_IMAGES = new Set([
+  "preview-v1-en.webp",
+  "preview-v1-es-419.webp",
+]);
 
 // Required manifest entries (audit 2026-07-27): a regeneration that
 // silently DROPS a gameplay-critical sprite must fail here, not in prod.
@@ -92,6 +96,7 @@ for (const rect of rects) {
 // staying invisible to the budget above. Fail on any unreferenced image.
 const stale = readdirSync(ASSET_DIR)
   .filter((f) => /\.(webp|png)$/i.test(f))
+  .filter((f) => !NON_SPRITE_IMAGES.has(f))
   .filter((f) => !seen.has(f));
 for (const file of stale) {
   console.error(

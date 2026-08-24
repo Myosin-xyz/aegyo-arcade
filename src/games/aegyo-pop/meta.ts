@@ -1,11 +1,11 @@
 import type { GameMeta } from "@/shell/contract";
-import { DESIGN_H, DESIGN_W } from "./logic";
+import { AEGYO_POP_DESIGN } from "./dimensions";
 
 export const aegyoPopMeta: GameMeta = {
   id: "aegyo-pop",
   titleKey: "game.aegyo-pop.title",
   taglineKey: "game.aegyo-pop.tagline",
   surface: "canvas",
-  designBox: { w: DESIGN_W, h: DESIGN_H },
+  designBox: AEGYO_POP_DESIGN,
   capabilities: { counted: true, prize: false },
 };

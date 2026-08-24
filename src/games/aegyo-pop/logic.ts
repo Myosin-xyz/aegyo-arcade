@@ -5,8 +5,10 @@
  * and rule vectors never need a canvas or browser clock.
  */
 
-export const DESIGN_W = 390;
-export const DESIGN_H = 780;
+import { AEGYO_POP_DESIGN } from "./dimensions";
+
+export const DESIGN_W = AEGYO_POP_DESIGN.w;
+export const DESIGN_H = AEGYO_POP_DESIGN.h;
 export const COLS = 8;
 export const RADIUS = DESIGN_W / (COLS * 2 + 1);
 export const OFFSET_TOP = DESIGN_H * 0.1;

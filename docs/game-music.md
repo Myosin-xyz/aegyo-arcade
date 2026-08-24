@@ -16,7 +16,7 @@ Music is host presentation, not a frozen runtime-contract addition. It
 follows the existing mute, pause/resume, end, restart, and destroy states.
 Synthesized game SFX remain on `AudioBus` v1.
 
-The catalog is intentionally reusable: Photocard Stack shares
+The catalog is intentionally reusable: Photocard Stack and Aegyo Pop share
 `freebie.mp3`, and Bias Match shares the slower `hangman.mp3` puzzle track.
 Fanchant Hero keeps its authored beat/melody instead of layering an unrelated
 loop. Reuse preserves the landing/game transfer rules and avoids shipping

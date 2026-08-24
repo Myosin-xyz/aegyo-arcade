@@ -39,4 +39,5 @@ export const GAME_ACCENTS: Record<string, string> = {
   frogger: PALETTE.brandSoft,
   "photocard-stack": PALETTE.gold,
   "fanchant-hero": PALETTE.accent,
+  "aegyo-pop": "#ff4fd8",
 };

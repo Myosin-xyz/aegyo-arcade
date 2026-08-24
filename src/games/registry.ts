@@ -18,6 +18,7 @@ import { thisorthatMeta } from "./thisorthat/meta";
 import { photocardStackMeta } from "./photocard-stack/meta";
 import { fanchantHeroMeta } from "./fanchant-hero/meta";
 import { biasMatchMeta } from "./bias-match/meta";
+import { aegyoPopMeta } from "./aegyo-pop/meta";
 
 export interface RegistryEntry {
   meta: GameMeta;
@@ -242,6 +243,27 @@ const entries: RegistryEntry[] = [
     },
     load: () =>
       import("./bias-match/module").then((m) => m.biasMatchDefinition),
+  },
+  {
+    meta: aegyoPopMeta,
+    preview: landingPreview("aegyo-pop"),
+    scorePresentation: "authored",
+    endPresentation: "game-authored",
+    musicTrack: "/games/music/freebie.mp3",
+    introKeys: [
+      "game.aegyo-pop.intro.1",
+      "game.aegyo-pop.intro.2",
+      "game.aegyo-pop.intro.3",
+      "game.aegyo-pop.intro.4",
+      "game.aegyo-pop.intro.5",
+    ],
+    introPresentation: {
+      titleKey: "game.aegyo-pop.intro.title",
+      subtitleKey: "game.aegyo-pop.intro.subtitle",
+      bulletIcons: ["🎯", "💥", "🚨", "🌈", "💖"],
+      variant: "neon",
+    },
+    load: () => import("./aegyo-pop/module").then((m) => m.aegyoPopDefinition),
   },
   {
     meta: hangmanMeta,

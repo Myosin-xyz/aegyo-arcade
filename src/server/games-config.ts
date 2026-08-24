@@ -12,6 +12,7 @@ import {
 } from "@/games/photocard-stack/logic";
 import { MAX_SCORE as FANCHANT_MAX_SCORE } from "@/games/fanchant-hero/logic";
 import { MAX_SCORE as BIAS_MATCH_MAX_SCORE } from "@/games/bias-match/logic";
+import { MAX_SCORE as AEGYO_POP_MAX_SCORE } from "@/games/aegyo-pop/logic";
 
 export interface CountedGameConfig {
   /** Inclusive max plausible score (docs/games/<id>.md rules). */
@@ -60,6 +61,10 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
     // Five fully-gold boards: 90 + 280 + 540 + 1040 + 1500.
     // The deterministic rules module derives this exact 3450 ceiling.
     "bias-match": { maxScore: BIAS_MATCH_MAX_SCORE, scored: true },
+    // A refillable bubble shooter has no natural shot-count ceiling. The
+    // port therefore saturates raw points at 49,999 and adds a 50,000 full-
+    // clear bonus, making completion dominant with an exact 99,999 envelope.
+    "aegyo-pop": { maxScore: AEGYO_POP_MAX_SCORE, scored: true },
     // Solve score = remaining lives 1–6; daily server-selected term
     // (docs/games/hangman.md). SINGLE SOURCE: the content module's own
     // version constant — config can't drift from the dictionary.

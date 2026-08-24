@@ -129,6 +129,19 @@ const previewConfigs = {
       }
     },
   },
+  "aegyo-pop": {
+    cropY: 0,
+    seed: "aegyo-pop-preview-v1",
+    posterFrame: 19,
+    onFrame: async ({ frame, surface }) => {
+      if (frame === 1) {
+        await surface.click({ position: { x: 180, y: 260 } });
+      }
+      if (frame === 31) {
+        await surface.click({ position: { x: 286, y: 250 } });
+      }
+    },
+  },
 };
 
 const selectedGames = process.argv.slice(2);

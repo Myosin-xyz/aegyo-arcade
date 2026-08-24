@@ -159,6 +159,35 @@ const SMOKE_ACTIONS: Record<
     },
     terminal: true,
   },
+  "aegyo-pop": {
+    // The full five-level clear is intentionally a longer-form run. This
+    // smoke proves the primary mobile aim/fire path by checking the authored
+    // shooter band changes when its orb detaches; terminal rules are pinned
+    // in the deterministic rule vectors.
+    urlQuery: "?seed=aegyo-pop-smoke-0",
+    act: async (page) => {
+      const surface = page.getByTestId("game-surface");
+      const box = await surface.boundingBox();
+      if (!box) throw new Error("aegyo-pop: no game-surface bounding box");
+      const clip = {
+        x: box.x + box.width * 0.34,
+        y: box.y + box.height * 0.82,
+        width: box.width * 0.32,
+        height: box.height * 0.16,
+      };
+      const before = await page.screenshot({ clip });
+      await page.mouse.click(
+        box.x + box.width * 0.5,
+        box.y + box.height * 0.34,
+      );
+      await page.waitForTimeout(80);
+      const after = await page.screenshot({ clip });
+      if (before.equals(after)) {
+        throw new Error("aegyo-pop: tap did not detach the shooter orb");
+      }
+    },
+    terminal: false,
+  },
   hangman: {
     // Six letters absent from every dictionary term → lost.
     act: async (page) => {

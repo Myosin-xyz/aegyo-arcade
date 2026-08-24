@@ -430,6 +430,7 @@ describe("submission (§9.2/§9.3)", () => {
     { gameId: "photocard-stack", maxScore: 1_016_000 },
     { gameId: "fanchant-hero", maxScore: 24_840 },
     { gameId: "bias-match", maxScore: 3450 },
+    { gameId: "aegyo-pop", maxScore: 99_999 },
   ])(
     "$gameId envelope: the documented maximum is accepted and max + 1 is rejected",
     async ({ gameId, maxScore }) => {

@@ -44,6 +44,9 @@ next-env.d.ts
 test-results/
 playwright-report/
 
+# Untrusted web research output
+.firecrawl/
+
 # Claw design master stays in shared storage, not git
 *.psd
 

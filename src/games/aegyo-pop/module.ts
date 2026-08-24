@@ -28,6 +28,7 @@ import {
 } from "./render";
 
 const ASSET_BASE = "/games/aegyo-pop/";
+const TOUCH_AIM_THRESHOLD = 8;
 
 function loadImage(
   source: string,
@@ -68,6 +69,13 @@ class AegyoPopGame implements ShellLoopGame {
   private lastReportedScore = -1;
   private reducedMotion = false;
   private unsubscribers: (() => void)[] = [];
+  private activeAim: {
+    pointerId: number;
+    pointerType: string;
+    startX: number;
+    startY: number;
+    dragged: boolean;
+  } | null = null;
 
   constructor(private readonly ctx: GameContext) {}
 
@@ -136,11 +144,13 @@ class AegyoPopGame implements ShellLoopGame {
     this.paused = false;
     this.endedReported = false;
     this.lastReportedScore = 0;
+    this.activeAim = null;
     this.ctx.report.score(0);
   }
 
   pause(): void {
     this.paused = true;
+    this.activeAim = null;
   }
 
   resume(): void {
@@ -182,6 +192,7 @@ class AegyoPopGame implements ShellLoopGame {
     this.images = null;
     this.particles = [];
     this.toast = null;
+    this.activeAim = null;
   }
 
   private onPointer(pointer: NormalizedPointer): void {
@@ -192,10 +203,46 @@ class AegyoPopGame implements ShellLoopGame {
       return;
     }
     if (state.status !== "playing") return;
-    if (pointer.action === "move" || pointer.action === "down") {
+
+    if (pointer.action === "down") {
+      // One pointer owns the full aim gesture. A second finger (including a
+      // tap on decorative/empty canvas space) cannot release the shot early.
+      if (this.activeAim) return;
+      this.activeAim = {
+        pointerId: pointer.pointerId,
+        pointerType: pointer.pointerType ?? "mouse",
+        startX: pointer.x,
+        startY: pointer.y,
+        dragged: false,
+      };
       setAimFromPoint(state, pointer.x, pointer.y);
+      return;
     }
-    if (pointer.action === "down") this.shoot();
+
+    const aim = this.activeAim;
+    if (!aim || aim.pointerId !== pointer.pointerId) return;
+    if (pointer.action === "cancel") {
+      this.activeAim = null;
+      return;
+    }
+    if (pointer.action === "move") {
+      if (
+        Math.hypot(pointer.x - aim.startX, pointer.y - aim.startY) >=
+        TOUCH_AIM_THRESHOLD
+      ) {
+        aim.dragged = true;
+      }
+      setAimFromPoint(state, pointer.x, pointer.y);
+      return;
+    }
+    if (pointer.action === "up") {
+      this.activeAim = null;
+      setAimFromPoint(state, pointer.x, pointer.y);
+      // Touch uses one unambiguous contract: drag, then lift. A stationary
+      // tap is deliberately inert. Mouse/pen clicks stay convenient.
+      if (aim.pointerType === "touch" && !aim.dragged) return;
+      this.shoot();
+    }
   }
 
   private shoot(): void {

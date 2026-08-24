@@ -115,6 +115,8 @@ export interface NormalizedPointer {
   x: number;
   y: number;
   pointerId: number;
+  /** Browser pointer kind. Optional for adapters/tests that predate this field. */
+  pointerType?: string;
 }
 
 export type KeyAction = "down" | "up";

@@ -161,29 +161,41 @@ const SMOKE_ACTIONS: Record<
   },
   "aegyo-pop": {
     // The full five-level clear is intentionally a longer-form run. This
-    // smoke proves the primary mobile aim/fire path by checking the authored
-    // shooter band changes when its orb detaches; terminal rules are pinned
-    // in the deterministic rule vectors.
+    // smoke proves aim stays held through pointer down/move and fires only on
+    // release; touch-only stationary-tap and multi-pointer rules are pinned in
+    // the module vectors.
     urlQuery: "?seed=aegyo-pop-smoke-0",
     act: async (page) => {
       const surface = page.getByTestId("game-surface");
       const box = await surface.boundingBox();
       if (!box) throw new Error("aegyo-pop: no game-surface bounding box");
-      const clip = {
-        x: box.x + box.width * 0.34,
-        y: box.y + box.height * 0.82,
-        width: box.width * 0.32,
-        height: box.height * 0.16,
+      const scale = Math.min(box.width / 390, box.height / 780);
+      const originX = box.x + (box.width - 390 * scale) / 2;
+      const originY = box.y + (box.height - 780 * scale) / 2;
+      const shotsHud = {
+        x: originX + (195 - 50) * scale,
+        y: originY + 75 * scale,
+        width: 100 * scale,
+        height: 34 * scale,
       };
-      const before = await page.screenshot({ clip });
-      await page.mouse.click(
-        box.x + box.width * 0.5,
-        box.y + box.height * 0.34,
-      );
+      const before = await page.screenshot({ clip: shotsHud });
+      await page.mouse.move(originX + 195 * scale, originY + 650 * scale);
+      await page.mouse.down();
+      await page.mouse.move(originX + 245 * scale, originY + 280 * scale, {
+        steps: 6,
+      });
       await page.waitForTimeout(80);
-      const after = await page.screenshot({ clip });
+      const whileHeld = await page.screenshot({ clip: shotsHud });
+      if (!before.equals(whileHeld)) {
+        throw new Error(
+          "aegyo-pop: shot released before the aiming pointer lifted",
+        );
+      }
+      await page.mouse.up();
+      await page.waitForTimeout(80);
+      const after = await page.screenshot({ clip: shotsHud });
       if (before.equals(after)) {
-        throw new Error("aegyo-pop: tap did not detach the shooter orb");
+        throw new Error("aegyo-pop: lifting the aiming pointer did not fire");
       }
     },
     terminal: false,

@@ -105,6 +105,8 @@ describe("Aegyo Pop shell module", () => {
     const mounted = await mount();
     if (mounted.game.loop !== "shell") throw new Error("expected shell loop");
     mounted.pointer({ action: "down", x: 195, y: 250, pointerId: 1 });
+    expect(mounted.state().shots).toBe(0);
+    mounted.pointer({ action: "up", x: 195, y: 250, pointerId: 1 });
     expect(mounted.state().shots).toBe(1);
     expect(mounted.state().flying).not.toBeNull();
     expect(mounted.state().loaded).toBeNull();
@@ -120,6 +122,101 @@ describe("Aegyo Pop shell module", () => {
     expect(mounted.state().flying).toBeNull();
     expect(mounted.state().loaded).not.toBeNull();
     expect(mounted.scores[0]).toBe(0);
+  });
+
+  it("uses one mobile gesture: drag and lift, never an empty tap or second finger", async () => {
+    const mounted = await mount();
+
+    mounted.pointer({
+      action: "down",
+      x: 195,
+      y: 600,
+      pointerId: 11,
+      pointerType: "touch",
+    });
+    mounted.pointer({
+      action: "up",
+      x: 195,
+      y: 600,
+      pointerId: 11,
+      pointerType: "touch",
+    });
+    expect(mounted.state().shots).toBe(0);
+
+    mounted.pointer({
+      action: "down",
+      x: 195,
+      y: 600,
+      pointerId: 21,
+      pointerType: "touch",
+    });
+    mounted.pointer({
+      action: "move",
+      x: 245,
+      y: 300,
+      pointerId: 21,
+      pointerType: "touch",
+    });
+    expect(mounted.state().shots).toBe(0);
+
+    mounted.pointer({
+      action: "down",
+      x: 330,
+      y: 670,
+      pointerId: 22,
+      pointerType: "touch",
+    });
+    mounted.pointer({
+      action: "up",
+      x: 330,
+      y: 670,
+      pointerId: 22,
+      pointerType: "touch",
+    });
+    expect(mounted.state().shots).toBe(0);
+
+    mounted.pointer({
+      action: "up",
+      x: 245,
+      y: 300,
+      pointerId: 21,
+      pointerType: "touch",
+    });
+    expect(mounted.state().shots).toBe(1);
+    expect(mounted.state().flying).not.toBeNull();
+  });
+
+  it("cancels an interrupted mobile aim without firing", async () => {
+    const mounted = await mount();
+    mounted.pointer({
+      action: "down",
+      x: 195,
+      y: 600,
+      pointerId: 31,
+      pointerType: "touch",
+    });
+    mounted.pointer({
+      action: "move",
+      x: 245,
+      y: 300,
+      pointerId: 31,
+      pointerType: "touch",
+    });
+    mounted.pointer({
+      action: "cancel",
+      x: 245,
+      y: 300,
+      pointerId: 31,
+      pointerType: "touch",
+    });
+    mounted.pointer({
+      action: "up",
+      x: 245,
+      y: 300,
+      pointerId: 31,
+      pointerType: "touch",
+    });
+    expect(mounted.state().shots).toBe(0);
   });
 
   it("uses Enter for the authored level transition and tears subscriptions down", async () => {

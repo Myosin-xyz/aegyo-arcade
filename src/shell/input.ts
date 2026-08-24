@@ -40,6 +40,7 @@ export function createInputBus(options: InputBusOptions): InputBus {
       x,
       y,
       pointerId: e.pointerId,
+      pointerType: e.pointerType,
     };
     for (const listener of pointerListeners) listener(normalized);
   };

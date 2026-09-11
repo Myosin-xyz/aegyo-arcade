@@ -1,6 +1,8 @@
 # Shared-auth dependency request
 
-Draft for Mateo to send to Simon and Fernando. **Not sent.** The access/entitlement requests below are concrete dependencies for G1; this document does not approve spend or enable provider features.
+Draft for Mateo to send to Simon and Fernando. **Team message not sent.** The access/entitlement requests below are concrete dependencies for G1; this document does not approve spend or enable provider features.
+
+**September 11 update:** the separate Privy inquiry below was sent to `support@privy.io`; Gmail confirmed Message sent. No reply or entitlement approval yet. Auth0 dashboard access is available, but no subscription was purchased. Mateo requested an alternative without an Auth0 subscription, so the combined message's Auth0 budget request is on hold pending that decision. See [provider setup status](AUTH_PROOF_PROGRESS.md#provider-setup-update--september-11). Do not send this older combined wording unchanged.
 
 ## Combined team message
 

@@ -10,6 +10,8 @@ import {
   RESET_STATE_CLAIM,
 } from "../src/proof-provider.mjs";
 import { LEGACY_PREFIX } from "../src/passwords.mjs";
+import { installCredentialGuards } from "../src/credential-guards.mjs";
+import { proveCredentialTransitions } from "./credential-transitions.mjs";
 
 const socket = process.env.ACCOUNTS_PROOF_PG_SOCKET;
 
@@ -36,10 +38,14 @@ test(
     const migration = await getMigrations(options);
     assert.equal(migration.unsafeChanges.length, 0);
     await migration.runMigrations();
+    await installCredentialGuards(database);
 
     const issuer = "https://accounts.example.test/api/auth";
     let ipCounter = 0;
-    async function request(path, { body, cookie = "", ip, method } = {}) {
+    async function request(
+      path,
+      { body, cookie = "", ip, method, provider = auth } = {},
+    ) {
       const headers = new Headers({
         origin: "https://accounts.example.test",
         "x-aegyo-proof-ip": ip ?? `192.0.2.${++ipCounter}`,
@@ -52,7 +58,7 @@ test(
             ? "application/x-www-form-urlencoded"
             : "application/json",
         );
-      return auth.handler(
+      return provider.handler(
         new Request(issuer + path, {
           method: method ?? (body ? "POST" : "GET"),
           headers,
@@ -546,6 +552,19 @@ test(
         );
       },
     );
+
+    await proveCredentialTransitions(t, {
+      database,
+      config,
+      auth,
+      request,
+      cookies,
+      clients,
+      transaction,
+      authorize,
+      exchange,
+      operatorCookie,
+    });
 
     await t.test(
       "only the operator can revoke another user's IdP sessions and ban new login",

@@ -7,11 +7,12 @@
     "node": "24.21.0"
   },
   "scripts": {
-    "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs tests/runtime-unit.test.mjs ui/*.test.mjs",
+    "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs tests/runtime-unit.test.mjs tests/mailjet-preflight.test.mjs ui/*.test.mjs",
     "proof": "node scripts/prove.mjs",
     "start": "node src/server.mjs",
     "migrate": "node scripts/migrate.mjs",
-    "seed:staging": "node scripts/seed-staging.mjs"
+    "seed:staging": "node scripts/seed-staging.mjs",
+    "mail:preflight": "node scripts/mailjet-preflight.mjs"
   },
   "dependencies": {
     "@better-auth/oauth-provider": "1.7.4",

@@ -9,7 +9,7 @@ import {
   createProofProvider,
   RESET_STATE_CLAIM,
 } from "../src/proof-provider.mjs";
-import { LEGACY_PREFIX } from "../src/passwords.mjs";
+import { LEGACY_PREFIX, passwordFunctions } from "../src/passwords.mjs";
 import { installCredentialGuards } from "../src/credential-guards.mjs";
 import { proveRuntimeFlow } from "./runtime-flow.mjs";
 import { proveCredentialTransitions } from "./credential-transitions.mjs";
@@ -567,6 +567,47 @@ test(
             )
           ).rows[0].password,
           legacyHash,
+        );
+        // A guarded first-login upgrade can use this normal trigger path, but
+        // it is intentionally a security event rather than a silent rehash.
+        const beforeRehash = (
+          await database.query(
+            'SELECT "credentialVersion", "securityVersion", "passwordChangedAt" FROM "user" WHERE id=$1',
+            [legacyId],
+          )
+        ).rows[0];
+        const modernHash = await passwordFunctions(config.legacyPepper).hash(
+          legacyPassword,
+        );
+        await database.query(
+          'UPDATE "account" SET "password"=$1 WHERE "userId"=$2 AND "providerId"=\'credential\' AND password=$3',
+          [modernHash, legacyId, legacyHash],
+        );
+        const afterRehash = (
+          await database.query(
+            'SELECT "credentialVersion", "securityVersion", "passwordChangedAt" FROM "user" WHERE id=$1',
+            [legacyId],
+          )
+        ).rows[0];
+        assert.equal(
+          afterRehash.credentialVersion,
+          beforeRehash.credentialVersion + 1,
+        );
+        assert.equal(
+          afterRehash.securityVersion,
+          beforeRehash.securityVersion + 1,
+        );
+        assert.ok(afterRehash.passwordChangedAt instanceof Date);
+        assert.equal(
+          Number(
+            (
+              await database.query(
+                'SELECT count(*) FROM "session" WHERE "userId"=$1',
+                [legacyId],
+              )
+            ).rows[0].count,
+          ),
+          0,
         );
       },
     );

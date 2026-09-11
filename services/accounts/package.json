@@ -1,0 +1,19 @@
+{
+  "name": "@aegyo/accounts-proof",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test tests/passwords.test.mjs",
+    "proof": "node scripts/prove.mjs"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "1.7.4",
+    "better-auth": "1.7.4",
+    "jose": "6.2.2",
+    "pg": "8.22.0"
+  }
+}

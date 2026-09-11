@@ -1,5 +1,7 @@
 # Response to the auth and leaderboard audit
 
+> **September 11 provider revision:** Mateo requested no Auth0 subscription. The subsequent auditor review accepts a maintained Better Auth provider subject to independent service/database, database rate limiting, reset revocation, exact package pins and repeated runtime proofs. Mateo confirmed the existing Myosin Railway account/project. [The Better Auth decision](BETTER_AUTH_PROVIDER_DECISION.md) supersedes earlier Auth0 and no-new-infrastructure recommendations below. Historical audit reasoning remains for provenance. Local proof code is not production approval.
+
 September 11, 2026 — **audit closed; execution authorized by Mateo; bounded local proofs started; spend and production rollout remain unapproved**
 
 The audit correctly exposes unbudgeted provider dependencies and opportunities to reduce implementation scope. The plan is not ready for production execution until those dependencies are resolved. However, several proposed cuts change the agreed user experience or leave correctness gaps. Adopt the simplifications below without treating the auditor's replacement schedule as a verified estimate.
@@ -160,8 +162,8 @@ The auditor's schedule places some Daebak work after leaderboard work and allows
 
 ## Outstanding business and runtime decisions
 
-1. Approve a licensed provider budget and choose bulk import versus first-login migration after the small preservation proof.
-2. Execution handoff is authorized. Complete external access/configuration for the auditor-approved Arcade-hosted profile module; no separate Accounts infrastructure is required for September.
+1. Prove the Better Auth service, credential-copy/rehash path, email and operations; confirm actual Railway/Privy costs without an Auth0 subscription.
+2. Execution is authorized. Use a separate Accounts service/database in the existing Railway account/project from the Arcade repo; obtain Simon restore access and DNS/email configuration.
 3. Require the full seamless Daebak flow by launch, or explicitly accept a documented transitional wallet-login experience if the Privy proof fails.
 
 Server-verified official points, preservation of existing access/data, and truthful launch claims remain requirements. End-to-end acceptance tests remain pending. Local proof code and component tests exist on the isolated branch. No messages were sent to Simon/Fernando, and no production application or live-service settings were changed.

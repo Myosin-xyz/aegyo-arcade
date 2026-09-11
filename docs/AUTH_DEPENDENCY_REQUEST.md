@@ -1,29 +1,23 @@
 # Shared-auth dependency request
 
-Draft for Mateo to send to Simon and Fernando. **Team message not sent.** The access/entitlement requests below are concrete dependencies for G1; this document does not approve spend or enable provider features.
+Current draft for Mateo to send to Simon and Fernando. **Team message not sent.** Auth0 subscription is no longer a dependency. The separate Privy entitlement/continuity inquiry was sent to `support@privy.io`; Gmail confirmed Message sent. No response or feature approval yet.
 
-**September 11 update:** the separate Privy inquiry below was sent to `support@privy.io`; Gmail confirmed Message sent. No reply or entitlement approval yet. Auth0 dashboard access is available, but no subscription was purchased. Mateo requested an alternative without an Auth0 subscription, so the combined message's Auth0 budget request is on hold pending that decision. See [provider setup status](AUTH_PROOF_PROGRESS.md#provider-setup-update--september-11). Do not send this older combined wording unchanged.
+## Team message
 
-## Combined team message
+Hey Simon and Fernando — we're proceeding with a shared login service on our existing Myosin Railway account and Arcade project, without an Auth0 subscription. The code stays in the Arcade repo, with a separate login service/database so game deployments don't affect sign-in across the three products. The first local provider checks pass; real-user migration and all-three-app testing remain.
 
-Hey Simon and Fernando — the architecture audit is closed, and the first auth proof code and read-only Arcade/Daebak inventories are ready. Existing accounts, wallets and guest progress need to be preserved.
+Simon, I still need access for a read-only Aegyo database inventory, an isolated restored snapshot and the reviewed deploy/rollback path. Please confirm privately whether the production hashing secret is configured and transfer the required credential material only through our secure channel. We also need the owner who can point `account.aegyoarena.com` at the new service and provide the Mailjet sender/configuration for real recovery-email testing.
 
-To keep the September 14 migration proof on track and protect the leaderboard launch before September 21, we need these resolved by end of day September 12:
+I've contacted Privy about production custom-auth pricing and linking existing users without replacing their wallets. We'll keep those accounts and wallet IDs intact. A fallback that adds another Privy login would need an explicit UX decision.
 
-1. **Auth0:** confirm the tenant owner and billing owner, approve the Professional B2C budget, and give me access to the approved tenant. We also need an owner for SMTP credentials and the sending domain so we can test login and recovery emails.
-2. **Privy:** assign a support ticket and get written confirmation of whether our existing Daebak app can use custom JWT authentication in production, which plan is required, and the exact recurring cost. The dashboard labels it “Scale,” while the public feature table is less specific. Please also confirm the supported way to link our existing users before any new identity/wallet is created. Custom authentication is currently off.
-3. **Simon / Aegyo:** provide a read-only connection for aggregate counts and schema inventory, a restorable snapshot for isolated staging, and the person who can restore/deploy/roll back. Please confirm privately whether `AUTH_SECRET` is set in the deployed environment; keep its value and all connection credentials in our secure sharing channel, not this message.
+The next gate is September 14: three real staging origins working with password-reset revocation and migration/continuity evidence. If access or provider terms are still missing at the September 12 checkpoint, we'll flag the impact then. September 18 rollout remains conditional on the proofs.
 
-If the tenant or Aegyo access is still missing at that checkpoint, the September 14 proof is at risk and we should adjust the delivery commitment then. We can keep preparing locally, but cannot call shared auth ready until the migration and all-three-app tests pass.
+## Privy inquiry status
 
-## Privy support details for the assigned owner
+The inquiry identifies Myosin as the company and uses Mateo's personal Privy account for the reply. It asks for the exact tier/recurring price and account-specific terms for the existing app's production JWT authentication, plus the supported existing-user link-before-provision flow and protection against direct client JWT calls. No user export, wallet addresses or credentials were sent, and no upgrade/configuration changes were authorized.
 
-Use the existing Daebak Markets app's support context. Ask for written confirmation of production custom-JWT availability, the exact tier/price for the existing account, and whether any grandfathered or account-specific terms apply. The authenticated dashboard shows a development-mode app, the custom-auth switch off, and a Scale badge; the public page groups JWT authentication under Developer. Do not infer the answer from either label alone.
+The dashboard Slack invitation expired. The sales form did not submit because it required additional social/payment-volume details, so the request was sent directly to Privy's published support address. Do not submit the form again as a duplicate.
 
-Also ask which supported flow links an already-existing Privy identity to the external JWT subject without first creating another user or wallet, and how to enforce that restriction against a direct client JWT call. No user export, personal records, secrets or wallet addresses are needed in the ticket.
+## Checkpoints
 
-## Checkpoint and scope
-
-Checkpoint timezone: America/New_York. Record actual tenant/access readiness and the Privy support response by September 12 end of day; G1 remains September 14 subject to those dependencies. No automatic follow-up has been scheduled.
-
-The dual-session link-table alternative avoids Privy's custom-JWT feature requirement, but may add a Privy login on fresh browsers. It needs an explicit scope/UX decision and continuity proof; it is not an automatic fallback.
+Use America/New_York for September 12 and September 14 end-of-day checkpoints. No automatic follow-up or advisory watch has been activated. The [provider decision](BETTER_AUTH_PROVIDER_DECISION.md) and [progress record](AUTH_PROOF_PROGRESS.md) are the current technical record.

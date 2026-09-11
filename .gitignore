@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/services/accounts/node_modules/
+/services/accounts/.proof/
 /.pnp
 .pnp.*
 .yarn/*

@@ -1,17 +1,17 @@
 # Delivery plan: shared accounts first, Arcade championship second
 
 Status: **execution authorized by Mateo; Phase 0 inventory and bounded Phase 1 local proofs started; G1 and production rollout pending**\
-Version: 0.4 — September 11, 2026; execution handoff and first proof evidence recorded\
+Version: 0.5 — September 11, 2026; self-hosted Better Auth proof selected\
 Engineering: Mateo with Codex\
 Business owners: Simon and Fernando\
 Deadline: the monthly Arcade contest must be live **before September 21, 2026**.\
 Target: September 18 rollout, with September 19–20 reserved for recovery and verification if coverage is available.
 
-> **Audit status:** the auditor approves building bounded proofs under the lean architecture. This document now uses the Arcade-hosted account/profile module; the former independent Accounts app is superseded for September. See the [audit record](/Users/mateodazab/Documents/myosin/aegyo-arcade/docs/AUTH_AND_LEADERBOARD_AUDIT_RESPONSE.md). Simon/Fernando still authorize spend; actual access, migration, and gameplay proofs gate deployment. A separate Daebak login is not automatically accepted as a fallback.
+> **Current provider decision:** [Better Auth provider decision](BETTER_AUTH_PROVIDER_DECISION.md) supersedes the managed Auth0 path and the former no-new-infrastructure constraint. Use the existing Myosin Railway account and aegyo-arcade project, with a separate Accounts service/database from this repo. Mateo confirmed this shared account/project arrangement. No Auth0 purchase is required.
 
-> **Execution update:** see the [first proof and inventory record](/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs/docs/AUTH_PROOF_PROGRESS.md). Privy has existing identities; custom authentication is off and its production entitlement remains unconfirmed. Auth0 configuration and Aegyo database/restore access are still missing. The same-second retry proof keeps a strict cutoff and waits until the next second before its single fresh-login attempt.
+> **Execution:** [proof progress](/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs/docs/AUTH_PROOF_PROGRESS.md). Local package proofs are underway; real three-app browser acceptance, Aegyo restore/migration and Privy continuity remain pending. Privy production JWT terms have been requested by email, not approved.
 
-> **Dependency checkpoint:** September 12 end of day, America/New_York. If the approved Auth0 tenant or Simon's inventory/restore access is still unavailable, report the September 14 G1 target at risk at that checkpoint. Privy production custom-auth terms must be confirmed in writing before enablement. The [combined request](/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs/docs/AUTH_DEPENDENCY_REQUEST.md) is drafted but unsent.
+> **Checkpoints:** September 12 end of day, America/New_York: report service/DNS, email, Privy and Simon access readiness. September 14 end of day: demonstrate three real HTTPS staging origins and reset revocation or escalate scope/date. September 18 remains conditional.
 
 ## 1. Decisions this plan implements
 
@@ -58,8 +58,8 @@ This establishes a concrete Railway access target for Simon/Mateo. Confirm curre
 | Main-site merge/deploy path and named backup                                                          | Shipping the compatible auth adapter and rolling back safely             | Mateo permission, or Simon performing reviewed releases.                                                                         |
 | Database catalog, aggregate counts, migration history, and isolated restore                           | Data-preservation baseline and rehearsals                                | Authorized database access or Simon performing the bounded inventory/restore. No production PII belongs in Git or this document. |
 | Existing Privy tenant configuration and custom-auth availability                                      | Proving existing identity/wallet continuity                              | Mateo; provider enablement may require an external response.                                                                     |
-| Central auth tenant, necessary features, social-provider configuration, email delivery, budget        | Actual shared login and recovery                                         | Mateo plus the team's account/billing owner.                                                                                     |
-| Existing Arcade hosting/database and all product callback configuration                               | Hosting the lean Accounts module and validating current-origin redirects | Mateo and the existing hosting operators; isolated staging, scoped secrets, no new Accounts service or hostname.                 |
+| Independent Accounts service/database, stable issuer hostname and email delivery                      | Actual shared login and recovery                                         | Mateo plus the team's account/billing owner.                                                                                     |
+| Existing Arcade hosting/database and all product callback configuration                               | Hosting the lean Accounts module and validating current-origin redirects | Mateo and the existing hosting operators; same Railway account/project, separate IdP service/database and hostname.              |
 | Prize rules, allocation, claim process, and launch sign-off                                           | Opening the advertised contest                                           | Simon/Fernando and the existing promotion-policy owner.                                                                          |
 
 The first phase must turn every dependency into **available, delegated to a named operator, or blocked with a deadline**. Shared Railway/Vercel ownership by itself proves none of these settings.
@@ -93,44 +93,35 @@ First establish whether current users exist and which journeys they use. Counts 
 
 “Seamless” does not mean skipping ownership proof. A one-time confirmation may be necessary; avoid repeated prompts and never conceal a failed link behind an apparently successful new account.
 
-## 4. Lean architecture approved for the proof
+## 4. Architecture approved for the proof
 
-Use one managed sign-in authority, with one client/session adapter per product. The audit recommends Auth0 Professional B2C; Simon/Fernando authorize its cost and selected active-user allowance before purchase. Preserve the existing Privy tenant for Daebak wallet services, subject to enablement and the link-before-provision proof. No Free/trial-only migration path is assumed.
+Run Better Auth 1.7.4 plus its maintained OAuth Provider plugin in an independent Accounts service/database within the **existing Myosin Railway account and aegyo-arcade project**. Source it from `services/accounts` in this repo, with independent release/watch paths. Use `account.aegyoarena.com` once DNS is configured; stable isolated Railway staging hostnames can support G1. No new hosting account or repo. Compute, database, backup and email usage still need operating capacity.
 
-Host the initial member/profile module **inside the existing Arcade app and database**. Use account/profile screens under Arcade's current origin. No new repository, standalone Accounts app, database service, contracts package, or account subdomain is required for September. The term “Accounts” in the technical specification now means this logical module. It still owns one stable member UUID, verified identity associations, and shared usernames; each product retains local user IDs and data.
+Keep member/profile/username and competition records in the lean Arcade module. Keep credentials, IdP sessions and authoritative security state in the dedicated Accounts database. Each app retains its local IDs, data and session adapter; Aegyo's adapter mints its existing Session cookie. Preserve Daebak's current Privy identities and wallets.
 
 ```text
-Managed sign-in provider (one authority; three product clients)
-  ├─ Aegyo callback → existing Session cookie, users, content, roles
-  ├─ Arcade callback → Accounts module + member-owned competition
-  └─ Daebak adapter → existing Privy identities, wallets, rewards
-
-Arcade Accounts module → profiles, username namespace, link/security state
+Existing Myosin Railway account / aegyo-arcade project
+  Accounts service (services/accounts) -> dedicated Accounts Postgres
+    -> Aegyo: existing Session cookie and local user ID
+    -> Arcade: guest history plus authenticated member/competition
+    -> Daebak: existing Privy identity/wallet authorization
 ```
 
-Reuse maintained OIDC libraries and secure local sessions. Cross-domain login uses supported top-level redirects; do not implement an OAuth server or copy session cookies/bearer tokens between product domains. The directory stores no private keys, balances, legacy session tokens, game history copies, or imported passwords. Secure credential import is a separate provider operation.
-
-Profile availability and deployment now share Arcade's runtime. Existing public browsing, guest play, local identity mappings, and supported wallet recovery must not gain an unnecessary dependency on directory calls. New identity linking and sensitive changes fail safely if authoritative state is unavailable. Keep authenticated mapping/security operations and public profile projections narrow; a single public endpoint cannot authorize identity linking.
+This is a maintained open-source provider operated by us, explicitly replacing the former managed-provider-only restriction. Use standard OIDC clients, top-level redirects, exact callback URLs, state/nonce and S256 PKCE. Do not copy bearer tokens or session cookies between product domains. An Arcade UI/game deploy must not deploy the IdP.
 
 ### Migration and provider dependencies
 
-For Aegyo, the proof's initial candidate is a controlled **bulk import with a short credential-write freeze**, using the real legacy hashing configuration only inside authorized environments. Confirm actual account count first. Freeze every relevant writer, reconcile in-flight changes, keep imported provider login closed until validation completes, then switch login/recovery coherently. Preserve old local sessions and make incompatible old reset codes lead to a clear fresh-reset path. If the measured freeze/import path is more disruptive than first-login migration, decide that alternative before cutover.
+Follow the [provider decision](BETTER_AUTH_PROVIDER_DECISION.md) for the credential freeze, controlled row copy and versioned verify-and-rehash proof. Copying password hashes and transferring the pepper between controlled databases/environments remains sensitive credential movement. Preserve original IDs, verification flags, roles and product data. No post-cutover reconciliation may overwrite a newer password or resurrect a deleted identity. Custom verification is not automatic rehashing; exercise concurrent reset/login/rehash and failures before rollout.
 
-Auth0's current pricing puts cross-app SSO and custom database connections under Professional. Bulk import removes the custom-database dependency, not SSO entitlement. Imported custom password hashes cannot be assumed replaceable after their first provider login. Configure Mailjet SMTP or another authorized production provider and prove delivery; a development mailer is insufficient.
+Build login, signup, verification and recovery pages; configure real Mailjet delivery. Enable database-backed rate limits and validate trusted proxy headers. Pin exact versions and maintain the advisory/patch process in the decision record.
 
-Request Privy custom-authentication enablement early through its authorized account owner. Counts must cover Privy identities and local users/grants/referrals. Zero legacy users can eliminate legacy-link migration work; any existing identity still needs preservation. A fallback with recurring independent login requires an explicit scope decision.
+Privy's production custom-JWT tier/price and supported link-before-provision flow remain open. The request was sent to support; no enablement occurred. Existing identities rule out the zero-user shortcut. A recurring independent Privy login remains an explicit scope/UX choice.
 
-### Synchronous password-reset freshness
+### Reset, freshness and revocation
 
-The proof uses a post-login Action to place the provider's current database-password reset timestamp/state in a protected custom claim. Auth0 documents a synchronous post-login trigger and `event.user.last_password_reset` for database connections; the latter is absent at user creation. Prove the exact `prompt=none` flow executes the Action for each client; refresh-token behavior alone is not evidence of that flow.
+Enable `revokeSessionsOnPasswordReset`, disable provider cookie-session caching, and prove original session-creation `auth_time`, `max_age=0`, silent renewal and reset behavior on the released package. Signed custom claims carry current reset/security state; make security fields server-owned. Keep strict reset/operator cutoff comparisons and bounded interactive retry. Admin session revocation/ban and back-channel logout complement, but do not replace, authoritative checks on existing product sessions.
 
-Every authorization request includes an explicit `max_age`: a finite policy value for normal/silent requests, and `0` when fresh authentication is required. Every adapter validates the signed ID token's `auth_time` against that request. Reject authentication earlier than the current password-reset/operator cutoff, including first entry with no local cookie; comparing only with a previous app session is insufficient. Never let a silent callback stamp the latest epoch onto authentication that predates the cutoff.
-
-Prefer one post-login Action to enforce the password-reset comparison for all three clients. At G1 prove that `event.authentication.methods` supplies a trustworthy timestamp for the relevant original authentication in interactive and silent flows; the retrieved event reference does not establish that per-method schema or its equivalence to `auth_time`. Until proven, all three adapters must enforce the comparison server-side using `auth_time` and the signed reset-state claim. Operator-cutoff checks remain authoritative in the account module. Distinguish an explicit “no reset yet” state from missing required claims or unsupported connections.
-
-For the recognized stale-authentication denial, discard the affected local session and retry once with `max_age=0`, without `prompt=none`, through a new validated authorization transaction. A repeated denial or unrelated access denial produces a recoverable error, not a redirect loop. T27 explicitly resets on device A, preserves old provider SSO on device B while clearing its app cookies, and opens each product independently. T28 verifies the Action timestamp semantics, adapter fallback, request/claim validation, and bounded retry.
-
-The async password-change Action accelerates cross-app epoch updates; it is not the sole reset detector. Retain shared epoch/operator cutoff checks and existing session stores. At G1 choose a numeric absolute session lifetime, measure detection with the async Action disabled, and reconcile that bound with the existing private-state and sensitive-action requirements. Freshness learned at renewal is not instantaneous revocation of already-open sessions. Renewal navigation must not destroy active gameplay; use the existing pending-evidence policy and refresh at safe boundaries.
+Deleting IdP sessions blocks later authorization from them. It does not automatically revoke existing app cookies or solve an in-flight old-password login racing reset. Prove complete credential/cutoff/session transactions, hook failures, code/token reuse and operator races. Every sensitive write still checks current security state; private-state visibility is bounded by the agreed maximum 30 seconds. Renewal must preserve active games. Real two-device cleared-app-cookie testing across all three staging sites remains a G1 requirement.
 
 ## 5. Phases, deliverables, and exit gates
 
@@ -143,7 +134,7 @@ The auditor has approved the lean proof structure. Mateo has authorized the exec
 
 Deliverables:
 
-1. Record the lean architecture, service owner, release path, deadline/timezone, provider budget approval, and launch rules in §6. No new auth repository or deployment is required for this proof.
+1. Record the lean architecture, service owner, release path, deadline/timezone, provider budget approval, and launch rules in §6. No new repository is required; the IdP uses a separate Railway service/database in the existing project.
 2. Confirm deployed source for all three apps. After approval, create isolated `codex/` implementation branches/worktrees from that source; preserve current fork changes and unrelated working-tree work. Submit main-site work through the fork if upstream write access is still absent.
 3. Build a private preservation inventory from actual database catalogs and aggregate counts, including runtime-created tables. Add `EventRegistration` and recent giveaway/poll/event features to the original inventory.
 4. Identify who can perform staging restore, deploy, rollback, and incident response. Put Privy custom-auth enablement first in the external-dependency queue; confirm the authorized provider account owner, budget, and production email path. No provider request has been sent by this planning task.
@@ -328,8 +319,8 @@ The desired experience is 24/7. AI can reduce routine review; it does not prove 
 ## 10. Decisions Mateo can audit now
 
 - [x] Shared auth across all three first; verified championship second; 24/7 chat follows launch. Execution authorized by Mateo after audit closure.
-- [x] Auditor approves the lean structure: initial Accounts module in Arcade, preserving all current product domains; no new repository/deployment. Budget and execution permissions remain separate.
-- [ ] Simon/Fernando authorize the Auth0 plan; existing Privy custom-auth access is available; the bounded migration/continuity proof passes before rollout. No forced mass reset, duplicate wallet, or email-only merging fallback.
+- [x] Better Auth proof uses an independent IdP service/database in the existing Railway account/project, from the Arcade repo. Product domains and identities remain stable. Infrastructure configuration and runtime gates remain.
+- [ ] Accounts hosting/DNS/email and Privy entitlement are available; the bounded migration/continuity proof passes before rollout. No forced mass reset, duplicate wallet, or email-only merging fallback.
 - [ ] Two initial verified games; best of three official attempts/game/day; normalized daily points summed monthly; top-10 award policy finalized by the business owners.
 - [ ] September has a transparent shortened round; target September 18 rollout; no later than September 20 with agreed coverage.
 - [ ] G1/G3 missed checkpoints trigger an explicit scope/date decision; user data/access and prize verification are never relaxed to meet the calendar.

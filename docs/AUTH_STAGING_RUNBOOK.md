@@ -1,38 +1,36 @@
 # Shared-auth staging proof runbook
 
-This runbook executes G0/G1 of the delivery plan. All checks use approved isolated staging resources. Do not run the main site's default build against a production database: it invokes migration and seeding.
+The current provider is the independently operated Better Auth service described in [the provider decision](BETTER_AUTH_PROVIDER_DECISION.md). Auth0 setup/import/Action instructions in earlier revisions are historical. The original Auth0-specific helper files remain reference tests, not staging configuration.
 
-## Local preparation
+## Local package proof
 
-Use the `codex/shared-auth-proofs` worktree. Existing dependencies are available through a local `node_modules` symlink; a fresh checkout can install from the lockfile normally.
-
-```sh
-npm run test:auth-proof
-npm run typecheck
-npm run auth:preflight
-```
-
-Preflight exit code 2 means configuration is missing or unsuitable. It is expected before provisioning. It never creates a tenant or changes external settings. When an approved staging configuration exists, load it explicitly without displaying secrets:
+Use the `codex/shared-auth-proofs` worktree. The separate package does not change Arcade dependencies or its Vercel deployment.
 
 ```sh
-node --env-file=.auth-proof/staging.env scripts/auth-proof/preflight.mjs
+cd services/accounts
+npm ci
+npm test
+npm run proof
 ```
 
-The script reports required variable **names**, never values. The three origin values must be separate HTTPS staging origins. An all-localhost proof is insufficient. Verify separately that these hostnames and credentials belong to staging; syntactic validation cannot establish resource ownership or production isolation.
+The proof runner creates an empty local PostgreSQL cluster, no TCP listener, private temporary socket, and synthetic identities. It executes actual Better Auth request handlers and verifies signed ID tokens for three synthetic HTTPS callback origins. It shuts down only the cluster it created. No environment files, `DATABASE_URL`, production user rows, email or Privy calls. Database artifacts remain ignored and private in `.proof`; they are not production backups.
 
-## Aggregate inventory
+The proof demonstrates package-level identity, original `auth_time`, forced authentication, code/PKCE protections, native reset revocation, legacy hash compatibility and persistent rate counters. It does not exercise the three real applications, real browser redirects, full credential-copy/rehash lifecycle, durable cutoff writes or production Mailjet/Privy. Do not count it as G1, T27 or T28 end-to-end completion.
 
-The collector never implicitly loads `.env.local`. Choose exactly one explicit connection source. From this worktree, the known Arcade read-only inventory command is:
+The existing root `npm run test:auth-proof` tests remain useful for strict freshness, inventory and historical import contracts. The root `auth:preflight` and `auth:proof-fixture` scripts are Auth0-specific; do not use them to configure Better Auth.
 
-```sh
-node scripts/auth-proof/inventory.mjs \
-  --product arcade \
-  --railway-cwd /Users/mateodazab/Documents/myosin/aegyo-arcade \
-  --service postgres-prod \
-  --environment production
-```
+## Same-account Railway staging
 
-For another authorized source, use an environment variable populated through the team's existing secret handling:
+1. Use the existing Myosin account and aegyo-arcade Railway project. Add separate Accounts staging service/database, sourced from `services/accounts` with independent build/start/release/watch paths. No new hosting account or repo. The current package is a local proof only; a real server entry point, pages, production-safe configuration and migrations must exist before a Railway deployment.
+2. Use isolated staging secrets, a separate database and stable issuer URL. A Railway-generated domain can be used for G1. The eventual `account.aegyoarena.com` DNS points to the production Accounts service. Do not mix staging/production issuers or change a live issuer without a migration.
+3. Register three separate first-party clients with exact HTTPS callback/logout origins. Disable public/dynamic client registration, ordinary-user client administration, unused grants and implicit account linking. Use authorization-code/S256 PKCE and supported client libraries for issuer/signature/audience/state/nonce checks.
+4. Set database rate storage, explicit rate limiting, reset-session revocation and no cookie-session caching. Validate actual edge IP headers and denial behavior with spoofed forwarded headers and requests across instances. `auth.api` does not exercise HTTP rate limits.
+5. Configure Mailjet and owned sender details through secret storage. Test real sign-in/signup/reset/verification pages, verification state, consent, locale and delivery on an authorized test mailbox. The local memory mailbox is not an email delivery proof.
+6. Bootstrap staff privileges through a reviewed operator procedure, never an email-to-role rule or public signup field. Establish backup/restore, independent rollback, signing-key retention, advisory notifications and patch ownership before production. No production migration is performed by a build command.
+
+## Aegyo aggregate inventory and restored migration
+
+Use the existing read-only collector with an explicitly selected source:
 
 ```sh
 node scripts/auth-proof/inventory.mjs \
@@ -40,49 +38,31 @@ node scripts/auth-proof/inventory.mjs \
   --database-env AUTH_PROOF_INVENTORY_DATABASE_URL
 ```
 
-Allowed products are `aegyo`, `arcade` and `daebak`. Inspect the resulting local `.auth-proof/*-inventory-*.json` inside the authorized environment. Counts are exact within one read-only snapshot; a timeout or permission failure produces no completed report. Missing expected tables returns exit code 2 and requires investigation, not an assumption that there are zero users.
+Simon supplies the authorized read-only connection, restored snapshot and effective hash-configuration verification through secure channels. The collector reads catalog/counts under a repeatable-read, read-only transaction with timeouts and rollback; it never fetches individual records. It requires User, Session, PasswordReset, EventRegistration and CommunityAnnotation and still inventories every public table. A missing expected table is investigation/exit-code-2, not a zero-user assumption or permission to create it. Reconfirm the deployment-to-database binding.
 
-For Aegyo, required tripwires include `User`, `Session`, `PasswordReset`, `EventRegistration` and `CommunityAnnotation`. The last two come from runtime DDL in the reviewed deployed source. They must not disappear silently from freeze sizing. Investigate a missing table; do not create it as part of inventory or label the discrepancy data loss without evidence.
+Rehearse the full credential/account write freeze, including in-flight reset/login/admin/email/signup/deletion operations. Copy hashes and stable IDs into a closed target with explicit format/credential version and unchanged verification flags. Record the scoped pepper transfer privately. Preserve all original product ownership, roles, sessions, aliases and consent. Reconcile before one coherent login/recovery cutover. Do not overwrite a newer password or resurrect a deleted user in a late copy.
 
-Inventory records public-table names, counts, column types and constraint names/status. It does not read data rows or use ORM schemas as the full database catalog. Cross-check Privy's aggregate dashboard total separately, including provider-only users. Re-run before the final freeze. Independently verify deployment-to-database binding and restoration permissions.
+Prove version-checked legacy hash modernization after successful login, concurrent login/reset/rehash, failures after password write, and rollback after a user has changed a password in Accounts. The custom verifier alone does not implement the upgrade. Preserve Aegyo's Session cookie/getSession consumers through its supported OIDC callback and additive Prisma mapping. Never run the main site's migration/seeding build against production as a read-only check.
 
-## Auth0 and Aegyo migration proof
+## Reset, revocation and callback gate
 
-1. Confirm the actual plan/connection entitlement, three separate product clients and production email-provider configuration. Allowlist exact callback/logout origins. Configure the selected OIDC SDK's signature, issuer, audience, state, nonce and code-flow protections. Do not replace those with the freshness helper.
-2. `npm run auth:proof-fixture` generates two synthetic records in `.auth-proof/synthetic-users.json`, refusing overwrite. The fake `.invalid` emails cannot receive messages; use a separate explicitly authorized test mailbox for SMTP/recovery delivery. Synthetic passwords and salt are visible only in the fixture source and are not production credentials.
-3. In the approved isolated database connection, import the synthetic file and inspect the job report privately. Confirm old-password login, expected `auth0|<legacy-id>` subject mapping and unchanged verification state. The local hash test does not substitute for this provider check.
-4. Restore an authorized staging snapshot. Inventory all real/runtime tables and relationships; prove that credential configuration matches the actual source. No production credential material goes into source control, task output, fixtures or analytics.
-5. Rehearse the freeze of every credential/account writer, including in-flight signup/reset/email change/admin actions and deletion. Snapshot, export, import, reconcile, validate, then switch login and recovery together. Keep imported login inaccessible until validation. Record the measured freeze window and all manifest checks privately.
-6. Preserve existing local IDs, Session rows/cookie consumers, roles, profile URLs, consent and event/community data. Replace unusable old reset links with an understandable fresh-recovery path. Test legitimate writes after the snapshot and a failed import/cutover.
-7. After a provider login or reset, do not assume re-import can overwrite its password. Prove rollback keeps the right credential authority and does not silently revert a user's new password. No production credential freeze is authorized by running local tests.
+Run T25/T27/T28 anew on Better Auth in real browsers, independently for every client:
 
-## Freshness, reset and retry proof (T25/T27/T28)
+1. Verify original `auth_time` differs from later token issuance; validate finite `max_age` on normal/silent authorization and force interactive login with zero. Reject forged/missing/malformed claims, wrong audience/issuer/nonce/state, code reuse and wrong PKCE verifier. Custom security fields must be server-owned.
+2. On device A reset a synthetic password while B retains old IdP cookies. Clear only B's app cookies and open each app. Restore B's stale fixture for every test so the first fresh login does not mask later failures. Old IdP sessions and pre-issued codes must not authorize new app sessions or Privy provisioning.
+3. Repeat with existing app cookies/tokens. Sensitive mutations check authoritative security state; ordinary private-state exposure must meet the maximum 30-second bound. Native IdP revocation and back-channel logout alone are not that proof.
+4. Test concurrent old-password verification/session creation versus reset, reset-hook/database failure, admin revocation/ban and interrupted hash upgrades. Commit durable cutoff/version changes safely; do not mistake a `passwordChangedAt` field for serialization. Prove recovery after partial writes.
+5. Keep reset/operator comparison strict. On recognized stale authentication, wait past the required whole-second cutoff, clear the affected local session and create one fresh transaction with `max_age=0` and no `prompt=none`. A second/unrelated denial ends recoverably. Five-second forward skew only bounds timestamp sanity, never relaxes cutoff comparisons.
+6. Prove active guest/official games survive required renewal at safe boundaries. Verify supported back-channel logout delivery/validation separately; refresh-token behavior requires its own proof if later enabled.
 
-The supplied Action is a **staging fallback candidate**. It emits the signed reset-state contract for the adapters. It does not yet enforce the cutoff centrally. Configure `AEGYO_CLIENT_ID`, `ARCADE_CLIENT_ID` and `DAEBAK_CLIENT_ID` as Action configuration, distinct from the local preflight variable names. Do not deploy it onto unrelated clients.
+## Privy continuity
 
-The shared-login proof intentionally supports Auth0 **database email/password only**. Social/other connections emit `unsupported` and are denied by the policy; do not debug that as accidental or bypass the check. This does not change existing Privy email/external-wallet sessions or authorize dropping legacy social access discovered during inventory.
+The existing app has retained users/wallets; there is no zero-user shortcut. Production JWT entitlement, exact price and supported link-before-provision/direct-call restrictions have been requested by email and remain pending. Do not enable the feature based on the development badge.
 
-Implement each callback with the selected OIDC SDK, then call the policy on already-verified claims before creating local sessions or downstream Privy authority. Source `operatorCutoffMs` from authoritative shared state. Missing state must not default to null/no revocation. Preserve the original `auth_time`; never substitute token `iat`.
+Authenticate the existing Privy identity and central identity before linking, preserve the same DID/wallet/grants/referrals, and verify provider state server-side. Interrupt before/after link persistence and repeat direct valid-JWT provisioning attempts. A new identity must not receive duplicate grants or replace an old wallet. Test fresh-browser login and existing wallet-only recovery. A dual-session link-table path remains a documented UX decision, not automatic completion of shared login.
 
-1. Every ordinary/renewal authorization sends explicit finite `max_age`. Capture sanitized confirmation that each top-level `prompt=none` request executes the Action. Set and measure the actual session lifetime and accepted read/write revocation window.
-2. Establish whether `event.authentication.methods` contains a suitable original authentication timestamp and whether it matches the relevant `auth_time` semantics. Do not infer freshness from arbitrary MFA/custom-method completion. Central enforcement can replace the reset comparison only after equivalence is proven; every adapter still performs normal OIDC freshness validation and operator-cutoff checks.
-3. Disable the asynchronous password-change Action. Sign into provider SSO on device B, then reset the same synthetic identity on device A. Clear only B's app cookies. Open each product independently with pre-reset SSO. Restore the stale-session setup before each product test; a successful fresh login in the first app must not mask failure in another.
-4. Confirm that no local session, member provisioning, Privy provisioning or protected write is granted from the stale authentication. Wait until the policy's `notBeforeMs` before issuing the single fresh transaction with `max_age=0` and **without** `prompt=none`. Validate state/nonce and the returned freshness. Repeated denial stops at a recoverable error. Unrelated `access_denied` responses do not enter the retry flow.
-5. Repeat with reset/login in the same second, existing local sessions, no reset yet, missing or malformed Action claims, unsupported connections, operator revocation, app-state loss and network/Action failure. Record timestamp units/precision and measured timing without logging full ID tokens or identity data.
-6. Preserve an active game through renewal. If the existing-session exposure exceeds the accepted bound, G1 fails even if new callbacks are correct. Refresh-token flows, if enabled later, need separate proof.
+## Exit and dates
 
-Test provider clocks one, two and five seconds ahead of the app, plus a value beyond five seconds. The sanity checks accept at most five seconds of forward skew on `auth_time` and the provider reset timestamp, without weakening reset/operator comparisons or `max_age`. Confirm the SDK's own timestamp validation uses compatible bounded tolerance. A future reset cutoff may extend the retry wait to the skew bound plus one second. Excessive clock disagreement remains a recoverable failure needing investigation.
+Record evidence privately without real tokens/credentials or user exports in Git. The committed progress report records outcomes and gaps. G1 passes only with real three-app login, migration/restore/rollback, reset/revocation, email and Privy continuity evidence.
 
-## Privy continuity proof
-
-Use the existing app and retain every existing identity; the inventory rules out assuming there are no users. Current enabled methods are email and external wallets according to the inspected dashboard; do not treat absent Google/Apple settings as evidence about historical identities without the authorized inventory.
-
-Resolve custom-auth enablement and actual production entitlement first. The dashboard's development-mode allowance is not a production entitlement. No toggle or upgrade is part of the read-only inspection.
-
-Obtain the production entitlement, required tier and exact price in writing from Privy support before enabling custom authentication. The local link-table alternative would avoid this feature, but requires a separate accepted fresh-browser/Privy-session experience; do not switch to it merely because the response is late.
-
-For the retained identity, prove the legacy Privy session and shared session before linking. Preserve Privy DID, embedded/external wallet ownership, grant identity/idempotency, referral attribution and recovery. Interrupt linking before/after mapping persistence, repeat requests and attempt a direct valid-JWT call to Privy. No path may create a second valued identity/wallet or duplicate grant. Prove fresh-browser behavior across all three origins; a local ownership link alone is not shared login.
-
-## Evidence and exit
-
-Keep provider/job reports, aggregate manifests, screenshots without personal data, restore results and sanitized timing evidence in approved private storage. The committed progress report contains status and blockers only. Mark G1 passed only after observed runtime evidence covers migration, three-app login, recovery, Privy continuity, direct-call bypass attempts and rollback. Then proceed to the account foundation and the verified competition phases.
+September 12 end of day, America/New_York: report access/hosting/DNS/email/Privy readiness. September 14 end of day: if real three-origin staging and reset revocation are missing, escalate scope/date explicitly. September 18 rollout stays conditional. No automatic reminder or advisory watch is active merely because this runbook names the checkpoints.

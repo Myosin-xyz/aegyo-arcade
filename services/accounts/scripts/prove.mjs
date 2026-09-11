@@ -1,3 +1,4 @@
+import "./check-runtime.mjs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, chmodSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";

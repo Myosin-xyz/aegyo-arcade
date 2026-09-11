@@ -165,6 +165,36 @@ test(
       );
     }
 
+    async function resetTimestamp(id = userId) {
+      return (
+        await database.query(
+          'SELECT "passwordChangedAt" FROM "user" WHERE id=$1',
+          [id],
+        )
+      ).rows[0].passwordChangedAt;
+    }
+
+    async function verifiedClaims(client) {
+      const tx = transaction(client);
+      const callback = await authorize(tx);
+      assert.equal(callback.origin, new URL(client.redirect_uris[0]).origin);
+      assert.equal(callback.searchParams.get("state"), tx.query.get("state"));
+      assert.equal(callback.searchParams.get("iss"), issuer);
+      assert.ok(callback.searchParams.get("code"));
+      const response = await exchange(tx, callback.searchParams.get("code"));
+      assert.equal(response.status, 200);
+      const tokens = await response.json();
+      const jwks = await (await request("/jwks")).json();
+      const { payload } = await jwtVerify(
+        tokens.id_token,
+        createLocalJWKSet(jwks),
+        { issuer, audience: client.client_id },
+      );
+      assert.equal(payload.sub, userId);
+      assert.equal(payload.nonce, tx.query.get("nonce"));
+      return payload;
+    }
+
     await t.test(
       "three distinct clients reuse the same IdP session and receive verified identity claims",
       async () => {
@@ -324,7 +354,7 @@ test(
     );
 
     await t.test(
-      "password reset invalidates both devices, cleared app cookies, and pre-reset authorization codes",
+      "password reset persists the signed cutoff and invalidates both devices, cleared app cookies, and pre-reset codes",
       async () => {
         const deviceB = await request("/sign-in/email", {
           body: { email, password },
@@ -344,13 +374,22 @@ test(
         });
         assert.equal(forgot.status, 200);
         assert.equal(mailbox.length, 1);
+        assert.equal(await resetTimestamp(), null);
+        const resetStarted = Date.now();
         const reset = await request("/reset-password", {
           body: {
             token: mailbox[0].token,
             newPassword: "Changed-password-123",
+            passwordChangedAt: "2000-01-01T00:00:00.000Z",
           },
         });
         assert.equal(reset.status, 200);
+        const resetFinished = Date.now();
+        const persistedReset = await resetTimestamp();
+        assert.ok(persistedReset instanceof Date);
+        assert.ok(persistedReset.getTime() >= resetStarted);
+        assert.ok(persistedReset.getTime() <= resetFinished);
+        assert.equal(await resetTimestamp(operatorId), null);
         assert.equal(
           Number(
             (
@@ -393,9 +432,16 @@ test(
         });
         assert.equal(fresh.status, 200);
         providerCookie = cookies(fresh);
-        assert.ok(
-          (await authorize(transaction(clients[0]))).searchParams.get("code"),
-        );
+        // Recreate the provider to prove persisted state, not hook-local memory.
+        ({ auth } = createProofProvider(config));
+        for (const client of clients) {
+          const claims = await verifiedClaims(client);
+          assert.deepEqual(claims[RESET_STATE_CLAIM], {
+            version: 1,
+            kind: "database",
+            lastPasswordReset: persistedReset.toISOString(),
+          });
+        }
         assert.notEqual(
           (
             await request("/reset-password", {
@@ -404,6 +450,57 @@ test(
           ).status,
           200,
         );
+        assert.equal(
+          (await resetTimestamp()).toISOString(),
+          persistedReset.toISOString(),
+        );
+      },
+    );
+
+    await t.test(
+      "profile input cannot overwrite the cutoff and a second recovery advances every client's signed claim",
+      async () => {
+        const previous = await resetTimestamp();
+        const forged = await request("/update-user", {
+          cookie: providerCookie,
+          body: { passwordChangedAt: "2000-01-01T00:00:00.000Z" },
+        });
+        assert.notEqual(forged.status, 200);
+        assert.equal(
+          (await resetTimestamp()).toISOString(),
+          previous.toISOString(),
+        );
+        assert.equal(
+          (await request("/request-password-reset", { body: { email } }))
+            .status,
+          200,
+        );
+        assert.equal(
+          (
+            await request("/reset-password", {
+              body: {
+                token: mailbox.at(-1).token,
+                newPassword: "Changed-password-123",
+              },
+            })
+          ).status,
+          200,
+        );
+        const latest = await resetTimestamp();
+        assert.ok(latest.getTime() > previous.getTime());
+        const fresh = await request("/sign-in/email", {
+          body: { email, password: "Changed-password-123" },
+        });
+        assert.equal(fresh.status, 200);
+        providerCookie = cookies(fresh);
+        for (const client of clients) {
+          const claims = await verifiedClaims(client);
+          assert.equal(
+            claims[RESET_STATE_CLAIM].lastPasswordReset,
+            latest.toISOString(),
+          );
+        }
+        assert.equal(await resetTimestamp(operatorId), null);
       },
     );
 

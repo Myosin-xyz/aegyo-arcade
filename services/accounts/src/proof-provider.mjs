@@ -53,6 +53,16 @@ export function createProofProvider({
       revokeSessionsOnPasswordReset: true,
       password: passwordFunctions(legacyPepper),
       sendResetPassword: async (message) => mailbox.push(message),
+      onPasswordReset: async ({ user }) => {
+        // Sequential reset proof only: the library writes the password before
+        // this hook. Atomic credential/session transitions remain a staging gate.
+        const result = await database.query(
+          'UPDATE "user" SET "passwordChangedAt"=GREATEST("passwordChangedAt", $2), "updatedAt"=$2 WHERE id=$1',
+          [user.id, new Date()],
+        );
+        if (result.rowCount !== 1)
+          throw new Error("Reset cutoff could not be persisted");
+      },
     },
     plugins: [
       admin(),

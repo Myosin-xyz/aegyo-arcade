@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24"
+    "node": "24.21.0"
   },
   "scripts": {
-    "test": "node --test tests/passwords.test.mjs",
+    "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs",
     "proof": "node scripts/prove.mjs"
   },
   "dependencies": {

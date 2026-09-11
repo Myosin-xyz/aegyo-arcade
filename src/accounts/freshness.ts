@@ -7,6 +7,10 @@
 export const RESET_STATE_CLAIM =
   "https://aegyoarena.com/claims/password-reset-state";
 
+// Only bounds provider-versus-app clock disagreement. Never subtract this
+// allowance from the reset/operator cutoff or the requested max_age.
+export const PROVIDER_CLOCK_SKEW_MS = 5_000;
+
 export type ResetState = {
   version: 1;
   kind: "database";
@@ -103,7 +107,7 @@ export function evaluateFreshness(input: {
     typeof authTime !== "number" ||
     !Number.isSafeInteger(authTime) ||
     !isInstant(authTime * 1000) ||
-    authTime > Math.floor(nowMs / 1000)
+    authTime * 1000 > nowMs + PROVIDER_CLOCK_SKEW_MS
   ) {
     return { kind: "deny", reason: "invalid_auth_time" };
   }
@@ -125,7 +129,7 @@ export function evaluateFreshness(input: {
       : parseResetInstant(resetState.lastPasswordReset);
   if (
     (resetMs === null && resetState.lastPasswordReset !== null) ||
-    (resetMs !== null && resetMs > nowMs)
+    (resetMs !== null && resetMs > nowMs + PROVIDER_CLOCK_SKEW_MS)
   ) {
     return { kind: "deny", reason: "invalid_reset_state" };
   }
@@ -150,8 +154,8 @@ export function evaluateFreshness(input: {
     return {
       kind: "reauthenticate",
       reason: "stale_authentication",
-      // Wait at most one second before starting the new transaction. This
-      // also protects max_age=0 from another same-second old-SSO response.
+      // Cross the precision boundary before retrying. If the provider clock
+      // is ahead, wait for its cutoff too (at most skew + one second).
       notBeforeMs: Math.max(
         Math.ceil(cutoffMs / 1000) * 1000,
         (Math.floor(nowMs / 1000) + 1) * 1000,

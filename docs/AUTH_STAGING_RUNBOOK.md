@@ -42,6 +42,8 @@ node scripts/auth-proof/inventory.mjs \
 
 Allowed products are `aegyo`, `arcade` and `daebak`. Inspect the resulting local `.auth-proof/*-inventory-*.json` inside the authorized environment. Counts are exact within one read-only snapshot; a timeout or permission failure produces no completed report. Missing expected tables returns exit code 2 and requires investigation, not an assumption that there are zero users.
 
+For Aegyo, required tripwires include `User`, `Session`, `PasswordReset`, `EventRegistration` and `CommunityAnnotation`. The last two come from runtime DDL in the reviewed deployed source. They must not disappear silently from freeze sizing. Investigate a missing table; do not create it as part of inventory or label the discrepancy data loss without evidence.
+
 Inventory records public-table names, counts, column types and constraint names/status. It does not read data rows or use ORM schemas as the full database catalog. Cross-check Privy's aggregate dashboard total separately, including provider-only users. Re-run before the final freeze. Independently verify deployment-to-database binding and restoration permissions.
 
 ## Auth0 and Aegyo migration proof
@@ -58,6 +60,8 @@ Inventory records public-table names, counts, column types and constraint names/
 
 The supplied Action is a **staging fallback candidate**. It emits the signed reset-state contract for the adapters. It does not yet enforce the cutoff centrally. Configure `AEGYO_CLIENT_ID`, `ARCADE_CLIENT_ID` and `DAEBAK_CLIENT_ID` as Action configuration, distinct from the local preflight variable names. Do not deploy it onto unrelated clients.
 
+The shared-login proof intentionally supports Auth0 **database email/password only**. Social/other connections emit `unsupported` and are denied by the policy; do not debug that as accidental or bypass the check. This does not change existing Privy email/external-wallet sessions or authorize dropping legacy social access discovered during inventory.
+
 Implement each callback with the selected OIDC SDK, then call the policy on already-verified claims before creating local sessions or downstream Privy authority. Source `operatorCutoffMs` from authoritative shared state. Missing state must not default to null/no revocation. Preserve the original `auth_time`; never substitute token `iat`.
 
 1. Every ordinary/renewal authorization sends explicit finite `max_age`. Capture sanitized confirmation that each top-level `prompt=none` request executes the Action. Set and measure the actual session lifetime and accepted read/write revocation window.
@@ -67,11 +71,15 @@ Implement each callback with the selected OIDC SDK, then call the policy on alre
 5. Repeat with reset/login in the same second, existing local sessions, no reset yet, missing or malformed Action claims, unsupported connections, operator revocation, app-state loss and network/Action failure. Record timestamp units/precision and measured timing without logging full ID tokens or identity data.
 6. Preserve an active game through renewal. If the existing-session exposure exceeds the accepted bound, G1 fails even if new callbacks are correct. Refresh-token flows, if enabled later, need separate proof.
 
+Test provider clocks one, two and five seconds ahead of the app, plus a value beyond five seconds. The sanity checks accept at most five seconds of forward skew on `auth_time` and the provider reset timestamp, without weakening reset/operator comparisons or `max_age`. Confirm the SDK's own timestamp validation uses compatible bounded tolerance. A future reset cutoff may extend the retry wait to the skew bound plus one second. Excessive clock disagreement remains a recoverable failure needing investigation.
+
 ## Privy continuity proof
 
 Use the existing app and retain every existing identity; the inventory rules out assuming there are no users. Current enabled methods are email and external wallets according to the inspected dashboard; do not treat absent Google/Apple settings as evidence about historical identities without the authorized inventory.
 
 Resolve custom-auth enablement and actual production entitlement first. The dashboard's development-mode allowance is not a production entitlement. No toggle or upgrade is part of the read-only inspection.
+
+Obtain the production entitlement, required tier and exact price in writing from Privy support before enabling custom authentication. The local link-table alternative would avoid this feature, but requires a separate accepted fresh-browser/Privy-session experience; do not switch to it merely because the response is late.
 
 For the retained identity, prove the legacy Privy session and shared session before linking. Preserve Privy DID, embedded/external wallet ownership, grant identity/idempotency, referral attribution and recovery. Interrupt linking before/after mapping persistence, repeat requests and attempt a direct valid-JWT call to Privy. No path may create a second valued identity/wallet or duplicate grant. Prove fresh-browser behavior across all three origins; a local ownership link alone is not shared login.
 

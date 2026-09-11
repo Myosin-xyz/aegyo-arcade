@@ -7,7 +7,15 @@ import { parseArgs } from "node:util";
 import pg from "pg";
 
 const expectedTables = {
-  aegyo: ["User", "Session", "PasswordReset"],
+  // Minimum preservation tripwires, including tables created outside Prisma.
+  // The collector still inventories every public table, not only this list.
+  aegyo: [
+    "User",
+    "Session",
+    "PasswordReset",
+    "EventRegistration",
+    "CommunityAnnotation",
+  ],
   arcade: ["devices", "device_sessions", "run_attempts", "streaks"],
   daebak: [
     "users",

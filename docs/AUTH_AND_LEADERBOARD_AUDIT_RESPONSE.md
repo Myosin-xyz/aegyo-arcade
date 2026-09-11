@@ -8,6 +8,12 @@ This response supplements the [delivery plan](/Users/mateodazab/Documents/myosin
 
 > **Execution update:** see the [first proof and inventory record](/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs/docs/AUTH_PROOF_PROGRESS.md). Privy has existing identities; custom authentication is off and its production entitlement remains unconfirmed. Auth0 configuration and Aegyo database/restore access are still missing. The same-second retry proof keeps a strict cutoff and waits until the next second before its single fresh-login attempt.
 
+## Proof-branch review disposition
+
+The auditor verified the original 54 proof tests, TypeScript, scoped lint, deployed source records and read-only inventory. The initial work is preserved in WIP commit `784858e`. Follow-up changes add five-second forward provider-clock sanity tolerance while keeping reset cutoffs strict, explicit email/password-only proof scope, required Aegyo runtime-table checks, and a named T27 cleared-cookie scenario. See the [execution record](/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs/docs/AUTH_PROOF_PROGRESS.md) for rerun results.
+
+Privy entitlement requires written confirmation before enabling custom authentication; a link-table alternative still requires an accepted fresh-browser experience. The dependency checkpoint moves to September 12 end of day, America/New_York, before September 14 G1. The [combined dependency request](/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs/docs/AUTH_DEPENDENCY_REQUEST.md) is ready but has not been sent.
+
 ## Audit approval and synchronous reset detection
 
 The auditor now approves the lean structure for proof work: Arcade-hosted member/profile module, existing Aegyo sessions, reviewed Prisma migration, a controlled bulk-import rehearsal, and Privy JWT integration subject to actual identity inventory and provider access. Auth0 Professional B2C is the budget recommendation, not an authorized purchase. The quoted price/allowance must be checked at purchase and sized from the inventory. Simon/Fernando authorize the spend.

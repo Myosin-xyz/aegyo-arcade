@@ -1,15 +1,17 @@
 # Delivery plan: shared accounts first, Arcade championship second
 
-Status: **execution authorized by Mateo; Phase 0 inventory and bounded Phase 1 local proofs started; G1 and production rollout pending**  
-Version: 0.4 — September 11, 2026; execution handoff and first proof evidence recorded  
-Engineering: Mateo with Codex  
-Business owners: Simon and Fernando  
-Deadline: the monthly Arcade contest must be live **before September 21, 2026**.  
+Status: **execution authorized by Mateo; Phase 0 inventory and bounded Phase 1 local proofs started; G1 and production rollout pending**\
+Version: 0.4 — September 11, 2026; execution handoff and first proof evidence recorded\
+Engineering: Mateo with Codex\
+Business owners: Simon and Fernando\
+Deadline: the monthly Arcade contest must be live **before September 21, 2026**.\
 Target: September 18 rollout, with September 19–20 reserved for recovery and verification if coverage is available.
 
 > **Audit status:** the auditor approves building bounded proofs under the lean architecture. This document now uses the Arcade-hosted account/profile module; the former independent Accounts app is superseded for September. See the [audit record](/Users/mateodazab/Documents/myosin/aegyo-arcade/docs/AUTH_AND_LEADERBOARD_AUDIT_RESPONSE.md). Simon/Fernando still authorize spend; actual access, migration, and gameplay proofs gate deployment. A separate Daebak login is not automatically accepted as a fallback.
 
 > **Execution update:** see the [first proof and inventory record](/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs/docs/AUTH_PROOF_PROGRESS.md). Privy has existing identities; custom authentication is off and its production entitlement remains unconfirmed. Auth0 configuration and Aegyo database/restore access are still missing. The same-second retry proof keeps a strict cutoff and waits until the next second before its single fresh-login attempt.
+
+> **Dependency checkpoint:** September 12 end of day, America/New_York. If the approved Auth0 tenant or Simon's inventory/restore access is still unavailable, report the September 14 G1 target at risk at that checkpoint. Privy production custom-auth terms must be confirmed in writing before enablement. The [combined request](/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs/docs/AUTH_DEPENDENCY_REQUEST.md) is drafted but unsent.
 
 ## 1. Decisions this plan implements
 
@@ -136,7 +138,7 @@ The auditor has approved the lean proof structure. Mateo has authorized the exec
 
 ### Phase 0 — Freeze scope and establish the release path
 
-**Owner:** Mateo; Simon/Fernando resolve business and access items.  
+**Owner:** Mateo; Simon/Fernando resolve business and access items.\
 **Planning window:** September 11; actual start depends on audit completion.
 
 Deliverables:
@@ -152,7 +154,7 @@ Deliverables:
 
 ### Phase 1 — Prove shared login and migration safely
 
-**Owner:** Mateo; Simon supplies main-site staging/deployment support.  
+**Owner:** Mateo; Simon supplies main-site staging/deployment support.\
 **Planning window:** September 11–14. Gate review no later than September 14.
 
 Use isolated databases and authorized test tenants, restored/sanitized samples where required, and synthetic users representing each existing auth method. Staging must reproduce separate browser origins and cross-domain navigation; an all-localhost demo is insufficient. Phase 5 separately verifies production-domain behavior with authorized staff accounts. Never run the main site's ordinary build against production as an inspection step: it currently runs database migration and seeding.
@@ -177,7 +179,7 @@ Second-audit refinements: distinguish a confirmed absence of legacy identities f
 
 ### Phase 2 — Implement the Accounts foundation
 
-**Owner:** Mateo.  
+**Owner:** Mateo.\
 **Planning window:** September 14–15, after G1.
 
 Deliverables:
@@ -193,7 +195,7 @@ Deliverables:
 
 ### Phase 3 — Integrate all three products and prove continuity
 
-**Owner:** Mateo; Simon merges/deploys Aegyo if needed.  
+**Owner:** Mateo; Simon merges/deploys Aegyo if needed.\
 **Planning window:** September 15–16, after G2.
 
 Implement and review each adapter as its own change:
@@ -209,7 +211,7 @@ Implement and review each adapter as its own change:
 
 ### Phase 4 — Implement the monthly Arcade championship
 
-**Owner:** Mateo; Simon/Fernando freeze business rules and prizes.  
+**Owner:** Mateo; Simon/Fernando freeze business rules and prizes.\
 **Planning window:** September 17–18, after G3. This is the tightest remaining engineering window.
 
 Deliverables:
@@ -227,7 +229,7 @@ Implementation ordering within this phase: first prove trace capture and replay 
 
 ### Phase 5 — Validate, launch, and cover the campaign
 
-**Owner:** Mateo for technical release; Simon/Fernando for contest/campaign readiness.  
+**Owner:** Mateo for technical release; Simon/Fernando for contest/campaign readiness.\
 **Planning window:** September 18–20. Target release September 18; September 20 is the last allowed date, not a September 21 launch.
 
 Deliverables:

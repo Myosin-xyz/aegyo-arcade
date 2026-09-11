@@ -21,6 +21,9 @@ exports.onExecutePostLogin = async (event, api) => {
     return;
   }
   if (event.connection?.strategy !== "auth0") {
+    // Intentional email/password-only shared-login proof. Adapters deny this
+    // state; it is not a missing social-login configuration to work around.
+    // Existing Privy login methods are not routed through this Action.
     api.idToken.setCustomClaim(CLAIM, { version: 1, kind: "unsupported" });
     return;
   }

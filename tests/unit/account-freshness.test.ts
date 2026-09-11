@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateFreshness,
   parseResetInstant,
+  PROVIDER_CLOCK_SKEW_MS,
   type AuthorizationTransaction,
 } from "@/accounts/freshness";
 
@@ -33,6 +34,107 @@ function evaluate(
 }
 
 describe("T27/T28 callback freshness policy", () => {
+  it("T27: device B clears app cookies after device A resets, but retains stale provider SSO", () => {
+    const retainedSsoAuthTime = base / 1000 - 60;
+    // Before A resets, the same provider authentication is usable on B.
+    expect(
+      evaluate({
+        authTime: retainedSsoAuthTime,
+        resetState: { version: 1, kind: "database", lastPasswordReset: null },
+      }).kind,
+    ).toBe("allow");
+
+    // With B's app cookies gone, no previous app-session claim exists. The
+    // current signed reset state still rejects that retained authentication.
+    expect(
+      evaluate({ authTime: retainedSsoAuthTime, resetState: state }).kind,
+    ).toBe("reauthenticate");
+  });
+
+  it.each([1, 2, 5])(
+    "accepts a provider clock %s seconds ahead without spending the retry",
+    (seconds) => {
+      expect(
+        evaluate({
+          authTime: base / 1000 + seconds,
+          nowMs: base,
+          transaction: { ...normal, requestedAtMs: base },
+          resetState: { version: 1, kind: "database", lastPasswordReset: null },
+        }),
+      ).toEqual({ kind: "allow", authenticatedAtMs: base + seconds * 1000 });
+    },
+  );
+
+  it("rejects auth_time beyond the forward clock-skew bound", () => {
+    expect(
+      evaluate({ authTime: base / 1000 + PROVIDER_CLOCK_SKEW_MS / 1000 + 1 }),
+    ).toEqual({ kind: "deny", reason: "invalid_auth_time" });
+  });
+
+  it("accepts the same small provider clock skew on the reset timestamp", () => {
+    expect(
+      evaluate({
+        authTime: base / 1000 + 5,
+        resetState: {
+          ...state,
+          lastPasswordReset: new Date(base + 4500).toISOString(),
+        },
+      }),
+    ).toEqual({ kind: "allow", authenticatedAtMs: base + 5000 });
+  });
+
+  it("keeps the reset cutoff strict even when both provider timestamps are ahead", () => {
+    expect(
+      evaluate({
+        authTime: base / 1000 + 4,
+        resetState: {
+          ...state,
+          lastPasswordReset: new Date(base + 4500).toISOString(),
+        },
+      }),
+    ).toEqual({
+      kind: "reauthenticate",
+      reason: "stale_authentication",
+      notBeforeMs: base + 5000,
+      maxAgeSeconds: 0,
+      reauthenticationAttempt: 1,
+    });
+  });
+
+  it("does not apply provider clock skew to the operator cutoff or max_age", () => {
+    const resetState = {
+      version: 1,
+      kind: "database",
+      lastPasswordReset: null,
+    };
+    expect(
+      evaluate({
+        authTime: base / 1000,
+        resetState,
+        operatorCutoffMs: base + 1,
+      }).kind,
+    ).toBe("reauthenticate");
+    expect(
+      evaluate({
+        authTime: base / 1000 - 301,
+        resetState,
+      }).kind,
+    ).toBe("reauthenticate");
+  });
+
+  it("rejects a reset timestamp beyond the provider clock-skew bound", () => {
+    expect(
+      evaluate({
+        resetState: {
+          ...state,
+          lastPasswordReset: new Date(
+            base + 700 + PROVIDER_CLOCK_SKEW_MS + 1,
+          ).toISOString(),
+        },
+      }),
+    ).toEqual({ kind: "deny", reason: "invalid_reset_state" });
+  });
+
   it.each(["aegyo", "arcade", "daebak"])(
     "%s contract rejects pre-reset SSO without any old local-session input",
     () => {

@@ -1,10 +1,10 @@
 # Technical specification: Aegyo accounts, arcade competition, and community chat
 
-Version: 1.4 — September 11 execution authorized; local proofs started; budget, G1 and rollout gates pending  
-Date: September 11, 2026  
-Product owners: Mateo, Simon, Fernando  
-Engineering: Mateo with Codex  
-Target: shared auth, then the Arcade championship live before September 21, 2026; chat follows separately  
+Version: 1.4 — September 11 execution authorized; local proofs started; budget, G1 and rollout gates pending\
+Date: September 11, 2026\
+Product owners: Mateo, Simon, Fernando\
+Engineering: Mateo with Codex\
+Target: shared auth, then the Arcade championship live before September 21, 2026; chat follows separately\
 Implementation status: planning only; no accounts, deployments, databases, domains, or application code changed.
 
 > Start with the [phased delivery plan](/Users/mateodazab/Documents/myosin/aegyo-arcade/docs/AUTH_AND_LEADERBOARD_DELIVERY_PLAN.md) for the latest scope, access findings, current-user journeys, checkpoints, and audit decisions. It supersedes the former September 23 target and event-only chat assumption. This document retains the detailed technical contracts and failure cases. Mateo audits the plan before implementation begins.
@@ -232,6 +232,8 @@ The audited synchronous fallback uses a post-login Action to include the current
 Every authorization request sends an explicit `max_age`, including top-level `prompt=none` renewals. Use a finite policy value for routine authorization, fixed at G1, and `max_age=0` for required fresh authentication; setting zero on every ordinary visit would defeat the intended SSO experience. Each adapter validates the signed ID token and its required `auth_time` against the server-recorded authorization request. This validation remains required even if an Action enforces the reset cutoff. A newly issued token's `iat` is not original authentication time. [S15]
 
 The invariant is to reject authentication with `auth_time` earlier than the current password-reset cutoff, regardless of whether a local session exists. Prefer enforcement in the synchronous post-login Action for all three clients, using a proven equivalent authentication timestamp. G1 must establish that `event.authentication.methods` exposes the relevant original authentication timestamp on interactive and silent flows, its precision, and its relationship to the issued `auth_time`; the retrieved event reference describes the methods array but does not establish those per-method details. Do not use the most recent arbitrary method, such as an MFA/custom-method completion, as evidence of fresh primary authentication. If the Action cannot establish trustworthy freshness in a flow, all three adapters must enforce the same reset comparison server-side against the signed reset-state claim before minting any session or downstream Privy authority. This fallback stays mandatory until the centralized path passes the proof. A refresh-token alternative requires its own evidence before enablement. [S17–S18]
+
+The local proof permits up to five seconds of forward provider/app clock skew only when validating whether `auth_time` or the provider reset timestamp is implausibly in the future. Reset/operator cutoff comparisons and requested `max_age` remain strict. A retry waits past the relevant whole-second cutoff; with forward skew that may require up to the skew bound plus one second. Verify compatible SDK clock settings at G1. Non-database shared-login connections intentionally return `unsupported` for the email/password launch proof; this does not authorize disabling existing Privy login methods or losing legacy social access.
 
 Operator-initiated revocation still uses the authoritative shared cutoff/epoch. Comparing only with a previous local session's reset claim does not cover first entry or cleared app cookies. Require an explicit no-reset-yet state; distinguish missing claims, malformed timestamps, and unsupported connections. Test seconds-versus-milliseconds and resets/authentication within the same second: timestamp rounding must not accept authentication that predates the cutoff.
 

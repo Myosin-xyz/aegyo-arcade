@@ -86,6 +86,17 @@ describe("member callback authoritative state check", () => {
     );
   }
 
+  it("rejects a path adjacent to the exact callback route", async () => {
+    const request = new NextRequest(
+      "https://arcade.example.test/api/accounts/callback/extra?code=valid&state=valid",
+      { headers: { cookie: "__Host-aegyo_oidc_tx=sealed" } },
+    );
+    const response = await GET(request);
+    expect(response.status).toBe(400);
+    expect(mocks.finishAuthorization).not.toHaveBeenCalled();
+    expect(mocks.createMemberSession).not.toHaveBeenCalled();
+  });
+
   it("never mints when current provider state is unavailable", async () => {
     mocks.fetchProviderSecurityState.mockResolvedValue({
       kind: "unavailable",

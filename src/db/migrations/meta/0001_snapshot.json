@@ -187,12 +187,8 @@
           "name": "account_sessions_member_id_account_members_id_fk",
           "tableFrom": "account_sessions",
           "tableTo": "account_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -445,12 +441,8 @@
           "name": "claw_plays_promotion_id_promotions_id_fk",
           "tableFrom": "claw_plays",
           "tableTo": "promotions",
-          "columnsFrom": [
-            "promotion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["promotion_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -458,12 +450,8 @@
           "name": "claw_plays_device_id_devices_id_fk",
           "tableFrom": "claw_plays",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -473,9 +461,7 @@
         "claw_plays_attempt_id_unique": {
           "name": "claw_plays_attempt_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "attempt_id"
-          ]
+          "columns": ["attempt_id"]
         }
       },
       "policies": {},
@@ -587,12 +573,8 @@
           "name": "daily_slots_device_id_devices_id_fk",
           "tableFrom": "daily_slots",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -600,12 +582,8 @@
           "name": "daily_slots_completed_run_id_run_attempts_id_fk",
           "tableFrom": "daily_slots",
           "tableTo": "run_attempts",
-          "columnsFrom": [
-            "completed_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["completed_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -663,12 +641,8 @@
           "name": "device_sessions_device_id_devices_id_fk",
           "tableFrom": "device_sessions",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -868,12 +842,8 @@
           "name": "leaderboard_scores_run_id_run_attempts_id_fk",
           "tableFrom": "leaderboard_scores",
           "tableTo": "run_attempts",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -881,12 +851,8 @@
           "name": "leaderboard_scores_device_id_devices_id_fk",
           "tableFrom": "leaderboard_scores",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1027,12 +993,8 @@
           "name": "prize_claims_play_id_claw_plays_id_fk",
           "tableFrom": "prize_claims",
           "tableTo": "claw_plays",
-          "columnsFrom": [
-            "play_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["play_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1042,16 +1004,12 @@
         "prize_claims_play_id_unique": {
           "name": "prize_claims_play_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "play_id"
-          ]
+          "columns": ["play_id"]
         },
         "prize_claims_token_hash_unique": {
           "name": "prize_claims_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -1106,12 +1064,8 @@
           "name": "prize_inventory_promotion_id_promotions_id_fk",
           "tableFrom": "prize_inventory",
           "tableTo": "promotions",
-          "columnsFrom": [
-            "promotion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["promotion_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1119,10 +1073,7 @@
       "compositePrimaryKeys": {
         "prize_inventory_promotion_id_sku_pk": {
           "name": "prize_inventory_promotion_id_sku_pk",
-          "columns": [
-            "promotion_id",
-            "sku"
-          ]
+          "columns": ["promotion_id", "sku"]
         }
       },
       "uniqueConstraints": {},
@@ -1416,12 +1367,8 @@
           "name": "run_attempts_slot_id_daily_slots_id_fk",
           "tableFrom": "run_attempts",
           "tableTo": "daily_slots",
-          "columnsFrom": [
-            "slot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["slot_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1429,12 +1376,8 @@
           "name": "run_attempts_device_id_devices_id_fk",
           "tableFrom": "run_attempts",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1506,12 +1449,8 @@
           "name": "streaks_device_id_devices_id_fk",
           "tableFrom": "streaks",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

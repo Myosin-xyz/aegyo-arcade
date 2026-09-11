@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "test-results/**",
     "playwright-report/**",
+    ".auth-proof/**",
+    "services/accounts/.proof/**",
     // Raw partner deliveries (gitignored, hash-recorded in the per-game
     // intake docs). They are evidence of what was delivered, not our
     // source — holding them to our rules is noise we can never act on.

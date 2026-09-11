@@ -16,6 +16,7 @@ import {
 import { createMemberSession } from "@/accounts/sessions";
 import { openTransaction } from "@/accounts/transaction";
 import { getDb } from "@/db/client";
+import { canonicalExternalRequestUrl } from "@/server/request-origin";
 
 function failure(code: string, status = 400): NextResponse {
   const response = NextResponse.json({ code }, { status });
@@ -39,8 +40,9 @@ function resetClaimMatches(
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const config = getAccountsConfig();
   if (!config) return NextResponse.json({ code: "not_found" }, { status: 404 });
-  const callbackUrl = new URL(request.url);
+  const callbackUrl = canonicalExternalRequestUrl(request, config.appOrigin);
   if (
+    callbackUrl === null ||
     callbackUrl.origin !== config.appOrigin ||
     callbackUrl.pathname !== "/api/accounts/callback"
   )

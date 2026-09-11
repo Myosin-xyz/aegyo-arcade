@@ -159,3 +159,56 @@ test("HTTP liveness survives database failure but readiness and account routes f
   assert.equal((await fetch(`${origin}/readyz`)).status, 503);
   assert.equal((await fetch(`${origin}/sign-in`)).status, 503);
 });
+
+test("staging proxy proof requires a reader and returns only the observed and normalized IP", async (t) => {
+  const config = readConfig(baseEnv);
+  const auth = { handler: async () => assert.fail("must not call auth") };
+  const server = createAccountsServer({
+    auth,
+    database: {},
+    config,
+    readiness: async () => true,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const endpoint = `http://127.0.0.1:${server.address().port}/api/internal/proxy-proof`;
+
+  assert.equal((await fetch(endpoint, { method: "POST" })).status, 401);
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${config.readers.arcade}`,
+      "content-type": "application/json",
+      "x-real-ip": "198.51.100.12",
+      "x-unrelated-secret": "must-not-be-reflected",
+      cookie: "must-not-be-reflected=1",
+    },
+    body: "{}",
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    realIP: "198.51.100.12",
+    normalizedIP: "198.51.100.12",
+  });
+});
+
+test("proxy proof remains absent in production even with reader authorization", async (t) => {
+  const config = { ...readConfig(baseEnv), environment: "production" };
+  const auth = { handler: async () => assert.fail("must not call auth") };
+  const server = createAccountsServer({
+    auth,
+    database: {},
+    config,
+    readiness: async () => true,
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const response = await fetch(
+    `http://127.0.0.1:${server.address().port}/api/internal/proxy-proof`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${config.readers.arcade}` },
+    },
+  );
+  assert.equal(response.status, 404);
+});

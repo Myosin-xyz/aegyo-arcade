@@ -1,0 +1,31 @@
+name: Accounts proof
+
+on:
+  pull_request:
+    paths:
+      - "services/accounts/**"
+      - ".github/workflows/accounts-proof.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/accounts/**"
+      - ".github/workflows/accounts-proof.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  accounts-proof:
+    name: Accounts isolated Linux proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build pinned proof image
+        run: docker build --target proof --tag aegyo-accounts-proof ./services/accounts
+
+      - name: Run unit and PostgreSQL proofs
+        run: docker run --rm --network none aegyo-accounts-proof

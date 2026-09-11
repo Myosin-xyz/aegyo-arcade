@@ -54,8 +54,19 @@ function parseAbsoluteOrigin(value: string | undefined): string | null {
   if (!value) return null;
   try {
     const url = new URL(value);
-    if (url.username || url.password || url.pathname !== "/") return null;
-    if (url.protocol !== "https:" && url.hostname !== "localhost") return null;
+    if (
+      url.username ||
+      url.password ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash
+    )
+      return null;
+    if (
+      url.protocol !== "https:" &&
+      !(url.protocol === "http:" && url.hostname === "localhost")
+    )
+      return null;
     return url.origin;
   } catch {
     return null;

@@ -56,6 +56,34 @@ describe("Arcade member adapter boundaries", () => {
     });
   });
 
+  it.each(["?tenant=other", "#other"])(
+    "rejects query or fragment text on configured origins: %s",
+    (suffix) => {
+      expect(
+        getAccountsConfig({
+          ARCADE_SHARED_AUTH_ENABLED: "true",
+          ARCADE_AUTH_BASE_URL: `https://id.example.test${suffix}`,
+          ARCADE_APP_ORIGIN: "https://arcade.example.test",
+          ARCADE_AUTH_CLIENT_ID: "arcade",
+          ARCADE_AUTH_CLIENT_SECRET: "oauth-secret",
+          ARCADE_AUTH_TRANSACTION_SECRET: "x".repeat(32),
+          ARCADE_AUTH_STATE_READER_KEY: "reader-secret",
+        }),
+      ).toBeNull();
+      expect(
+        getAccountsConfig({
+          ARCADE_SHARED_AUTH_ENABLED: "true",
+          ARCADE_AUTH_BASE_URL: "https://id.example.test",
+          ARCADE_APP_ORIGIN: `https://arcade.example.test${suffix}`,
+          ARCADE_AUTH_CLIENT_ID: "arcade",
+          ARCADE_AUTH_CLIENT_SECRET: "oauth-secret",
+          ARCADE_AUTH_TRANSACTION_SECRET: "x".repeat(32),
+          ARCADE_AUTH_STATE_READER_KEY: "reader-secret",
+        }),
+      ).toBeNull();
+    },
+  );
+
   it("keeps member and authorization cookies distinct from the guest cookie", () => {
     expect(MEMBER_COOKIE).toBe("__Host-aegyo_member");
     expect(OIDC_TRANSACTION_COOKIE).toBe("__Host-aegyo_oidc_tx");

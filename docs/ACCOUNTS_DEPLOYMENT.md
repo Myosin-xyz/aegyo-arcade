@@ -32,6 +32,12 @@ The first staging upload used an explicit 26-file, approximately 121 KB allowlis
 
 That cutout layout is specific to the current CLI upload. A future Git-connected deployment from the full repository must use `/services/accounts` as Root Directory, `/services/accounts/railway.toml` as Config as Code, and `/services/accounts/**` as its watch path, as specified in the table above. Do not copy the bundle-root `/` setting into a full-repository source configuration.
 
+Current Accounts deployment is `1a22dee3-44a5-46f0-89ca-f7322b9fb272` at `https://aegyo-accounts-accounts-staging.up.railway.app`. The separate Arcade preview is `https://arcade-auth-preview-accounts-staging.up.railway.app`, service `01e424b3-6137-4ef6-b8fc-94def7963b48`. It uses a separate `arcade_auth_staging` logical database and restricted role on the same new staging Postgres instance. Both services passed the real Chromium reset/SSO/guest-preservation proof; Aegyo and Daebak remain unintegrated protocol fixtures.
+
+The temporary public Postgres proxy was deleted after the browser proof; zero TCP proxies remain on the new database service. Readiness was rechecked after removal. The private credential fixture's public URL is now stale and must not be treated as an active connection. Reopening access is a separate, explicitly targeted operator action, followed by removal after the next proof. No migration-owner credentials were added to the runtime services.
+
+Railway's observed `x-real-ip` header passed four authenticated tests, including spoofed forwarding headers, before `ACCOUNTS_RAILWAY_IP_VERIFIED=true` was enabled. `/api/internal/proxy-proof` exposes only the observed and normalized IP, requires a reader key, and returns 404 outside staging. Keep evidence free of IPs, tokens and secrets.
+
 ## Runtime and image
 
 The Dockerfile pins the official Node `24.21.0-bookworm-slim` multi-platform image index to digest `sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553`, observed on 2026-09-11. The application runs as the image's unprivileged `node` user. The production target contains application production dependencies only; it does not contain a PostgreSQL server.
@@ -49,7 +55,9 @@ docker run --rm --entrypoint node aegyo-accounts:local \
 
 The Linux proof result belongs in the deployment review. Re-run it after any runtime, dependency, Dockerfile or credential-transition change.
 
-Observed locally on 2026-09-11 with Docker Desktop's Linux ARM64 engine: the default production image built successfully and reported Node 24.21.0 as UID 1000 with no PostgreSQL server binary. The exact final totals and image digest are recorded after each release-candidate rebuild. The migration coverage includes empty initialization, unchanged rerun, restricted-role readiness, rejected security-column updates, working signup/sign-in/reset through the restricted role, fail-closed disabled-guard readiness, refusal of a database containing an unrelated table, and bounded one-time synthetic staging seeding.
+Observed locally on 2026-09-11 with Docker Desktop's Linux ARM64 engine: the default build before the staging proxy diagnostic addition produced production image ID `sha256:0100b1b192c3c74a674c5ee6eed0a8eaa8ed01742391aae7245e72b96492b23b`. It reported Node 24.21.0 as UID 1000 with no PostgreSQL server binary. After the diagnostic addition, the proof image passed 17 unit/runtime/UI tests and 21 serial PostgreSQL provider/migration/seed tests. The migration coverage includes empty initialization, unchanged rerun, restricted-role readiness, rejected security-column updates, working signup/sign-in/reset through the restricted role, fail-closed disabled-guard readiness, refusal of a database containing an unrelated table, and bounded one-time synthetic staging seeding. The image ID identifies that earlier local build; a registry digest must be recorded separately if an image is pushed.
+
+The isolated proof is also defined in `.github/workflows/accounts-proof.yml`. It runs for service changes in pull requests and main-branch pushes, builds the proof target and runs it without networking, secrets or deployment actions.
 
 ## Variables and secret boundaries
 
@@ -81,7 +89,7 @@ The image build and application start perform no migration. Schema changes are a
 npm run migrate
 ```
 
-The migration command reads `ACCOUNTS_MIGRATION_DATABASE_URL`; the server reads `DATABASE_URL`. The owner connection must target a dedicated, empty Accounts database. The command refuses any unmarked database containing public tables, records schema version 1 and its exact generated-table inventory, and refuses table inventory or generated-schema drift on rerun. It creates or verifies a non-elevated application role, removes public schema creation, grants ordinary table access, denies updates to security-managed user columns, and denies application access to the schema marker and owner-only revocation function.
+The migration command reads `ACCOUNTS_MIGRATION_DATABASE_URL`; the server reads `DATABASE_URL`. The owner connection must target a dedicated, empty Accounts database. The command refuses any unmarked database containing public tables, records schema version 1 and its exact generated-table inventory, and refuses table inventory or generated-schema drift on rerun. It creates or verifies a non-elevated application role, removes public schema creation, grants ordinary table access, denies updates to security-managed user columns, gives read-only access to the schema marker for readiness, and denies execution of the owner-only revocation function.
 
 For a temporary public Railway TCP proxy, retrieve the public root certificate and leaf fingerprint through authenticated Railway SSH to the explicitly selected Accounts database. The current Railway database certificate names its private endpoints rather than the public proxy hostname. The shared database options therefore verify the root CA and pin the leaf SHA-256 identity; they never set `rejectUnauthorized: false`. Treat certificate renewal or rotation as an explicit reviewed configuration update. Remove the temporary proxy and its migration TLS variables when the operator work is complete. Internal Railway runtime connections may use the standard private `DATABASE_URL` without these public-proxy pins.
 

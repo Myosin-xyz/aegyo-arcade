@@ -127,10 +127,17 @@ export function createAccountsServer({
           return send(200, accountsCss, "text/css; charset=utf-8");
         if (url.pathname === "/assets/accounts.js")
           return send(200, accountsJs, "text/javascript; charset=utf-8");
+        if (
+          url.pathname === "/api/internal/proxy-proof" &&
+          config.environment !== "staging"
+        )
+          return send(404, { error: "not_found" });
         if (!(await isReady()))
           return send(503, { error: "accounts_temporarily_unavailable" });
         if (
-          url.pathname === "/api/internal/session-state" &&
+          ["/api/internal/session-state", "/api/internal/proxy-proof"].includes(
+            url.pathname,
+          ) &&
           !authorizedReader(req.headers.authorization, config.readers)
         )
           return send(401, { error: "unauthorized" });
@@ -146,6 +153,18 @@ export function createAccountsServer({
             chunks.push(chunk);
           }
           rawBody = Buffer.concat(chunks);
+        }
+        if (url.pathname === "/api/internal/proxy-proof") {
+          if (req.method !== "POST")
+            return send(405, { error: "method_not_allowed" });
+          const realIP =
+            typeof req.headers["x-real-ip"] === "string"
+              ? req.headers["x-real-ip"]
+              : null;
+          return send(200, {
+            realIP,
+            normalizedIP: clientIP(req, "railway-x-real-ip"),
+          });
         }
         if (url.pathname === "/api/internal/session-state") {
           if (req.method !== "POST")

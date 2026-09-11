@@ -24,7 +24,8 @@
     "@next/third-parties": "16.2.10",
     "@vercel/functions": "^3.7.5",
     "drizzle-orm": "^0.45.2",
-    "next": "16.2.10",
+    "next": "16.3.5",
+    "openid-client": "6.8.8",
     "pg": "^8.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -39,7 +40,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.3.5",
     "jsdom": "^29.1.1",
     "prettier": "^3.9.5",
     "tailwindcss": "^4",

@@ -15,9 +15,13 @@ import { LocaleToggle } from "./locale-toggle";
 
 interface HomeContentProps {
   gameOrder: readonly string[];
+  sharedAuthEnabled: boolean;
 }
 
-export function HomeContent({ gameOrder }: HomeContentProps) {
+export function HomeContent({
+  gameOrder,
+  sharedAuthEnabled,
+}: HomeContentProps) {
   const gamesById = new Map(
     listGames().map((game) => [game.meta.id, game] as const),
   );
@@ -91,6 +95,15 @@ export function HomeContent({ gameOrder }: HomeContentProps) {
         >
           {t("install.link")}
         </Link>
+        {sharedAuthEnabled && (
+          <Link
+            href="/api/accounts/login"
+            prefetch={false}
+            className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-brand underline-offset-4 hover:underline"
+          >
+            {locale === "es-419" ? "Iniciar sesión" : "Sign in"}
+          </Link>
+        )}
         <LocaleToggle />
         <p className="text-center font-arcade text-[0.625rem] uppercase tracking-wider text-muted">
           {t("portal.title")}

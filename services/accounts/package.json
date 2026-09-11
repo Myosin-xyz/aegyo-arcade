@@ -1,5 +1,5 @@
 {
-  "name": "@aegyo/accounts-proof",
+  "name": "@aegyo/accounts",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -7,8 +7,11 @@
     "node": "24.21.0"
   },
   "scripts": {
-    "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs",
-    "proof": "node scripts/prove.mjs"
+    "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs tests/runtime-unit.test.mjs ui/*.test.mjs",
+    "proof": "node scripts/prove.mjs",
+    "start": "node src/server.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "seed:staging": "node scripts/seed-staging.mjs"
   },
   "dependencies": {
     "@better-auth/oauth-provider": "1.7.4",

@@ -11,6 +11,9 @@ export default async function Home() {
   await connection();
 
   const gameOrder = shuffleGameOrder(listGames().map((game) => game.meta.id));
+  const sharedAuthEnabled = process.env.ARCADE_SHARED_AUTH_ENABLED === "true";
 
-  return <HomeContent gameOrder={gameOrder} />;
+  return (
+    <HomeContent gameOrder={gameOrder} sharedAuthEnabled={sharedAuthEnabled} />
+  );
 }

@@ -65,6 +65,66 @@ export const deviceSessions = pgTable("device_sessions", {
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
 
+/** Shared-auth identities are independent from anonymous Arcade devices. */
+export const accountMembers = pgTable(
+  "account_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    issuer: text("issuer").notNull(),
+    subject: text("subject").notNull(),
+    displayName: text("display_name"),
+    avatarUrl: text("avatar_url"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("account_members_issuer_subject").on(
+      table.issuer,
+      table.subject,
+    ),
+  ],
+);
+
+export const accountSessions = pgTable(
+  "account_sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => accountMembers.id),
+    providerSessionId: text("provider_session_id").notNull(),
+    authenticatedAt: timestamp("authenticated_at", {
+      withTimezone: true,
+    }).notNull(),
+    providerCheckedAt: timestamp("provider_checked_at", {
+      withTimezone: true,
+    }).notNull(),
+    securityVersion: integer("security_version").notNull(),
+    passwordResetState: jsonb("password_reset_state").notNull().$type<{
+      version: 1;
+      kind: "database";
+      lastPasswordReset: string | null;
+    }>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("account_sessions_member").on(table.memberId),
+    index("account_sessions_provider_sid").on(table.providerSessionId),
+    check(
+      "account_sessions_security_version_non_negative",
+      sql`${table.securityVersion} >= 0`,
+    ),
+  ],
+);
+
 export const dailySlots = pgTable(
   "daily_slots",
   {

@@ -11,6 +11,7 @@ import {
 } from "../src/proof-provider.mjs";
 import { LEGACY_PREFIX } from "../src/passwords.mjs";
 import { installCredentialGuards } from "../src/credential-guards.mjs";
+import { proveRuntimeFlow } from "./runtime-flow.mjs";
 import { proveCredentialTransitions } from "./credential-transitions.mjs";
 
 const socket = process.env.ACCOUNTS_PROOF_PG_SOCKET;
@@ -358,6 +359,23 @@ test(
         );
       },
     );
+
+    await proveRuntimeFlow(t, {
+      database,
+      config,
+      auth,
+      request,
+      cookies,
+      clients,
+      transaction,
+      authorize,
+      exchange,
+      userId,
+      operatorId,
+      providerCookie,
+      email,
+      password,
+    });
 
     await t.test(
       "password reset persists the signed cutoff and invalidates both devices, cleared app cookies, and pre-reset codes",

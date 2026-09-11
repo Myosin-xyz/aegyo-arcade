@@ -40,7 +40,13 @@ try {
   started = true;
   const result = spawnSync(
     process.execPath,
-    ["--test", "tests/provider.test.mjs"],
+    [
+      "--test",
+      "--test-concurrency=1",
+      "tests/provider.test.mjs",
+      "tests/migration.test.mjs",
+      "tests/seed.test.mjs",
+    ],
     {
       cwd: root,
       env: { ...process.env, ACCOUNTS_PROOF_PG_SOCKET: socket },

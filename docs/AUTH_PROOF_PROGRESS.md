@@ -1,8 +1,20 @@
 # Shared-auth proof progress
 
-September 11, 2026. Mateo authorized execution after closing the audit. **Phase 0 inventory and bounded Phase 1 local proof work have started. G1 has not passed.** Production login, sessions, wallets and game flows are unchanged.
+September 11, 2026. Mateo authorized execution after closing the audit. **The Accounts service is deployed in isolated staging, and Arcade integration is being exercised there. G1 has not passed.** Production login, sessions, wallets and game flows are unchanged.
 
 Implementation worktree: `/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs`, branch `codex/shared-auth-proofs`. The original Arcade checkout and unrelated changes in the main-site and Daebak checkouts are preserved. No provider configuration was changed, no purchase was made, and no application was deployed.
+
+## Service and Arcade implementation — September 11
+
+The candidate now has a deployable, independent Accounts service with EN/ES account pages, a real HTTP OAuth continuation proof, guarded database migration, restricted application role, and the Arcade adapter behind `ARCADE_SHARED_AUTH_ENABLED`. Guest identifiers and history remain separate; no record is claimed or merged on email. The adapter uses OIDC code/PKCE, its own cookies, and authoritative provider-session checks. Production login is not enabled.
+
+A separate `accounts-staging` Railway environment (`279e0a09-8ba3-42dc-8d44-a2598d1f3fe9`) now exists in the existing `aegyo-arcade` project (`8229f87c-908d-426d-9562-4b01b0e89a50`). This project is currently listed under Mateo Daza's Projects in Railway; no new hosting account or workspace was created or moved. It contains a new Postgres service (`950e29c3-1592-4b09-be95-572ce43030c5`) and Accounts service (`38c74ef7-2b0b-4e4d-bc95-f32636274e3a`). The assigned staging hostname is `https://aegyo-accounts-accounts-staging.up.railway.app`. This is resource provisioning, not a passed staging gate or a production deployment. No original database was copied or modified.
+
+The dedicated staging database is initialized with schema version 1 and a restricted application role. The public operator connection verifies an authenticated Railway root CA and the database leaf SHA-256; an initial self-signed-certificate failure was fixed without disabling TLS verification. Runtime uses the private network with the same CA and pin. Accounts deployment `03a0f7a0-3530-49db-91bb-b66d57c2effc` now returns 200 for `/healthz`, `/readyz`, discovery and `/sign-in`; discovery reports the correct HTTPS issuer. Signup and email delivery remain disabled. One synthetic member and a disabled bootstrap operator were created, with three OAuth clients; only Arcade has a real staging callback, while Aegyo/Daebak entries remain protocol fixtures. No existing user was copied.
+
+Linux Node 24.21.0 container proof passed the migration and provider suites; operator cutoff/race checks and UI continuation tests were subsequently extended and need the final repeat recorded below. The root Arcade candidate upgrades Next to 16.3.5 and eslint-config-next to 16.3.5 for the [existing image-optimization advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4). Production dependency audit is now zero; four moderate development-tool findings remain through Drizzle's legacy esbuild tooling. The patched Arcade build passed without a database connection or auth enabled. The complete Arcade unit suite passes **355/355 across 50 files under Node 24.21.0**. Running under host Node 26 first exposed its incompatible Web Storage behavior; using the chosen runtime resolves those environmental failures. An overlapping test run during SDK mock updates was superseded by the final clean suite.
+
+Remaining gates: actual Mailjet credentials/delivery; verified Railway proxy IP handling; three real product browser origins and reset/logout/revocation acceptance; Aegyo inventory, restored rehearsal and legacy pepper from Simon; original-identity linking and Privy terms/proof for Daebak; reviewed migration/rehash and rollback procedure. Leaderboard work still follows shared-auth acceptance.
 
 ## Current Better Auth proof — September 11
 

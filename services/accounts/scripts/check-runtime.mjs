@@ -5,6 +5,6 @@ const { engines } = JSON.parse(
 );
 if (process.versions.node !== engines.node)
   throw new Error(
-    `Accounts proof requires Node ${engines.node}; running ${process.versions.node}. Select the package's pinned runtime first.`,
+    `Accounts requires Node ${engines.node}; running ${process.versions.node}. Select the package's pinned runtime first.`,
   );
-console.info(`Accounts proof runtime: Node ${process.versions.node}`);
+console.info(`Accounts runtime: Node ${process.versions.node}`);

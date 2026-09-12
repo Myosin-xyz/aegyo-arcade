@@ -1,6 +1,6 @@
 # Deployment readiness — September 12, 2026
 
-Checked at 2026-09-12T17:56:29.805Z. This is an observed checkpoint, not continuous monitoring.
+HTTP checks repeated at 2026-09-12T18:18:43.798Z. This is an observed checkpoint, not continuous monitoring.
 
 ## Current production
 
@@ -18,7 +18,7 @@ production login, signup, password reset, schema change or release was performed
 
 | Service  | Preview                                                        | Railway deployment                     |
 | -------- | -------------------------------------------------------------- | -------------------------------------- |
-| Accounts | https://aegyo-accounts-accounts-staging.up.railway.app/sign-in | `80a50d74-3ce3-453f-a045-ef0809b72385` |
+| Accounts | https://aegyo-accounts-accounts-staging.up.railway.app/sign-in | `15423d18-07b4-478d-b795-77c42ea54d57` |
 | Aegyo    | https://aegyo-auth-preview-accounts-staging.up.railway.app     | `d6844960-0524-4314-b4a6-7e31a7959e02` |
 | Arcade   | https://arcade-auth-preview-accounts-staging.up.railway.app    | `42427b71-3db6-4ce2-9d29-1053bbb7486e` |
 | Daebak   | https://daebak-auth-preview-accounts-staging.up.railway.app    | `cad82133-f3ca-4251-8530-b25e589decb8` |
@@ -29,13 +29,15 @@ issuer/endpoints and the expected unauthenticated product-session responses
 passed. **All 20 HTTP assertions passed** across staging and current production;
 the production 404s are the expected pre-rollout baseline, not shared-auth success.
 
-The existing eleven cross-product browser checks and 66 local provider checks
-remain recorded in [the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md).
-This pass adds **five passing browser logout checks**: Aegyo local logout/SSO
+The existing eleven cross-product browser checks remain recorded in
+[the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md). The latest
+pinned Linux run passes 67 provider checks (26 unit/runtime/UI/email plus 41 real
+PostgreSQL), with zero skips.
+The new deployment also passed **five browser logout checks**: Aegyo local logout/SSO
 restoration; simultaneous sessions in all products; Accounts sign-out invalidating
 those product sessions while preserving the guest device; stale provider-cookie
 rejection; and another independently authenticated browser staying signed in.
-Invalidation was observed after **26.396 seconds**.
+Invalidation was observed after **25.772 seconds**.
 This is current-browser, cross-product logout; it is not all-device logout.
 
 No database proxy was opened for these checks. A fresh administrative read confirms
@@ -80,10 +82,32 @@ CNAME value to guess or request from Simon in this checkpoint.
 
 ## Private evidence references
 
-- HTTP report SHA-256: `6e06e4f54ef98e7e14898a6ebdbd5e055a594b58cb9a794bbc13a15ed7637049`.
-- Logout browser report SHA-256: `ba28ffbd1b4413c7c87a4deff4057e40234d08efd99c1e2baa54b228a5e353d0`.
+- HTTP report SHA-256: `e0cc4b85d3dcfd39ab31f973ca44eecf008c427978a875aa023b72676e945217`.
+- Logout browser report SHA-256: `23f7389d330436e30c500ae5ecb1a787433f455d4b1e669a994dcc05f6ed72b5`.
 - Logout script commit: `9765150`; syntax, formatting, scoped ESLint and diff checks passed.
 
 Raw reports/screenshots remain in the ignored mode-0600 proof directory. They
 contain no production exports. The new browser runner does not read database
 credentials, change passwords, authenticate to Privy or send email.
+
+## Additional unblocked work completed
+
+- [Cross-repository cutover rehearsal](SYNTHETIC_CUTOVER_REHEARSAL.md): four passing
+  checks connect the actual Accounts importer to Aegyo reconciliation, mapping
+  installation and activation. The old password resolves to the exact preserved
+  local identity; retries create no duplicate users or mappings.
+- Aegyo commits `c64537a` and `e843a8b` add an actual synthetic PostgreSQL 18
+  backup/restore rehearsal, with full original-row equality before backup and
+  after activation. Event registrations and community annotations are included.
+  The parent independently reran the final proof successfully. These commits are
+  local; they are additional evidence beyond the deployed Aegyo preview.
+- [Credential guard revision 2](CREDENTIAL_GUARD_UPGRADE.md) closes a discovered
+  OAuth-token revocation gap. The staging database upgrade committed via private
+  Railway SSH; no public proxy was needed. Accounts deployment
+  `15423d18-07b4-478d-b795-77c42ea54d57` uses source `3841cf5` and requires the new
+  guard revision before serving auth traffic. It reports SUCCESS and readiness
+  `{ready:true}`. Production was not upgraded.
+
+The local proofs close tool-level and token-lifecycle gaps. Protected real-data
+restore/reconciliation, email delivery, production issuer/DNS, real Privy ownership
+acceptance and coordinated release remain separate launch gates.

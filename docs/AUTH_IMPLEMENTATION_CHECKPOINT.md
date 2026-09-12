@@ -103,3 +103,26 @@ in its preview before upstream PR #12 merges; production still uses the existing
 login system in all three apps. Mailjet remains suspended and domain ownership
 pending in the user's signed-in Chrome account. No production release or DNS
 change occurred during this recheck.
+
+## September 12 follow-up: migration interoperability and token revocation
+
+- `cb2c929`: four-check synthetic rehearsal joins the actual Accounts importer to
+  Aegyo reconciliation, mapping installation and activation; old-password identity
+  and local data stay stable, and retries are idempotent.
+- Aegyo `c64537a` / `e843a8b`: actual PostgreSQL backup/restore and complete original
+  row comparisons pass, including event registrations and community annotations.
+- `4134d9f` / `3841cf5`: reset and operator revocation now remove OAuth tokens
+  transactionally. The guarded owner upgrade and revision-2 readiness prevent
+  silently deploying against old database functions. Linux proof: 26 + 41 passing,
+  zero skipped; image
+  `sha256:0f4413539ee8479b88b6d38c638cbc712c0bbf998261bb5848959fc139793a88`.
+- Isolated staging upgrade committed over Railway SSH with no public DB proxy.
+  Accounts deployment `15423d18-07b4-478d-b795-77c42ea54d57` reached SUCCESS;
+  readiness and all 20 HTTP assertions pass. Five browser logout checks pass again,
+  with cross-app invalidation observed in 25.772 seconds.
+
+See [deployment readiness](DEPLOYMENT_READINESS_STATUS.md),
+[the executable cutover rehearsal](SYNTHETIC_CUTOVER_REHEARSAL.md) and
+[the explicit guard upgrade](CREDENTIAL_GUARD_UPGRADE.md). No production data or
+production auth was migrated. Real-data reconciliation/canary, working email,
+production DNS and the real Privy ownership journey remain acceptance gates.

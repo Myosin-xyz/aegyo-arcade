@@ -61,3 +61,12 @@ The importer deliberately does not install mappings or activate the Aegyo latch.
 Pinned Linux Node 24.21.0: `docker build --target proof -t aegyo-accounts-proof:importer-reviewed-20260912 services/accounts`, then `docker run --rm --network none aegyo-accounts-proof:importer-reviewed-20260912`. Passed 26 unit/runtime/UI/email tests and 39 PostgreSQL tests, zero skips. Image `sha256:47ed98120c7ab28912e5a2ef4d228368d19951b5af3651356127dcdfa7bcf6d1`.
 
 The new tests execute the actual importer and CLI: complete read-only source capture, database pinning, private files, runtime journal denial, normalized email collision, rollback after the first user, lost commit acknowledgement, concurrent exact retries, actual legacy sign-in, actual provider recovery, no credential/security overwrite, namespace changes, source drift and sanitized output. An initial local test run hung during test teardown because a checked-out client was released after pool shutdown; the cleanup order was corrected before the passing Linux run. The later issuer assertion initially ran discovery before creating the disposable provider schema; moving it after the migration resolved that test setup failure. The final passing image above verifies the actual discovery issuer, not just a fixture string. Review also found that a large valid population could serialize beyond the reader’s 16 MiB limit; capture and writing now enforce the same UTF-8 byte limit before producing an artifact, with an exact-boundary test. The final image includes that fix and the verification-link UI change. No production snapshot, user copy, migration or deployment was performed.
+
+## Executable synthetic tool-chain rehearsal
+
+Run the [cross-repository cutover rehearsal](SYNTHETIC_CUTOVER_REHEARSAL.md) before
+planning a real-data freeze. It connects the actual importer artifacts to Aegyo's
+actual reconciliation, installation and activation CLIs, proves old-password
+sign-in and preserved ownership, and exercises exact retry. Aegyo also has a
+separate actual backup/restore rehearsal. Both use disposable synthetic data and
+are not substitutes for the protected production restore/canary gate.

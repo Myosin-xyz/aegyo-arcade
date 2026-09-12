@@ -54,3 +54,14 @@ Run with `ACCOUNTS_LOGOUT_PROOF_CONFIRM=synthetic-staging-only` and the pinned
 Node binary; it reads only the ignored synthetic `staging-seed.json` fixture.
 The report/screenshots remain private and mode 0600. Report SHA-256:
 `ba28ffbd1b4413c7c87a4deff4057e40234d08efd99c1e2baa54b228a5e353d0`. See [deployment readiness](DEPLOYMENT_READINESS_STATUS.md).
+
+### Revision-2 deployment rerun
+
+The same five-check browser runner passed again at 18:18 UTC against Accounts
+staging deployment `15423d18-07b4-478d-b795-77c42ea54d57`, after the credential
+guard revision-2 upgrade. Retained product sessions became unauthenticated after
+25.772 seconds. The guest cookie and independent browser session checks passed.
+Report SHA-256:
+`23f7389d330436e30c500ae5ecb1a787433f455d4b1e669a994dcc05f6ed72b5`.
+This is browser logout evidence, separate from the local token-reset revocation
+proof and the private staging database-upgrade verification.

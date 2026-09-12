@@ -31,3 +31,26 @@ Every product must therefore query the authenticated Accounts session-state endp
 ## Evidence limits
 
 The proof runs with synthetic identities in the pinned Node 24.21.0 Linux image and a disposable local PostgreSQL cluster. Receiver HTTP calls are intercepted locally so their tokens can be inspected. It does not prove deployed DNS/TLS reachability, a real Aegyo or Daebak receiver, browser navigation and cookie behavior across origins, or delivery through a production network. Those require a browser and deployed-client rehearsal after each product implements the receiver and authoritative state checks.
+
+## Deployed browser evidence — September 12
+
+The guarded `scripts/auth-proof/cross-app-staging-logout.mjs` runner passed five
+checks against the four actual staging HTTPS origins under pinned Node 24.21.0.
+Aegyo local logout clears its existing session cookie and SSO restores it.
+Accounts UI Sign out removes the current provider session; the three retained
+product sessions returned their exact unauthenticated statuses/bodies after
+26.396 seconds, within the 30-second state-cache bound plus ten
+seconds for network observation. The timer starts before clicking Sign out.
+Arcade's guest cookie remains identical. Separate contexts restored with the old
+provider cookies cannot mint a new session in any product. Another independently
+authenticated browser stays signed in.
+
+This closes the current-browser cross-product sign-out journey. It does not
+claim an all-device logout or deployed back-channel receiver/RP-end-session
+proof. The receiver-delivery limitations above remain separate. No database,
+proxy, email or Privy administration was used by the browser runner.
+
+Run with `ACCOUNTS_LOGOUT_PROOF_CONFIRM=synthetic-staging-only` and the pinned
+Node binary; it reads only the ignored synthetic `staging-seed.json` fixture.
+The report/screenshots remain private and mode 0600. Report SHA-256:
+`ba28ffbd1b4413c7c87a4deff4057e40234d08efd99c1e2baa54b228a5e353d0`. See [deployment readiness](DEPLOYMENT_READINESS_STATUS.md).

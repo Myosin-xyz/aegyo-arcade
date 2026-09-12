@@ -27,3 +27,15 @@ Suggested support message, not sent:
 4. Configure scoped credentials only in isolated Accounts staging, then prove actual verification/reset delivery to an authorized synthetic test mailbox and verify campaign quota headroom.
 
 No API credentials were retrieved or rotated in this onboarding session. No test emails, campaigns, contact imports, Railway changes or production deployments occurred. Existing user identities and Beehiiv subscriptions remain unchanged. Resend remains an unused implementation alternative, not the selected provider.
+
+## Signed-in Chrome recheck — September 12
+
+After Mateo confirmed Chrome access, the same Primary account was inspected in
+Chrome. The default sender is active `mateo@myosin.xyz`, but the dashboard and
+sender pages still explicitly report **sending activity suspended**. The domain
+row labeled Aegyo Arena transactional email remains **Pending** for
+`aegyoarena.com`. SPF/DKIM remains OK/OK for Aegyo and Error/Error for Myosin.
+An independent DNS query still returns no TXT answer for the recorded ownership
+challenge. No account settings, credentials, invitations, support messages or DNS
+records were changed, and no email was sent. Logging in did not clear the sending
+blocker; production email delivery remains unproven.

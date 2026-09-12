@@ -31,7 +31,7 @@ Daebak does not claim a failed network response means a link was not committed. 
 
 ## Next execution boundary
 
-1. Complete the remaining staging gates: actual delivered verification/recovery email, user-driven Daebak wallet-ownership linking, provider-wide browser logout and expiry journeys. The eleven cross-product browser checks below now pass; they do not stand in for these remaining cases.
+1. Complete the remaining staging gates: actual delivered verification/recovery email, user-driven Daebak wallet-ownership linking, expiry journeys and any required endpoint-specific logout/receiver cases. Current-browser cross-product Accounts sign-out now passes the additional proof linked below. The eleven cross-product browser checks below now pass; they do not stand in for these remaining cases.
 2. Run the full-data restore/freeze/import/reconciliation rehearsal with the private operator runbooks. A source credential freeze is an external condition: the importer detects drift but cannot create a cross-service freeze itself. The local mapping installer checks IDs/roles/mappings; the separate ownership reconciler still checks every linked record.
 3. Close the previously identified delivery/domain/rollout dependencies and review production activation. Do not run either `apply` or `activate` against production on the strength of local tests alone.
 4. Proceed with the competition/leaderboard after the shared-auth acceptance gate, as agreed.
@@ -91,3 +91,15 @@ removed and **zero remaining proxies** were verified for this staging database.
 See [the cross-product staging runbook](CROSS_APP_STAGING_PROOF.md) for the exact
 scope, safeguards and replay procedure. This is synthetic acceptance, not a
 production account migration or an email-delivery/Privy-linking approval.
+
+## Deployment and logout recheck
+
+[Deployment readiness](DEPLOYMENT_READINESS_STATUS.md) records a fresh 20-assertion
+HTTP check across all staging services and the existing production sites, plus
+five new deployed browser logout checks (`9765150`). All passed. The cross-product
+sign-out invalidation took 26.396 seconds and preserved both Arcade guest identity
+and a different independently authenticated browser session. Aegyo can be tested
+in its preview before upstream PR #12 merges; production still uses the existing
+login system in all three apps. Mailjet remains suspended and domain ownership
+pending in the user's signed-in Chrome account. No production release or DNS
+change occurred during this recheck.

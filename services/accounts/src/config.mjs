@@ -49,18 +49,25 @@ export function readConfig(env = process.env) {
       "Railway proxy IP behavior must be verified before trusting its header",
     );
   const mailMode = env.ACCOUNTS_MAIL_MODE || "disabled";
-  if (!["disabled", "mailjet"].includes(mailMode))
+  if (!["disabled", "mailjet", "resend"].includes(mailMode))
     throw new Error("Invalid ACCOUNTS_MAIL_MODE");
   const mail =
     mailMode === "mailjet"
       ? {
+          provider: "mailjet",
           apiKey: required("MAILJET_API_KEY"),
           secretKey: required("MAILJET_SECRET_KEY"),
           from: required("MAILJET_FROM_EMAIL"),
         }
-      : null;
-  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail.from))
-    throw new Error("Invalid MAILJET_FROM_EMAIL");
+      : mailMode === "resend"
+        ? {
+            provider: "resend",
+            apiKey: required("RESEND_API_KEY"),
+            from: required("RESEND_FROM_EMAIL"),
+          }
+        : null;
+  if (mail && !/^[^\s@<>:]+@[^\s@<>:]+\.[^\s@<>:]+$/.test(mail.from))
+    throw new Error("Invalid account email sender");
   const signupAllowed = env.ACCOUNTS_SIGNUP_ENABLED === "true";
   if (signupAllowed && !mail)
     throw new Error("Signup requires configured email delivery");

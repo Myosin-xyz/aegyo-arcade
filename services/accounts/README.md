@@ -21,7 +21,7 @@ Pinned versions and the lockfile belong only to this package. Do not add it to A
 
 The Docker runtime is pinned to the same version and has been tested on Linux ARM64. Browser acceptance is a separate staging gate. Node upgrades require updating both runtime pins and rerunning the proof.
 
-`npm run mail:preflight -- --source accounts` checks Mailjet sender metadata using environment-injected credentials. Use `--source aegyo` for the existing site's variable names. The check is read-only, sends no email, loads no `.env`, and prints no credentials or addresses. A successful sender check does not prove delivery or quota headroom. Simon holds account access; follow the [Mailjet handoff](../../docs/MAILJET_HANDOFF.md) before enabling email in staging.
+`npm run mail:preflight -- --source accounts` checks Mailjet sender metadata using environment-injected credentials. Use `--source aegyo` for the existing site's variable names. The check is read-only, sends no email, loads no `.env`, and prints no credentials or addresses. A successful sender check does not prove delivery or quota headroom. The live September 12 check found the existing Mailjet account blocked. Resend is also supported through `ACCOUNTS_MAIL_MODE=resend`, `RESEND_API_KEY` and `RESEND_FROM_EMAIL`; it is not yet configured. Follow the [current email decision](../../docs/TRANSACTIONAL_EMAIL_DECISION.md) before enabling either transport in staging.
 
 Legacy password verification remains available, but automatic first-login rehash is disabled. The [upgrade analysis](../../docs/LEGACY_PASSWORD_UPGRADE.md) records the guarded candidate, required race proofs and its possible one-time session revocation. Do not remove the legacy pepper while retained credentials require it.
 

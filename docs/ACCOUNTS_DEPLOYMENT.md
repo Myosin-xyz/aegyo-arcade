@@ -74,7 +74,7 @@ Set only scoped Accounts staging variables. Their values must stay in Railway an
 - `ACCOUNTS_BASE_URL`: the Accounts HTTPS origin for this environment.
 - `BETTER_AUTH_SECRET`: an environment-specific generated secret.
 - `ACCOUNTS_STATE_READERS_JSON`: per-application state-reader keys for the three administered clients.
-- `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` and `MAILJET_FROM_EMAIL`: scoped staging mail configuration. Signup remains closed until delivery is configured and proven.
+- `ACCOUNTS_MAIL_MODE`: `disabled` by default; choose `resend` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`, or `mailjet` with `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` and `MAILJET_FROM_EMAIL`. Use scoped staging credentials. Signup remains closed until delivery and capacity are proven. The existing Mailjet account is blocked as of September 12; see the [email decision](TRANSACTIONAL_EMAIL_DECISION.md).
 - `ACCOUNTS_LEGACY_PEPPER`: only for an authorized migration rehearsal; remove it when no retained legacy credential needs it.
 
 Accounts must not receive Arcade production database URLs, wallet private keys, minter/paymaster credentials, production peppers in staging, or unrelated application secrets.

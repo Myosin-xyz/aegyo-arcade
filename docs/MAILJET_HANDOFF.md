@@ -1,5 +1,7 @@
 # Mailjet setup handoff
 
+**September 12 update:** Railway access now exposes two existing key pairs. Both reject sandbox sends; the verified-sender pair explicitly reports a blocked Mailjet account requiring support. No message was delivered and no production settings changed. Obtaining keys alone is no longer the blocker. See the [current transactional email decision](TRANSACTIONAL_EMAIL_DECISION.md); the September 11 handoff below is retained for an eventual Mailjet recovery path.
+
 September 11, 2026. Mateo confirmed proceeding with Mailjet and that Simon holds account access. No Mailjet subscription, credential, sender, DNS, contact or mailing-list change has been made. Mailjet is the email transport; Aegyo's application database remains the source of existing login identities. Newsletter contacts must not become login accounts automatically.
 
 ## What Simon provides

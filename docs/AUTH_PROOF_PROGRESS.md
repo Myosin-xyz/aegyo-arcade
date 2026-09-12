@@ -1,5 +1,22 @@
 # Shared-auth proof progress
 
+## September 12, 2026 — access, preservation and email evidence
+
+**G1 has not passed.** Railway access to the main Aegyo project is now verified. Production login and user rows remain unchanged; a protective native database backup was created. No real member was imported, no paid service was purchased, and no replacement mail provider was enabled.
+
+- **Aegyo inventory:** 52 users, 25 sessions and 48 public tables; 30 verified emails, 52 expected legacy hash shapes, no normalized-email duplicates. Beehiiv's 270 newsletter subscribers are separate. The deployed connection and effective legacy-secret behavior were verified without exporting credentials or user rows.
+- **Preservation:** a completed 260 MB native backup now exists. The actual production schema was restored into disposable PostgreSQL with synthetic users; the additive auth migration, immutable latch and profile/role/history preservation checks passed. A complete real-data restore and Accounts identity-copy reconciliation are still open. Production deployment skips `prisma migrate deploy`, and its four applied migrations differ from the checked-in chain; do not execute that chain blindly.
+- **Aegyo source:** `codex/shared-auth-adapter`, through `271642a`, now contains explicit mapping reconciliation and the production-schema proof and incorporates upstream `3f33404`. The agent reports 32 tests across 9 files and a clean typecheck; the parent independently reran the production-schema proof.
+- **Daebak source:** `codex/shared-auth-foundation`, through `fa9563e`, contains a maintained OIDC adapter, disabled routes and an additive immutable binding table. The parent independently reran all 25 focused tests and the web typecheck. HTTP/persistence tests use controlled adapters/stores; this is not live Privy or production-database acceptance. Existing users, wallets, grants and referrals are unchanged. Separate Privy authentication is still required by the fallback, so shared login is not complete.
+- **Accounts source:** `e0f56c6` adds real-provider RP-initiated/back-channel logout proof. Delivery callbacks are locally intercepted; deployed product receivers remain unproven. The new email transport supports Resend without changing identity storage; it stays unconfigured pending account/domain access and delivery/capacity evidence.
+- **Mailjet:** both available key pairs reject sandbox sends with HTTP 401. The verified-sender pair explicitly reports a temporarily blocked account. No mail was delivered. The offline Railway configuration-holder is not a worker that can be started to fix this. A Resend candidate is implemented, not activated; no paid plan was selected.
+
+**Latest Accounts verification:** the parent built `aegyo-accounts-proof:email-20260912` and ran it with `--network none` under Linux Node 24.21.0: **25 unit/runtime/UI/email tests and 22 PostgreSQL provider/migration/seed tests passed, zero skips**. Image ID: `sha256:708aa7a8322bd7043570ae9e23dcc0b0c92159b00740614d0340c356a03143d1`. ESLint on the changed sender/config/tests and `git diff --check` passed. These transport tests use controlled HTTP responses, not a live Resend account.
+
+See [production evidence and remaining gates](AEGYO_PRODUCTION_READINESS.md), [transactional email decision](TRANSACTIONAL_EMAIL_DECISION.md), and [cross-app logout proof](CROSS_APP_LOGOUT_PROOF.md). The dated September 11 material below remains historical evidence, not the current access/email status.
+
+## September 11 record
+
 September 11, 2026. **Accounts and Arcade remain in isolated staging; the Aegyo adapter and Daebak binding foundation are now in separate source branches. G1 has not passed.** Production login, sessions, wallets and game flows are unchanged. No existing member was imported or merged, no paid identity-provider subscription was purchased, and no new hosting account was created.
 
 Implementation worktree: `/Users/mateodazab/Documents/myosin/aegyo-arcade-auth-proofs`, branch `codex/shared-auth-proofs`. Implementation checkpoint: `d69f0b8`; subsequent proxy, CI and browser-evidence changes are recorded in the following branch commit. The original checkouts and their unrelated changes are preserved.

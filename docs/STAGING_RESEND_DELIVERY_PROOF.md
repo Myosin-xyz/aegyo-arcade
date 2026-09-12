@@ -1,13 +1,16 @@
 # Staging Resend delivery proof
 
-Create the fixture only through `services/accounts/scripts/seed-mail-staging-fixture.mjs` using the migration-owner connection, exact staging database, both reviewed TLS inputs, the explicit confirmation, and an exclusive path under `services/accounts/.proof`. It calls the maintained signup API with a no-network recorder, commits one unverified `mateo@myosin.xyz` staging identity, removes its signup session, and writes its generated password only to the private artifact. It refuses an existing email and never overwrites an identity.
+On September 12, 2026, Accounts staging configuration-only deployment `4546e488-b42c-43dd-b602-94fda7271c81` reported `SUCCESS` while retaining runtime source `3841cf5`. Guarded fixture source `13b920a` was copied to `/tmp` and ran offline on the current staging container; it was not deployed as runtime source. The fixture passed 45 real-PostgreSQL checks using the existing least-privilege staging role directly, with no additional service.
 
-After the staging runtime is configured with Resend and public signup remains disabled:
+Staging used `ACCOUNTS_MAIL_MODE=resend`, a sending-only key held privately in Railway, and the temporary `onboarding@resend.dev` sandbox sender restricted to `mateo@myosin.xyz`. Signup remained disabled. No paid plan or production configuration changed.
 
-1. Sign in with the private fixture credentials in two isolated browser contexts. Confirm two distinct provider sessions.
-2. From `/account`, request email verification. In the already-authorized `mateo@myosin.xyz` mailbox, verify sender, recipient, subject, and that the link origin is exactly the staging Accounts origin before opening it. Do not paste the link into logs or chat. Confirm `/account` reports verified and a newly issued ID token contains signed `email_verified: true`.
-3. Request password recovery from `/forgot-password`. Inspect the newly delivered message in the same mailbox, verify its exact staging origin, and open it only in an isolated context. Set a new generated password stored in the private proof directory.
-4. Start the revocation timer at reset submission. Within 40 seconds, both pre-reset provider sessions and already-issued product sessions must fail authoritative state checks. The old password and recovery-link replay must fail; the new password must work and issue a later reset-state/security version.
-5. Confirm no other recipient, user, wallet, grant, referral, competition entry, or production database changed. Remove the fixture and private credential artifacts through a separately reviewed staging cleanup after evidence is retained.
+The running Accounts service delivered both message types to the authorized Gmail mailbox:
 
-Mailbox inspection is an operator step because a sending-only Resend key cannot read delivered mail. This procedure does not treat a Resend API acceptance response as inbox-delivery evidence.
+| Message        | Resend ID                              | Observed result                                             |
+| -------------- | -------------------------------------- | ----------------------------------------------------------- |
+| Verification   | `94be5bcb-f5ff-409c-8c4e-078ddfe69be3` | Delivered to Gmail Spam; mailbox link consumed successfully |
+| Password reset | `ee03f27c-57c6-41a4-a97a-4c2d61d078c8` | Delivered to Gmail Spam; mailbox link consumed successfully |
+
+After verification, both existing synthetic provider sessions reported `emailVerified: true`. After reset, both retained provider sessions immediately returned null from `get-session`, the old password returned HTTP 401, replaying the delivered reset link reported invalid/already used, and browser login with the new password reached the verified “You're signed in” account page.
+
+This delivery run did not retest the three product-local sessions; the earlier cross-product session and revocation proof remains separate. It also does not prove delivery or inbox placement from the branded Aegyo domain. The four DNS records in [Simon's handoff](SIMON_DNS_HANDOFF.md) remain unchanged and unapplied at this checkpoint.

@@ -47,8 +47,9 @@ was `70143407-c290-4fff-84f8-ba17ef07ce54`. Registration runs through the mainta
 provider API inside one supported Kysely transaction, checks exact callbacks and
 client secrets, and removes its temporary bootstrap identity before commit.
 An injected failure after the first registration rolls back every write; an
-identical retry preserves the clients. The pinned Linux image passed 29 unit,
-runtime, UI and email checks plus 45 real-PostgreSQL proof tests.
+identical retry preserves the clients. Guarded fixture source `13b920a` passed
+45 real-PostgreSQL checks offline on the current staging container; it was not
+deployed as the staging runtime source.
 
 Railway did not retain the operator's final stdout result. The resulting database
 population and runtime privileges were independently verified through a read-only

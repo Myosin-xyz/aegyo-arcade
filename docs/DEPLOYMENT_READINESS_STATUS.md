@@ -32,9 +32,9 @@ passed. **All 20 HTTP assertions passed** across staging and current production;
 the production 404s are the expected pre-rollout baseline, not shared-auth success.
 
 The existing eleven cross-product browser checks remain recorded in
-[the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md). The latest
-pinned Linux run passes 74 provider checks (29 unit/runtime/UI/email plus 45 real
-PostgreSQL), with zero skips.
+[the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md). The guarded
+fixture source `13b920a` passed 45 real-PostgreSQL checks offline on the current
+staging container; it was not deployed as runtime source.
 
 The current Accounts staging deployment uses Resend with a sending-only key held
 privately in Railway, the temporary `onboarding@resend.dev` sandbox sender limited
@@ -42,8 +42,13 @@ to `mateo@myosin.xyz`, and signup disabled. Runtime verification and reset email
 were delivered with Resend IDs `94be5bcb-f5ff-409c-8c4e-078ddfe69be3` and
 `ee03f27c-57c6-41a4-a97a-4c2d61d078c8`. Both appeared in Gmail Spam. The actual
 mailbox verification link was consumed, after which both retained synthetic
-provider sessions reported verified email. Branded-domain delivery and inbox
-placement remain unproved pending DNS; production was not changed.
+provider sessions reported verified email. The delivered reset link was consumed
+in the browser; both retained provider sessions immediately returned null, the
+old password returned HTTP 401, the link replay was invalid/already used, and the
+new password reached the verified signed-in account page. This run did not retest
+the three product-local sessions. Branded-domain delivery and inbox placement
+remain unproved pending DNS; production was not changed. See the
+[focused staging proof](STAGING_RESEND_DELIVERY_PROOF.md).
 The latest endpoint-specific run passed **seven browser logout checks**. Arcade,
 Aegyo and Daebak local logout each cleared only that product session, and provider
 SSO restored it. Arcade retained the exact guest cookie. Accounts current-session
@@ -177,7 +182,7 @@ credentials, change passwords, authenticate to Privy or send email.
 - [Credential guard revision 2](CREDENTIAL_GUARD_UPGRADE.md) closes a discovered
   OAuth-token revocation gap. The staging database upgrade committed via private
   Railway SSH; no public proxy was needed. Accounts deployment
-  `4546e488-b42c-43dd-b602-94fda7271c81` uses source `13b920a` and requires the new
+  `4546e488-b42c-43dd-b602-94fda7271c81` uses runtime source `3841cf5` and requires the new
   guard revision before serving auth traffic. It reports SUCCESS and readiness
   `{ready:true}`. Production was not upgraded.
 

@@ -264,19 +264,31 @@ export function createAccountsProvider({
         allowDynamicClientRegistration: false,
         allowUnauthenticatedClientRegistration: false,
         clientPrivileges: async ({ user }) => user?.role === "admin",
-        customIdTokenClaims: ({ user }) => ({
-          [SECURITY_VERSION_CLAIM]: user.securityVersion,
-          [OPERATOR_CUTOFF_CLAIM]: user.operatorRevokedAt
-            ? new Date(user.operatorRevokedAt).toISOString()
-            : null,
-          [RESET_STATE_CLAIM]: {
-            version: 1,
-            kind: "database",
-            lastPasswordReset: user.passwordChangedAt
-              ? new Date(user.passwordChangedAt).toISOString()
+        customIdTokenClaims: ({ user, scopes }) => {
+          const granted = new Set(scopes);
+          const claims = {
+            [SECURITY_VERSION_CLAIM]: user.securityVersion,
+            [OPERATOR_CUTOFF_CLAIM]: user.operatorRevokedAt
+              ? new Date(user.operatorRevokedAt).toISOString()
               : null,
-          },
-        }),
+            [RESET_STATE_CLAIM]: {
+              version: 1,
+              kind: "database",
+              lastPasswordReset: user.passwordChangedAt
+                ? new Date(user.passwordChangedAt).toISOString()
+                : null,
+            },
+          };
+          if (granted.has("email")) {
+            claims.email = user.email;
+            claims.email_verified = user.emailVerified === true;
+          }
+          if (granted.has("profile")) {
+            if (typeof user.name === "string") claims.name = user.name;
+            if (typeof user.image === "string") claims.picture = user.image;
+          }
+          return claims;
+        },
       }),
     ],
   };

@@ -9,6 +9,7 @@ import {
   createProofProvider,
   RESET_STATE_CLAIM,
 } from "../src/proof-provider.mjs";
+import { SECURITY_VERSION_CLAIM } from "../src/provider-core.mjs";
 import { LEGACY_PREFIX, passwordFunctions } from "../src/passwords.mjs";
 import { installCredentialGuards } from "../src/credential-guards.mjs";
 import { readSessionState } from "../src/security-state.mjs";
@@ -95,6 +96,11 @@ test(
     const signupBody = await signup.json();
     const userId = signupBody.user.id;
     let providerCookie = cookies(signup);
+    const memberPicture = "https://accounts.example.test/member.png";
+    await database.query(
+      'UPDATE "user" SET "emailVerified"=true,image=$1 WHERE id=$2',
+      [memberPicture, userId],
+    );
     const operatorSignup = await request("/sign-up/email", {
       body: {
         name: "Synthetic operator",
@@ -262,6 +268,10 @@ test(
             { issuer, audience: client.client_id },
           );
           assert.equal(payload.sub, userId);
+          assert.equal(payload.email, email);
+          assert.equal(payload.email_verified, true);
+          assert.equal(payload.name, "Synthetic member");
+          assert.equal(payload.picture, memberPicture);
           assert.equal(payload.nonce, tx.query.get("nonce"));
           assert.equal(
             payload.auth_time,
@@ -279,6 +289,46 @@ test(
             200,
           );
         }
+      },
+    );
+
+    await t.test(
+      "signed ID token identity claims follow granted scopes and server verification state",
+      async () => {
+        const jwks = await (await request("/jwks")).json();
+        const unverified = await issuedTokens(clients[0], operatorCookie);
+        const unverifiedClaims = (
+          await jwtVerify(unverified.id_token, createLocalJWKSet(jwks), {
+            issuer,
+            audience: clients[0].client_id,
+          })
+        ).payload;
+        assert.equal(unverifiedClaims.email, "operator@example.invalid");
+        assert.equal(unverifiedClaims.email_verified, false);
+        assert.equal(unverifiedClaims.name, "Synthetic operator");
+
+        const openidOnly = transaction(clients[0], { scope: "openid" });
+        const callback = await authorize(openidOnly);
+        const response = await exchange(
+          openidOnly,
+          callback.searchParams.get("code"),
+        );
+        assert.equal(response.status, 200);
+        const tokens = await response.json();
+        const claims = (
+          await jwtVerify(tokens.id_token, createLocalJWKSet(jwks), {
+            issuer,
+            audience: clients[0].client_id,
+          })
+        ).payload;
+        for (const claim of ["email", "email_verified", "name", "picture"])
+          assert.equal(Object.hasOwn(claims, claim), false);
+        assert.equal(claims[SECURITY_VERSION_CLAIM], 0);
+        assert.deepEqual(claims[RESET_STATE_CLAIM], {
+          version: 1,
+          kind: "database",
+          lastPasswordReset: null,
+        });
       },
     );
 

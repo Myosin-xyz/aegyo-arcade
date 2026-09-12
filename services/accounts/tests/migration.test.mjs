@@ -21,6 +21,7 @@ function migrate(database, extra = {}) {
   const env = {
     ...process.env,
     ACCOUNTS_MIGRATION_CONFIRM: "dedicated-accounts-database",
+    ACCOUNTS_MIGRATION_DATABASE_NAME: database,
     ACCOUNTS_MIGRATION_DATABASE_URL: ownerURL(database),
     ACCOUNTS_DATABASE_ROLE: appRole,
     ...extra,
@@ -43,11 +44,15 @@ function upgradeGuards(database) {
     ACCOUNTS_MIGRATION_DATABASE_URL: ownerURL(database),
   };
   delete env.DATABASE_URL;
-  return spawnSync(process.execPath, ["scripts/upgrade-credential-guards.mjs"], {
-    cwd: new URL("..", import.meta.url),
-    encoding: "utf8",
-    env,
-  });
+  return spawnSync(
+    process.execPath,
+    ["scripts/upgrade-credential-guards.mjs"],
+    {
+      cwd: new URL("..", import.meta.url),
+      encoding: "utf8",
+      env,
+    },
+  );
 }
 
 test(
@@ -65,6 +70,26 @@ test(
     t.after(() => cluster.end());
     await cluster.query(`CREATE DATABASE ${fixture}`);
     await cluster.query(`CREATE DATABASE ${foreignFixture}`);
+
+    const mismatched = migrate(fixture, {
+      ACCOUNTS_MIGRATION_DATABASE_NAME: foreignFixture,
+      ACCOUNTS_DATABASE_ROLE_PASSWORD: syntheticPassword,
+    });
+    assert.equal(mismatched.status, 1);
+    assert.match(mismatched.stderr, /Connected database differs/);
+    const untouched = new pg.Pool({ connectionString: ownerURL(fixture) });
+    assert.equal(
+      Number(
+        (
+          await untouched.query(
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'",
+          )
+        ).rows[0].count,
+      ),
+      0,
+      "wrong database confirmation must create no schema",
+    );
+    await untouched.end();
 
     const first = migrate(fixture, {
       ACCOUNTS_DATABASE_ROLE_PASSWORD: syntheticPassword,

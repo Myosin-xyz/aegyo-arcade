@@ -76,6 +76,7 @@ Set only scoped Accounts staging variables. Their values must stay in Railway an
 - `ACCOUNTS_MIGRATION_DATABASE_CA_CERT`: the authenticated Railway database root CA PEM for an operator connection through a public TCP proxy.
 - `ACCOUNTS_MIGRATION_DATABASE_SERVER_SHA256`: the reviewed SHA-256 fingerprint of the CA-validated database leaf certificate.
 - `ACCOUNTS_MIGRATION_CONFIRM`: exactly `dedicated-accounts-database`; the command otherwise exits before connecting.
+- `ACCOUNTS_MIGRATION_DATABASE_NAME`: the exact database name, verified against the live connection before any schema write. Production preparation additionally requires `accounts_production`, `ACCOUNTS_TRAFFIC_ENABLED=false` and `ACCOUNTS_SIGNUP_ENABLED=false`.
 - `ACCOUNTS_DATABASE_ROLE`: application login role name, default `aegyo_accounts_app`.
 - `ACCOUNTS_DATABASE_ROLE_PASSWORD`: required only when the application role does not yet exist. An idempotent rerun never rotates an existing role password.
 - `ACCOUNTS_BASE_URL`: the Accounts HTTPS origin for this environment.

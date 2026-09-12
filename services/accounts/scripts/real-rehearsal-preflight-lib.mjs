@@ -23,13 +23,14 @@ export function validatePrivateSource(input) {
     refuse("source_must_be_query_free_railway_private_url");
   if (!input.caCertificate?.includes("BEGIN CERTIFICATE"))
     refuse("source_ca_required");
+  if (!/^[A-Fa-f0-9]{64}$/.test(input.serverSHA256?.replaceAll(":", "") ?? ""))
+    refuse("source_server_certificate_pin_required");
   for (const [name, value] of Object.entries({
     expectedTables: input.expectedTables,
     expectedUsers: input.expectedUsers,
     expectedSessions: input.expectedSessions,
   })) {
-    if (!Number.isSafeInteger(value) || value < 0)
-      refuse(`invalid_${name}`);
+    if (!Number.isSafeInteger(value) || value < 0) refuse(`invalid_${name}`);
   }
   const canary = [
     input.canarySourceUserId,
@@ -44,10 +45,8 @@ export function validatePrivateSource(input) {
 }
 
 export function assertInventory(actual, expected) {
-  if (actual.tableCount !== expected.tableCount)
-    refuse("table_count_mismatch");
-  if (actual.userCount !== expected.userCount)
-    refuse("user_count_mismatch");
+  if (actual.tableCount !== expected.tableCount) refuse("table_count_mismatch");
+  if (actual.userCount !== expected.userCount) refuse("user_count_mismatch");
   if (actual.sessionCount !== expected.sessionCount)
     refuse("session_count_mismatch");
 }

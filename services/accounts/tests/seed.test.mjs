@@ -44,6 +44,7 @@ test(
 
     const migration = subprocess("scripts/migrate.mjs", {
       ACCOUNTS_MIGRATION_CONFIRM: "dedicated-accounts-database",
+      ACCOUNTS_MIGRATION_DATABASE_NAME: fixture,
       ACCOUNTS_MIGRATION_DATABASE_URL: ownerURL(fixture),
       ACCOUNTS_DATABASE_ROLE: appRole,
       ACCOUNTS_DATABASE_ROLE_PASSWORD: appPassword,

@@ -39,6 +39,20 @@ if (process.env.DATABASE_URL)
   fail("DATABASE_URL must not be present in the migration process");
 const connectionString = process.env.ACCOUNTS_MIGRATION_DATABASE_URL;
 if (!connectionString) fail("ACCOUNTS_MIGRATION_DATABASE_URL is required");
+const expectedDatabase = process.env.ACCOUNTS_MIGRATION_DATABASE_NAME;
+if (!/^[a-z_][a-z0-9_]{0,62}$/.test(expectedDatabase ?? ""))
+  fail(
+    "ACCOUNTS_MIGRATION_DATABASE_NAME must name the exact dedicated database",
+  );
+if (
+  process.env.ACCOUNTS_ENVIRONMENT === "production" &&
+  (expectedDatabase !== "accounts_production" ||
+    process.env.ACCOUNTS_TRAFFIC_ENABLED !== "false" ||
+    process.env.ACCOUNTS_SIGNUP_ENABLED !== "false")
+)
+  fail(
+    "Production preparation requires accounts_production with traffic and signup disabled",
+  );
 
 identifier(role);
 const database = new pg.Pool({
@@ -56,6 +70,10 @@ let committed = false;
 let phase = "connect";
 
 try {
+  phase = "database-identity";
+  const connected = await database.query("SELECT current_database() AS name");
+  if (connected.rows[0]?.name !== expectedDatabase)
+    fail("Connected database differs from ACCOUNTS_MIGRATION_DATABASE_NAME");
   phase = "lock";
   await database.query("BEGIN");
   await database.query("SET LOCAL lock_timeout = '10s'");

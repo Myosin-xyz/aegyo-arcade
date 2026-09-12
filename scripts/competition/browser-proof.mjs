@@ -241,11 +241,17 @@ try {
     ARCADE_AUTH_STATE_READER_KEY: readerKey,
     ARCADE_COMPETITION_ENABLED: "true",
     ARCADE_COMPETITION_SEED_SECRET: randomBytes(32).toString("hex"),
-    ARCADE_COMPETITION_MATERIAL_ENABLED: "false",
+    ARCADE_MATERIAL_COMPETITION_ENABLED: "false",
   };
   nextProcess = spawn(
-    join(repo, "node_modules", ".bin", "next"),
-    ["dev", "--experimental-https", "--port", String(appPort)],
+    process.execPath,
+    [
+      join(repo, "node_modules", "next", "dist", "bin", "next"),
+      "dev",
+      "--experimental-https",
+      "--port",
+      String(appPort),
+    ],
     { cwd: repo, env: cleanEnv, stdio: ["ignore", "pipe", "pipe"] },
   );
   let nextLog = "";
@@ -283,12 +289,17 @@ try {
     );
     const page = await context.newPage();
     page.setDefaultTimeout(15_000);
+    const guestBootstrap = page.waitForResponse(
+      (response) =>
+        response.url() === `${appOrigin}/api/session` &&
+        response.request().method() === "POST",
+    );
     await page.goto(`${appOrigin}/`);
-    const guest = await context.request.post(`${appOrigin}/api/session`, {
-      headers: { origin: appOrigin },
-      data: { locale: viewport.name === "mobile" ? "es-419" : "en" },
-    });
-    assert.equal(guest.status(), 200);
+    assert.equal((await guestBootstrap).status(), 200);
+    await page
+      .getByRole("link", { name: "Championship", exact: true })
+      .waitFor();
+    await page.getByRole("link", { name: "My account", exact: true }).waitFor();
     const guestBefore = (await context.cookies(appOrigin)).find(
       (cookie) => cookie.name === "__Host-aegyo_device",
     )?.value;

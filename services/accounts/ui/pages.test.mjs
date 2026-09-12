@@ -6,6 +6,31 @@ function decodeAttribute(value) {
   return value.replaceAll("&amp;", "&").replaceAll("&quot;", '"');
 }
 
+test("unverified members can reach verification without losing the authorization journey", () => {
+  const continuationUrl =
+    "https://account.aegyoarena.com/api/auth/oauth2/authorize?state=opaque&sig=signed";
+  const html = renderAccountPage({
+    page: "account",
+    user: {
+      name: "Member",
+      email: "member@example.invalid",
+      emailVerified: false,
+    },
+    continuationUrl,
+  });
+  const href = decodeAttribute(html.match(/href="([^"]+)">Verify email/)[1]);
+  const url = new URL(href, "https://account.aegyoarena.com");
+  assert.equal(url.pathname, "/verify-email");
+  assert.equal(url.searchParams.get("continue"), continuationUrl);
+  assert.equal(url.searchParams.has("email"), false);
+  const verified = renderAccountPage({
+    page: "account",
+    user: { emailVerified: true },
+    continuationUrl,
+  });
+  assert.doesNotMatch(verified, /href="[^\"]+">Verify email/);
+});
+
 test("sign-up and language links preserve the exact signed authorization journey", () => {
   const oauthQuery =
     "client_id=arcade&redirect_uri=https%3A%2F%2Farcade.aegyoarena.com%2Fapi%2Faccounts%2Fcallback&max_age=0&state=a%2Bb&sig=signed";

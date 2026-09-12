@@ -2,6 +2,8 @@
 
 September 12, 2026. This is a local design proof, not an executable production importer or cutover approval.
 
+Update: the subsequent [operator importer](LEGACY_IMPORT_RUNBOOK.md) now implements and tests private source capture, atomic journaled copying, exact retry and uncertain-commit recovery. The original fixture below remains a historical design proof; production use is still gated by the runbook.
+
 ## Access checkpoint
 
 The authenticated GitHub identity is `mateodaza`. The GitHub repository API reports `push=false`, `maintain=false`, `admin=false` for `Francisgood/kpop-lyrics`, and `push=true` / `admin=true` for `mateodaza/kpop-lyrics`. No push was attempted. The team can continue development in the existing adapter worktree and submit a fork PR without upstream Write access. Direct upstream pushes require Simon to grant at least Write access; branch protection may still require review.

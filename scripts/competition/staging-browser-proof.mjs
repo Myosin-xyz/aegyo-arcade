@@ -15,6 +15,18 @@ assert.equal(
 );
 const roundSlug = process.env.ARCADE_COMPETITION_STAGING_ROUND;
 assert.match(roundSlug ?? "", /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/);
+const gameId = process.env.ARCADE_COMPETITION_STAGING_GAME ?? "snake";
+assert(["snake", "flappy"].includes(gameId));
+const inspectOnly =
+  process.env.ARCADE_COMPETITION_STAGING_INSPECT_ONLY === "true";
+const expectedRemaining = inspectOnly
+  ? Number(process.env.ARCADE_COMPETITION_STAGING_EXPECT_REMAINING)
+  : 3;
+assert(
+  Number.isInteger(expectedRemaining) &&
+    expectedRemaining >= 0 &&
+    expectedRemaining <= 3,
+);
 
 const proofRoot = new URL("../../services/accounts/.proof/", import.meta.url);
 const evidenceRoot = new URL("../../.auth-proof/", import.meta.url);
@@ -56,6 +68,8 @@ const report = {
   scope: "existing synthetic staging member; real Accounts OIDC",
   origins: Object.values(origins),
   roundSlug,
+  gameId,
+  runMode: inspectOnly ? "inspect-existing-attempt" : "play-one-attempt",
   checks: [],
   mail: "not invoked",
   privy: "not invoked",
@@ -108,9 +122,7 @@ try {
   assert.equal(roundResponse.body.round?.mode, "synthetic");
   assert.equal(roundResponse.body.round?.status, "open");
   assert(
-    roundResponse.body.round.rules.games.some(
-      (game) => game.gameId === "snake",
-    ),
+    roundResponse.body.round.rules.games.some((game) => game.gameId === gameId),
   );
   pass("allowlisted open synthetic round is available");
 
@@ -192,7 +204,8 @@ try {
     `/api/competition/me?roundId=${encodeURIComponent(roundResponse.body.round.id)}`,
   );
   assert.equal(memberState.status, 200);
-  assert.equal(memberState.body.remaining.snake, 3);
+  const remainingBefore = memberState.body.remaining[gameId];
+  assert.equal(remainingBefore, expectedRemaining);
   if (!memberState.body.enrolled) {
     await page.getByRole("checkbox").check();
     const enrollmentResponse = page.waitForResponse(
@@ -212,25 +225,110 @@ try {
     assert.equal(enrollment.status(), 200);
     await page.getByText("You’re enrolled", { exact: true }).waitFor();
   }
-  await page.getByRole("link", { name: /Play Snake/ }).click();
-  await page.getByTestId("start-championship").click();
-  await page.getByText("Championship attempt in progress").waitFor();
-  await page.keyboard.press("ArrowUp");
-  await page
-    .getByText(/Replay verified|did not qualify/, { exact: false })
-    .waitFor({ timeout: 30_000 });
+  if (!inspectOnly) {
+    await page
+      .getByRole("link", {
+        name: gameId === "snake" ? /Play Snake/ : /Play Flappy Bird/,
+      })
+      .click();
+    await page.getByTestId("start-championship").click();
+    await page.getByText("Championship attempt in progress").waitFor();
+    if (gameId === "snake") {
+      await page.keyboard.press("ArrowUp");
+    } else {
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Enter");
+    }
+    await page
+      .getByText(/Replay verified|did not qualify/, { exact: false })
+      .waitFor({ timeout: 30_000 });
+  }
   memberState = await productState(
     context,
     origins.arcade,
     `/api/competition/me?roundId=${encodeURIComponent(roundResponse.body.round.id)}`,
   );
   assert.equal(memberState.status, 200);
-  assert.equal(memberState.body.remaining.snake, 2);
-  assert.equal(memberState.body.attempts[0]?.gameId, "snake");
-  assert(
-    ["verified", "rejected"].includes(memberState.body.attempts[0]?.status),
+  assert.equal(
+    memberState.body.remaining[gameId],
+    inspectOnly ? remainingBefore : remainingBefore - 1,
   );
-  pass("official Snake trace completes and consumes exactly one daily quota");
+  const verifiedAttempt = memberState.body.attempts.find(
+    (attempt) => attempt.gameId === gameId,
+  );
+  assert.equal(verifiedAttempt?.status, "verified");
+  assert.equal(typeof verifiedAttempt?.score, "number");
+  assert.equal(typeof verifiedAttempt?.points, "number");
+  report.verifiedAttempt = {
+    gameId,
+    status: "verified",
+    score: verifiedAttempt.score,
+    points: verifiedAttempt.points,
+    remainingBefore,
+    remainingAfter: memberState.body.remaining[gameId],
+  };
+  pass(
+    inspectOnly
+      ? `existing official ${gameId} trace remains verified`
+      : `official ${gameId} trace verifies and consumes exactly one daily quota`,
+  );
+
+  phase = "public-standings-privacy";
+  const publicAfter = await productState(
+    context,
+    origins.arcade,
+    `/api/competition?round=${encodeURIComponent(roundSlug)}`,
+  );
+  assert.equal(publicAfter.status, 200);
+  assert(Array.isArray(publicAfter.body.standings));
+  assert(Array.isArray(publicAfter.body.gameHighScores));
+  for (const standing of publicAfter.body.standings) {
+    assert.deepEqual(Object.keys(standing).sort(), [
+      "maxDailyPoints",
+      "rank",
+      "totalPoints",
+      "username",
+    ]);
+    assert.equal(typeof standing.username, "string");
+  }
+  for (const highScore of publicAfter.body.gameHighScores) {
+    assert.deepEqual(Object.keys(highScore).sort(), [
+      "gameId",
+      "score",
+      "username",
+    ]);
+  }
+  assert(
+    publicAfter.body.gameHighScores.some(
+      (score) =>
+        score.gameId === gameId && score.username === profile.body.username,
+    ),
+  );
+  const forbiddenPublicKeys = new Set([
+    "email",
+    "memberId",
+    "providerSessionId",
+    "seed",
+    "subject",
+    "trace",
+    "traceHash",
+  ]);
+  const inspectPublic = (value) => {
+    if (!value || typeof value !== "object") return;
+    for (const [key, child] of Object.entries(value)) {
+      assert(!forbiddenPublicKeys.has(key), `private public key: ${key}`);
+      inspectPublic(child);
+    }
+  };
+  inspectPublic(publicAfter.body);
+  assert(!JSON.stringify(publicAfter.body).includes("@example.invalid"));
+  report.publicStandings = {
+    rows: publicAfter.body.standings.length,
+    fields: ["username", "rank", "totalPoints", "maxDailyPoints"],
+    gameHighScoreRows: publicAfter.body.gameHighScores.length,
+    gameHighScoreFields: ["gameId", "username", "score"],
+  };
+  pass("public standings expose usernames and scores without private identity");
 
   phase = "cross-product-provider-session";
   const providerCookieValue = providerCookie.value;

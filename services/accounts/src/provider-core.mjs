@@ -23,7 +23,16 @@ export function createAccountsProvider({
   ipHeader = "x-aegyo-client-ip",
   proofHooks = {},
   allowProofAdmin = false,
+  offlineOAuthClientCredentials = null,
 }) {
+  if (offlineOAuthClientCredentials && !allowProofAdmin)
+    throw new Error("offline_oauth_credentials_require_offline_admin");
+  const offlineClientIds = [
+    ...(offlineOAuthClientCredentials?.clientIds ?? []),
+  ];
+  const offlineClientSecrets = [
+    ...(offlineOAuthClientCredentials?.clientSecrets ?? []),
+  ];
   const passwords = passwordFunctions(legacyPepper);
   const blockedWriters = [
     "/change-password",
@@ -264,6 +273,21 @@ export function createAccountsProvider({
         allowDynamicClientRegistration: false,
         allowUnauthenticatedClientRegistration: false,
         clientPrivileges: async ({ user }) => user?.role === "admin",
+        ...(offlineOAuthClientCredentials
+          ? {
+              clientReference: () => "aegyo-first-party-v1",
+              generateClientId: () => {
+                const value = offlineClientIds.shift();
+                if (!value) throw new Error("offline_client_id_exhausted");
+                return value;
+              },
+              generateClientSecret: () => {
+                const value = offlineClientSecrets.shift();
+                if (!value) throw new Error("offline_client_secret_exhausted");
+                return value;
+              },
+            }
+          : {}),
         customIdTokenClaims: ({ user, scopes }) => {
           const granted = new Set(scopes);
           const claims = {

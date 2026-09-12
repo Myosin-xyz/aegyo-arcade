@@ -94,6 +94,16 @@
   border-radius: 999px;
 }
 
+.refreshVerification {
+  width: fit-content;
+  margin-top: -0.8rem;
+  color: var(--brand-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-decoration: underline;
+  text-underline-offset: 0.22rem;
+}
+
 .account h2 {
   font-size: 0.78rem;
   font-weight: 700;

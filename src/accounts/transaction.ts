@@ -10,6 +10,7 @@ export type OidcTransaction = AuthorizationTransaction & {
   state: string;
   nonce: string;
   codeVerifier: string;
+  returnTo: string;
 };
 
 const MAX_TRANSACTION_AGE_MS = 10 * 60 * 1000;
@@ -74,8 +75,21 @@ function isTransaction(value: unknown): value is OidcTransaction {
     item.nonce.length >= 16 &&
     typeof item.codeVerifier === "string" &&
     item.codeVerifier.length >= 43 &&
+    typeof item.returnTo === "string" &&
+    safeAccountReturnTo(item.returnTo) === item.returnTo &&
     Number.isSafeInteger(item.requestedAtMs) &&
     Number.isSafeInteger(item.maxAgeSeconds) &&
     (item.reauthenticationAttempt === 0 || item.reauthenticationAttempt === 1)
   );
+}
+
+const CHAMPIONSHIP_PLAY_PATH =
+  /^\/play\/(snake|flappy)\?championship=[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** Only routes that intentionally continue a shared-account journey. */
+export function safeAccountReturnTo(value: unknown): string {
+  if (value === "/account" || value === "/championship") return value;
+  if (typeof value === "string" && CHAMPIONSHIP_PLAY_PATH.test(value))
+    return value;
+  return "/";
 }

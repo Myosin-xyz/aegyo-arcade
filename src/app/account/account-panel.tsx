@@ -31,6 +31,7 @@ const copy = {
     home: "Back to games",
     verified: "Email verified",
     unverified: "Verify your email before choosing a competition username.",
+    verifiedAgain: "Already verified it? Sign in again to refresh your status.",
     username: "Competition username",
     usernameHelp:
       "Use 3–20 lowercase letters, numbers, or underscores. You can choose it once.",
@@ -58,6 +59,8 @@ const copy = {
     home: "Volver a los juegos",
     verified: "Correo verificado",
     unverified: "Verifica tu correo antes de elegir un nombre de competencia.",
+    verifiedAgain:
+      "¿Ya lo verificaste? Inicia sesión de nuevo para actualizar tu estado.",
     username: "Nombre de competencia",
     usernameHelp:
       "Usa de 3 a 20 letras minúsculas, números o guiones bajos. Solo puedes elegirlo una vez.",
@@ -197,7 +200,7 @@ export function AccountPanel() {
             <p>{text.signedOut}</p>
             <Link
               className="btn-arcade"
-              href="/api/accounts/login"
+              href="/api/accounts/login?returnTo=%2Faccount"
               prefetch={false}
             >
               {text.signIn}
@@ -213,6 +216,15 @@ export function AccountPanel() {
               <span aria-hidden>{view.profile.emailVerified ? "✓" : "!"}</span>
               {view.profile.emailVerified ? text.verified : text.unverified}
             </div>
+            {!view.profile.emailVerified && (
+              <Link
+                className={styles.refreshVerification}
+                href="/api/accounts/login?returnTo=%2Faccount"
+                prefetch={false}
+              >
+                {text.verifiedAgain}
+              </Link>
+            )}
             <div>
               <h2>{text.username}</h2>
               {view.profile.username ? (

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     requestedAtMs: 0,
     maxAgeSeconds: 3_600,
     reauthenticationAttempt: 0,
+    returnTo: "/championship",
   },
 }));
 
@@ -32,6 +33,7 @@ const config = {
 vi.mock("@/accounts/config", () => ({ getAccountsConfig: () => config }));
 vi.mock("@/accounts/transaction", () => ({
   openTransaction: () => mocks.transaction,
+  safeAccountReturnTo: (value: string) => value,
 }));
 vi.mock("@/accounts/provider", () => ({
   finishAuthorization: mocks.finishAuthorization,
@@ -127,9 +129,31 @@ describe("member callback authoritative state check", () => {
       expect.objectContaining({
         maxAgeSeconds: 0,
         reauthenticationAttempt: 1,
+        returnTo: "/championship",
       }),
     );
     expect(mocks.createMemberSession).not.toHaveBeenCalled();
+  });
+
+  it("returns a successful login to the sealed local journey", async () => {
+    mocks.fetchProviderSecurityState.mockResolvedValue({
+      kind: "ok",
+      state: {
+        version: 1,
+        subject: "user-1",
+        providerSessionId: "sid-1",
+        active: true,
+        passwordResetState: resetState,
+        operatorCutoff: null,
+        securityVersion: 7,
+      },
+    });
+    mocks.createMemberSession.mockResolvedValue({ token: "member-token" });
+    const response = await GET(callbackRequest());
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://arcade.example.test/championship",
+    );
   });
 
   it("does not loop when the authoritative rejection follows the retry", async () => {

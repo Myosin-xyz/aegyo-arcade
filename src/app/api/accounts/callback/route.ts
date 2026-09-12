@@ -14,7 +14,7 @@ import {
   type ResetState,
 } from "@/accounts/freshness";
 import { createMemberSession } from "@/accounts/sessions";
-import { openTransaction } from "@/accounts/transaction";
+import { openTransaction, safeAccountReturnTo } from "@/accounts/transaction";
 import { getDb } from "@/db/client";
 import { canonicalExternalRequestUrl } from "@/server/request-origin";
 
@@ -115,6 +115,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return authorizationRedirect(config, {
         maxAgeSeconds: 0,
         reauthenticationAttempt: 1,
+        returnTo: transaction.returnTo,
         nowMs: Math.max(Date.now(), notBeforeMs),
       });
     }
@@ -130,7 +131,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       securityVersion: state.securityVersion,
       resetState: state.passwordResetState as ResetState,
     });
-    const response = NextResponse.redirect(new URL("/", config.appOrigin));
+    const response = NextResponse.redirect(
+      new URL(safeAccountReturnTo(transaction.returnTo), config.appOrigin),
+    );
     clearTransactionCookie(response);
     setMemberCookie(response, session.token);
     return response;

@@ -8,6 +8,7 @@ import {
 import { MEMBER_COOKIE, OIDC_TRANSACTION_COOKIE } from "@/accounts/cookies";
 import {
   openTransaction,
+  safeAccountReturnTo,
   sealTransaction,
   type OidcTransaction,
 } from "@/accounts/transaction";
@@ -28,6 +29,7 @@ const tx: OidcTransaction = {
   requestedAtMs: base,
   maxAgeSeconds: 3600,
   reauthenticationAttempt: 0,
+  returnTo: "/account",
 };
 
 describe("Arcade member adapter boundaries", () => {
@@ -129,6 +131,22 @@ describe("Arcade member adapter boundaries", () => {
     ).toBeNull();
     expect(openTransaction(sealed, "wrong".repeat(8), base + 1)).toBeNull();
   });
+
+  it.each([
+    ["/account", "/account"],
+    ["/championship", "/championship"],
+    [
+      "/play/snake?championship=123e4567-e89b-12d3-a456-426614174000",
+      "/play/snake?championship=123e4567-e89b-12d3-a456-426614174000",
+    ],
+    ["https://evil.example/account", "/"],
+    ["//evil.example/account", "/"],
+    ["/\\evil.example", "/"],
+    ["/%2f%2fevil.example", "/"],
+    ["/play/snake?championship=bad&next=https://evil.example", "/"],
+  ])("bounds account return %s to %s", (candidate, expected) => {
+    expect(safeAccountReturnTo(candidate)).toBe(expected);
+  });
 });
 
 function session(): MemberSession {
@@ -137,6 +155,7 @@ function session(): MemberSession {
     memberId: "member",
     subject: "user-1",
     providerSessionId: "sid-1",
+    emailVerified: false,
     displayName: null,
     avatarUrl: null,
     authenticatedAt: new Date(base),

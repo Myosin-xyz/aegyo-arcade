@@ -14,6 +14,7 @@ export async function authorizationRedirect(
   input: {
     maxAgeSeconds: number;
     reauthenticationAttempt: 0 | 1;
+    returnTo?: string;
     nowMs?: number;
   },
 ): Promise<NextResponse> {

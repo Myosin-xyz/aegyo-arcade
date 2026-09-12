@@ -4,9 +4,11 @@ CREATE TABLE competition_candidate_snapshots (
   id uuid PRIMARY KEY,
   round_id uuid NOT NULL UNIQUE REFERENCES competition_rounds(id),
   standings jsonb NOT NULL,
+  game_high_scores jsonb NOT NULL,
   source_digest text NOT NULL CHECK (length(source_digest) = 64),
   created_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (jsonb_typeof(standings) = 'array')
+  CHECK (jsonb_typeof(standings) = 'array'),
+  CHECK (jsonb_typeof(game_high_scores) = 'array')
 );
 
 CREATE TABLE competition_final_results (

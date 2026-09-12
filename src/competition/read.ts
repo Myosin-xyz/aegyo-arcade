@@ -6,6 +6,7 @@ import {
   type StandingContribution,
 } from "./operations";
 import { digest, type Round } from "./store";
+import type { GameHighScore } from "./operations-store";
 import { assertRoundAvailable, parseRules, utcDay } from "./rules";
 export async function roundStandings(db: Db, roundId: string) {
   const contributions = (
@@ -43,12 +44,42 @@ export async function roundStandings(db: Db, roundId: string) {
   };
 }
 
-async function finalPublicStandings(db: Db, roundId: string) {
+function compareHighScores(
+  a: { gameId: string; username: string; score: number },
+  b: { gameId: string; username: string; score: number },
+) {
+  return (
+    (a.gameId < b.gameId ? -1 : a.gameId > b.gameId ? 1 : 0) ||
+    b.score - a.score ||
+    (a.username < b.username ? -1 : a.username > b.username ? 1 : 0)
+  );
+}
+
+async function liveGameHighScores(db: Db, roundId: string) {
+  const result = (
+    await db.execute(sql`
+      SELECT DISTINCT ON (a.member_id,a.game_id)
+             a.game_id AS "gameId",p.username,a.score
+        FROM competition_attempts a
+        JOIN competition_profiles p ON p.member_id=a.member_id
+        JOIN competition_enrollments e ON e.round_id=a.round_id AND e.member_id=a.member_id
+       WHERE a.round_id=${roundId}::uuid AND a.status='verified' AND a.score IS NOT NULL
+       ORDER BY a.member_id,a.game_id,a.score DESC,a.received_at ASC,a.id ASC
+    `)
+  ).rows as unknown as { gameId: string; username: string; score: number }[];
+  return result.sort(compareHighScores);
+}
+
+async function finalPublishedRound(db: Db, roundId: string) {
   const final = (
     await db.execute(
-      sql`SELECT standings FROM competition_final_results WHERE round_id=${roundId}::uuid`,
+      sql`SELECT f.standings,s.game_high_scores AS "gameHighScores"
+            FROM competition_final_results f
+            JOIN competition_candidate_snapshots s ON s.id=f.candidate_snapshot_id
+           WHERE f.round_id=${roundId}::uuid`,
     )
-  ).rows[0] as { standings: FinalStanding[] } | undefined;
+  ).rows[0] as
+    { standings: FinalStanding[]; gameHighScores: GameHighScore[] } | undefined;
   if (!final) throw new Error("Final competition snapshot is missing");
   const names = (
     await db.execute(
@@ -60,7 +91,7 @@ async function finalPublicStandings(db: Db, roundId: string) {
   const byId = new Map(
     names.map((row) => [row.member_id as string, row.username as string]),
   );
-  return final.standings
+  const standings = final.standings
     .filter((row) => byId.has(row.memberId))
     .map((row) => ({
       username: byId.get(row.memberId)!,
@@ -68,6 +99,15 @@ async function finalPublicStandings(db: Db, roundId: string) {
       totalPoints: row.totalPoints,
       maxDailyPoints: row.maxUtcDailyPoints,
     }));
+  const gameHighScores = final.gameHighScores
+    .filter((row) => byId.has(row.memberId))
+    .map((row) => ({
+      gameId: row.gameId,
+      username: byId.get(row.memberId)!,
+      score: row.score,
+    }))
+    .sort(compareHighScores);
+  return { standings, gameHighScores };
 }
 export async function publicRound(db: Db, slug?: string) {
   const row = (
@@ -80,10 +120,12 @@ export async function publicRound(db: Db, slug?: string) {
   if (!row) return { round: null, standings: [], provisional: true };
   row.rules = parseRules(row.rules);
   assertRoundAvailable(row.rules);
-  const standing =
-    row.status === "final"
-      ? { public: await finalPublicStandings(db, row.id) }
-      : await roundStandings(db, row.id);
+  const finalized =
+    row.status === "final" ? await finalPublishedRound(db, row.id) : null;
+  const standing = finalized ? null : await roundStandings(db, row.id);
+  const gameHighScores = finalized
+    ? finalized.gameHighScores
+    : await liveGameHighScores(db, row.id);
   const opensAt =
     row.opens_at instanceof Date ? row.opens_at : new Date(row.opens_at);
   const closesAt =
@@ -99,7 +141,8 @@ export async function publicRound(db: Db, slug?: string) {
       rules: row.rules,
       rulesDigest: digest(row.rules),
     },
-    standings: standing.public,
+    standings: finalized?.standings ?? standing!.public,
+    gameHighScores,
     provisional: row.status !== "final",
   };
 }

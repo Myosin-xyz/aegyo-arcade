@@ -26,8 +26,14 @@ type RoundRow = {
 type SnapshotRow = {
   id: string;
   standings: CandidateStanding[];
+  game_high_scores: GameHighScore[];
   source_digest: string;
   created_at: Date;
+};
+export type GameHighScore = {
+  memberId: string;
+  gameId: string;
+  score: number;
 };
 
 export type CloseRoundResult =
@@ -68,7 +74,7 @@ export async function closeRound(
     assertRoundAvailable(lockedRound.rules);
     const existing = rows<SnapshotRow>(
       await tx.execute(sql`
-        SELECT id, standings, source_digest, created_at
+        SELECT id, standings, game_high_scores, source_digest, created_at
           FROM competition_candidate_snapshots
          WHERE round_id = ${input.roundId}
       `),
@@ -139,21 +145,40 @@ export async function closeRound(
         receivedAt: asDate(item.received_at),
       })),
     );
+    const gameHighScores = rows<{
+      member_id: string;
+      game_id: string;
+      score: number;
+    }>(
+      await tx.execute(sql`
+        SELECT DISTINCT ON (member_id,game_id) member_id,game_id,score
+          FROM competition_attempts
+         WHERE round_id=${input.roundId} AND status='verified' AND score IS NOT NULL
+         ORDER BY member_id,game_id,score DESC,received_at ASC,id ASC
+      `),
+    ).map((row) => ({
+      memberId: row.member_id,
+      gameId: row.game_id,
+      score: row.score,
+    }));
     const snapshot: SnapshotRow = {
       id: randomUUID(),
       standings,
-      source_digest: digest(
-        source.map((item) => ({
+      game_high_scores: gameHighScores,
+      source_digest: digest({
+        contributions: source.map((item) => ({
           ...item,
           received_at: asDate(item.received_at).toISOString(),
         })),
-      ),
+        gameHighScores,
+      }),
       created_at: clock,
     };
     await tx.execute(sql`
       INSERT INTO competition_candidate_snapshots
-        (id, round_id, standings, source_digest, created_at)
+        (id, round_id, standings, game_high_scores, source_digest, created_at)
       VALUES (${snapshot.id}, ${input.roundId}, ${JSON.stringify(standings)}::jsonb,
+              ${JSON.stringify(gameHighScores)}::jsonb,
               ${snapshot.source_digest}, ${clock})
     `);
     await tx.execute(sql`

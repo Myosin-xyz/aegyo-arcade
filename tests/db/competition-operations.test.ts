@@ -136,6 +136,10 @@ integration("competition closure operations", () => {
     const published = await publicRound(db, "closed-rehearsal");
     expect(published.provisional).toBe(false);
     expect(published.standings.map((row) => row.rank)).toEqual([1, 1]);
+    expect(published.gameHighScores).toEqual([
+      { gameId: "snake", username: "alice", score: 1 },
+      { gameId: "snake", username: "bob", score: 1 },
+    ]);
     const award = (
       await db.execute(
         sql`SELECT id FROM competition_award_claims WHERE member_id=${alice}::uuid`,

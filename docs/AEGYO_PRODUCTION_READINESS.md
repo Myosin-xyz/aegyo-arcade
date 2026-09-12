@@ -67,3 +67,11 @@ The offline holder is not a mail-delivery worker: the app calls Mailjet directly
 4. Finish new-user provisioning, consent, recovery and failure UX, domain configuration, and cross-app logout/revocation checks before requesting production release approval. Shared-auth acceptance still precedes the contest.
 
 Aggregate reports, schema dump and runtime-binding evidence are in ignored `.auth-proof/` files with private permissions. None of those files or production credentials belongs in Git or a shareable report.
+
+## Review handoff after the DNS request
+
+The exact Mailjet ownership TXT record and the instruction to leave the future production Accounts CNAME unset are recorded in [Simon's DNS handoff](SIMON_DNS_HANDOFF.md). Simon owns DNS. No DNS record was changed by the agent, and Mailjet sending remains suspended.
+
+Aegyo adapter commit `5e497fb` was pushed to `mateodaza/kpop-lyrics` on `codex/shared-auth-adapter`, and [upstream draft PR #12](https://github.com/Francisgood/kpop-lyrics/pull/12) was opened for review. It is not merged or deployed. The review follow-up bounds provider discovery/token/JWKS/security-state requests, retains one retry for an OIDC authentication-age failure, preserves allowed forward clock skew on subsequent session checks, and rejects mismatched security-state identities. All 39 tests across 10 files and explicit TypeScript checks passed under Node 24.21.0. These are source/controlled-transport checks, not the outstanding real Aegyo browser acceptance.
+
+GitHub confirms `mateodaza` can push to the fork but has only read access upstream. This does not prevent the draft PR; Simon's Write grant is still needed for direct upstream pushes. Production release and real-user migration remain gated by the earlier acceptance list.

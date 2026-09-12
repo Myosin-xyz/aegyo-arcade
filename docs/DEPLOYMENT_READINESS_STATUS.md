@@ -33,12 +33,29 @@ The existing eleven cross-product browser checks remain recorded in
 [the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md). The latest
 pinned Linux run passes 67 provider checks (26 unit/runtime/UI/email plus 41 real
 PostgreSQL), with zero skips.
-The new deployment also passed **five browser logout checks**: Aegyo local logout/SSO
-restoration; simultaneous sessions in all products; Accounts sign-out invalidating
-those product sessions while preserving the guest device; stale provider-cookie
-rejection; and another independently authenticated browser staying signed in.
-Invalidation was observed after **25.772 seconds**.
-This is current-browser, cross-product logout; it is not all-device logout.
+The latest endpoint-specific run passed **seven browser logout checks**. Arcade,
+Aegyo and Daebak local logout each cleared only that product session, and provider
+SSO restored it. Arcade retained the exact guest cookie. Accounts current-session
+logout invalidated all three retained product sessions after **24.387 seconds**,
+stale provider cookies minted no replacement product session, and a separately
+authenticated browser remained signed in. Runner commit: `6e45565`; ignored
+mode-0600 evidence: `cross-app-logout-report.json`.
+
+A separate reserved-fixture run proved forced local-session expiry and all-device
+operator revocation. Expiring only the exact synthetic member's active Arcade and
+Aegyo rows caused retained cookies to fail; Daebak's sealed local session remained
+active, and provider SSO renewed the two expired sessions. This is controlled
+real-database expiry evidence for the deployed predicate and renewal path. Waiting
+through the full natural TTL is optional soak coverage, not a user dependency or
+launch gate.
+
+The reviewed owner-only `aegyo_revoke_user(target, false)` operation then advanced
+only the exact synthetic target's security epoch and removed its provider sessions.
+Two browsers lost authorization in Arcade, Aegyo and Daebak after **27.093
+seconds**. A different synthetic control identity stayed active, pre-revocation
+provider cookies could not mint new product sessions, and a final fresh login
+restored the non-banned fixture. Runner/document commit: `72062b6`; ignored
+mode-0600 evidence: `cross-app-expiry-revocation-report.json`.
 
 No database proxy was opened for these checks. A fresh administrative read confirms
 zero public TCP proxies on the dedicated staging Postgres service.
@@ -70,6 +87,9 @@ Positive-score aggregation remains covered by the local PostgreSQL proof.
 This uses real staged OIDC without injected authentication cookies. It does not
 test real user migration, email delivery or Privy wallet ownership. Evidence:
 ignored mode-0600 `competition-staging-browser-report.json`; runner `f1b654f`.
+Daebak acceptance uses a known identity that a human controls and that is already
+present in staging. It does not link a real Privy identity to the shared synthetic
+Accounts fixture.
 
 ## Aegyo can be tested before merge
 
@@ -115,8 +135,12 @@ See [production preparation](PRODUCTION_ACCOUNTS_PREPARATION.md) and the updated
 ## Private evidence references
 
 - HTTP report SHA-256: `e0cc4b85d3dcfd39ab31f973ca44eecf008c427978a875aa023b72676e945217`.
-- Logout browser report SHA-256: `23f7389d330436e30c500ae5ecb1a787433f455d4b1e669a994dcc05f6ed72b5`.
-- Logout script commit: `9765150`; syntax, formatting, scoped ESLint and diff checks passed.
+- Endpoint logout browser report SHA-256: `022df1f87ee123f4d7d07b7d6a35f57356203059b099654adab36cc7920752b3`.
+- Endpoint logout runner commit: `6e45565`.
+- Expiry/revocation browser report SHA-256: `400049c54d67828038687133fbca3d6625e4682d1f9f2d20403c98c312ee619c`.
+- Expiry/revocation runner and procedure commit: `72062b6`.
+- Competition browser report SHA-256: `d833d676bd4fe373112286df787c02dc137b08b2d22da286a44396d7cbb76cba`;
+  strict verified-result runner commit: `f1b654f`.
 
 Raw reports/screenshots remain in the ignored mode-0600 proof directory. They
 contain no production exports. The new browser runner does not read database

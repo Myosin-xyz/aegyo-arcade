@@ -91,6 +91,25 @@ test(
     );
     await untouched.end();
 
+    const missingRolePassword = migrate(fixture, {
+      ACCOUNTS_DATABASE_ROLE_PASSWORD: undefined,
+    });
+    assert.equal(missingRolePassword.status, 1);
+    assert.match(missingRolePassword.stderr, /required when creating/);
+    const afterFailure = new pg.Pool({ connectionString: ownerURL(fixture) });
+    assert.equal(
+      Number(
+        (
+          await afterFailure.query(
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'",
+          )
+        ).rows[0].count,
+      ),
+      0,
+      "a failure after generated DDL must roll back the entire schema",
+    );
+    await afterFailure.end();
+
     const first = migrate(fixture, {
       ACCOUNTS_DATABASE_ROLE_PASSWORD: syntheticPassword,
     });

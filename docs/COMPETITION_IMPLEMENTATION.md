@@ -1,6 +1,6 @@
 # Competition implementation handoff
 
-Status: implemented and tested locally; disabled by default. These competition changes have not been deployed remotely or opened to production users. Real three-product SSO acceptance remains separate. The implementation stays behind exact-string feature flags and the auth-first release gates in `AUTH_AND_LEADERBOARD_DELIVERY_PLAN.md`.
+Status: implemented, tested locally and deployed to isolated Railway staging as `82d0253e-42aa-411e-83b8-99b13f2cca16`. Real Accounts OIDC browser proofs passed for synthetic Snake/Flappy attempts, preserved guest identity, usernames, quota, verified replay, public-data privacy and sibling product sessions. Production competition remains disabled. Real-user migration, mail delivery and Privy ownership acceptance remain separate. The implementation stays behind exact-string feature flags and the auth-first release gates in `AUTH_AND_LEADERBOARD_DELIVERY_PLAN.md`. See [deployment evidence](DEPLOYMENT_READINESS_STATUS.md).
 
 The delivered surfaces are `/account` (username and member session), `/championship` (enrollment, monthly standings, configured games, high scores, and award claims), official Snake/Flappy controls, and the operator CLI below. Homepage links appear only under their corresponding feature flags. Both pages evaluate flags at request time rather than freezing their state during a build.
 
@@ -14,7 +14,7 @@ The default championship selects the currently playable round, then the nearest 
 - Shared member authentication, verified email, username selection, and enrollment precede official play. Anonymous device play, history, streaks, and the existing cosmetic leaderboard remain separate and are not migrated into competition results.
 - Rules version 1 permits three attempts per member/game/UTC day and supports the frozen eligible-game calibration in the round. The trace verifier accepts version 1 Snake and Flappy traces at 60 ticks/second and recomputes scores from the seed and ordered inputs.
 
-Do not open competition enrollment before the shared-auth gate passes across Aegyo, Arcade, and Daebak. A local synthetic identity stub proves the Arcade integration shape; it is not evidence of real OIDC, returning-user, wallet, recovery, email, or cross-origin continuity.
+Do not open production competition enrollment before the shared-auth gate passes across Aegyo, Arcade, and Daebak. Local synthetic identity stubs prove the Arcade integration shape. The subsequent staging browser proof uses real OIDC and synthetic users; it adds cross-origin evidence without claiming real returning-user migration, wallet or email acceptance.
 
 ## Member and score flow
 

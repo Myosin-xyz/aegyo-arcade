@@ -1,6 +1,6 @@
 # Deployment readiness — September 12, 2026
 
-HTTP checks repeated at 2026-09-12T18:18:43.798Z. This is an observed checkpoint, not continuous monitoring.
+Baseline HTTP checks repeated at 2026-09-12T18:18:43.798Z; subsequent staging competition and dormant production checks are recorded below. This is an observed checkpoint, not continuous monitoring.
 
 ## Current production
 
@@ -20,7 +20,7 @@ production login, signup, password reset, schema change or release was performed
 | -------- | -------------------------------------------------------------- | -------------------------------------- |
 | Accounts | https://aegyo-accounts-accounts-staging.up.railway.app/sign-in | `15423d18-07b4-478d-b795-77c42ea54d57` |
 | Aegyo    | https://aegyo-auth-preview-accounts-staging.up.railway.app     | `d6844960-0524-4314-b4a6-7e31a7959e02` |
-| Arcade   | https://arcade-auth-preview-accounts-staging.up.railway.app    | `42427b71-3db6-4ce2-9d29-1053bbb7486e` |
+| Arcade   | https://arcade-auth-preview-accounts-staging.up.railway.app    | `82d0253e-42aa-411e-83b8-99b13f2cca16` |
 | Daebak   | https://daebak-auth-preview-accounts-staging.up.railway.app    | `cad82133-f3ca-4251-8530-b25e589decb8` |
 
 All four application deployments and their shared staging Postgres deployment
@@ -43,6 +43,34 @@ This is current-browser, cross-product logout; it is not all-device logout.
 No database proxy was opened for these checks. A fresh administrative read confirms
 zero public TCP proxies on the dedicated staging Postgres service.
 
+### Competition staging deployment
+
+Arcade deployment `82d0253e-42aa-411e-83b8-99b13f2cca16` succeeded from the
+committed `4a09e15` bundle using the pinned Node 24.21.0 Docker image. Homepage,
+championship page and competition API returned HTTP 200. Only synthetic competition
+is enabled; material-prize competition remains disabled.
+
+Migration `0002_arcade_competition` was applied only to `arcade_auth_staging`.
+The transaction verified all original rows in all 14 existing public tables
+before and after the additive migration. Eleven competition tables were added.
+The runtime role has bounded grants; operator ownership credentials were not
+assigned to the application. Its private database connection verifies TLS with
+the staging CA.
+
+Real Accounts browser proofs passed with an existing verified synthetic member:
+guest-cookie preservation, username, enrollment, Snake and Flappy trace submission,
+exact `verified` replay results, one consumed daily attempt per game, Aegyo identity
+continuity, Daebak shared-account session, and local signout preserving the guest
+and sibling sessions. The final seven-check follow-up also enforces explicit
+public-field allowlists and excludes email, member/provider identity, seeds and
+traces from public responses. Both sample games scored zero; standings therefore
+had no positive-point rows, while both public game-high-score rows were present.
+Positive-score aggregation remains covered by the local PostgreSQL proof.
+
+This uses real staged OIDC without injected authentication cookies. It does not
+test real user migration, email delivery or Privy wallet ownership. Evidence:
+ignored mode-0600 `competition-staging-browser-report.json`; runner `f1b654f`.
+
 ## Aegyo can be tested before merge
 
 The preview above runs our fork branch independently of production. Existing-user
@@ -63,9 +91,11 @@ service would split the account rollout and does not satisfy the agreed shared-a
    Resolver 1.1.1.1 returns no TXT answer for the ownership challenge. Complete
    the [exact DNS handoff](SIMON_DNS_HANDOFF.md), resolve the account suspension,
    then test real verification/reset delivery. No support message was sent.
-2. **Production identity preparation:** retain the stable production issuer,
-   establish the dedicated production service and exact custom-domain records,
-   complete backup/restore and the restored-data migration rehearsal, and
+2. **Production identity preparation:** the separate service is now successfully
+   deployed in dormant mode, its private database is empty, and Railway has
+   returned the exact custom-domain record. The [real restore](REAL_AEGYO_RESTORE_PROOF.md)
+   matched all 48 tables, including 52 users. Complete DNS/certificate checks,
+   the restored-data migration rehearsal, and
    demonstrate a known authorized canary's existing password. Never point the
    production Accounts hostname to the synthetic staging database.
 3. **Remaining continuity evidence:** complete the real user-driven Privy
@@ -76,9 +106,11 @@ service would split the account rollout and does not satisfy the agreed shared-a
    Arcade and Daebak against that same production issuer; then smoke-test existing
    users in all three products. Publish the leaderboard after the auth gate.
 
-The `account.aegyoarena.com` CNAME query also returned no answer. A verified
-production Railway domain target has not yet been provided, so there is no new
-CNAME value to guess or request from Simon in this checkpoint.
+The production Accounts CNAME is now verified: `account` →
+`2tmkqmk3.up.railway.app`. DNS remains a separate owner action. The generated
+Railway hostname passes liveness and rejects all authentication routes with 503.
+See [production preparation](PRODUCTION_ACCOUNTS_PREPARATION.md) and the updated
+[DNS handoff](SIMON_DNS_HANDOFF.md). No public-product login path was switched.
 
 ## Private evidence references
 
@@ -108,6 +140,10 @@ credentials, change passwords, authenticate to Privy or send email.
   guard revision before serving auth traffic. It reports SUCCESS and readiness
   `{ready:true}`. Production was not upgraded.
 
-The local proofs close tool-level and token-lifecycle gaps. Protected real-data
-restore/reconciliation, email delivery, production issuer/DNS, real Privy ownership
-acceptance and coordinated release remain separate launch gates.
+The local proofs close tool-level and token-lifecycle gaps. The subsequent
+[real-data restore](REAL_AEGYO_RESTORE_PROOF.md) closes the backup/restore gate:
+48 tables matched, the temporary reader was removed and the operator was stopped
+with credentials removed. The private restored copy contains 52 users and 25
+sessions. Restored-data import/reconciliation with an authorized password canary,
+email delivery, production DNS, real Privy ownership acceptance and coordinated
+release remain separate launch gates.

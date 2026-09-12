@@ -4,13 +4,14 @@ import { createHash, randomBytes } from "node:crypto";
 import { userInfo } from "node:os";
 import pg from "pg";
 import { getMigrations } from "better-auth/db/migration";
-import { createLocalJWKSet, jwtVerify } from "jose";
+import { createLocalJWKSet, decodeProtectedHeader, jwtVerify } from "jose";
 import {
   createProofProvider,
   RESET_STATE_CLAIM,
 } from "../src/proof-provider.mjs";
 import { LEGACY_PREFIX, passwordFunctions } from "../src/passwords.mjs";
 import { installCredentialGuards } from "../src/credential-guards.mjs";
+import { readSessionState } from "../src/security-state.mjs";
 import { proveRuntimeFlow } from "./runtime-flow.mjs";
 import { proveCredentialTransitions } from "./credential-transitions.mjs";
 
@@ -45,12 +46,21 @@ test(
     let ipCounter = 0;
     async function request(
       path,
-      { body, cookie = "", ip, method, provider = auth } = {},
+      {
+        body,
+        cookie = "",
+        headers: extraHeaders,
+        ip,
+        method,
+        provider = auth,
+      } = {},
     ) {
       const headers = new Headers({
         origin: "https://accounts.example.test",
         "x-aegyo-proof-ip": ip ?? `192.0.2.${++ipCounter}`,
       });
+      for (const [name, value] of Object.entries(extraHeaders ?? {}))
+        headers.set(name, value);
       if (cookie) headers.set("cookie", cookie);
       if (body)
         headers.set(
@@ -107,6 +117,8 @@ test(
           client_name: `Proof ${product}`,
           redirect_uris: [`https://${product}.example.test/callback`],
           post_logout_redirect_uris: [`https://${product}.example.test/`],
+          backchannel_logout_uri: `https://${product}.example.com/backchannel-logout`,
+          backchannel_logout_session_required: true,
           scope: "openid email profile",
           grant_types: ["authorization_code"],
           token_endpoint_auth_method: "client_secret_basic",
@@ -202,6 +214,14 @@ test(
       return payload;
     }
 
+    async function issuedTokens(client, cookie = providerCookie) {
+      const tx = transaction(client);
+      const callback = await authorize(tx, cookie);
+      const response = await exchange(tx, callback.searchParams.get("code"));
+      assert.equal(response.status, 200);
+      return response.json();
+    }
+
     await t.test(
       "three distinct clients reuse the same IdP session and receive verified identity claims",
       async () => {
@@ -259,6 +279,143 @@ test(
             200,
           );
         }
+      },
+    );
+
+    await t.test(
+      "RP-initiated logout clears the hinted session and delivers verifiable logout tokens to every affected RP",
+      async () => {
+        const tokens = [];
+        for (const client of clients) tokens.push(await issuedTokens(client));
+        const jwks = await (await request("/jwks")).json();
+        const sessionId = (
+          await jwtVerify(tokens[0].id_token, createLocalJWKSet(jwks), {
+            issuer,
+            audience: clients[0].client_id,
+          })
+        ).payload.sid;
+        const deliveries = [];
+        const originalFetchAfterDeliveryFailure = globalThis.fetch;
+        globalThis.fetch = async (url, init) => {
+          if (String(url) === `${issuer}/jwks`)
+            return Response.json(jwks);
+          deliveries.push({ url: String(url), init });
+          return new Response(null, { status: 204 });
+        };
+        try {
+          const state = randomBytes(12).toString("hex");
+          const response = await request(
+            "/oauth2/end-session?" +
+              new URLSearchParams({
+                id_token_hint: tokens[0].id_token,
+                client_id: clients[0].client_id,
+                post_logout_redirect_uri:
+                  clients[0].post_logout_redirect_uris[0],
+                state,
+              }),
+            {
+              cookie: providerCookie,
+              headers: { accept: "text/html" },
+            },
+          );
+          assert.equal(response.status, 302);
+          assert.equal(
+            response.headers.get("location"),
+            `${clients[0].post_logout_redirect_uris[0]}?state=${state}`,
+          );
+        } finally {
+          globalThis.fetch = originalFetchAfterDeliveryFailure;
+        }
+        assert.equal(deliveries.length, clients.length);
+        for (const delivery of deliveries) {
+          const product = new URL(delivery.url).hostname.split(".")[0];
+          const client = clients[["aegyo", "arcade", "daebak"].indexOf(product)];
+          assert.ok(client);
+          assert.equal(delivery.init.method, "POST");
+          const logoutToken = new URLSearchParams(
+            delivery.init.body,
+          ).get("logout_token");
+          assert.equal(decodeProtectedHeader(logoutToken).typ, "logout+jwt");
+          const { payload } = await jwtVerify(
+            logoutToken,
+            createLocalJWKSet(jwks),
+            { issuer, audience: client.client_id },
+          );
+          assert.equal(payload.sid, sessionId);
+          assert.equal(payload.sub, userId);
+          assert.equal(typeof payload.jti, "string");
+          assert.equal(payload.nonce, undefined);
+          assert.deepEqual(payload.events, {
+            "http://schemas.openid.net/event/backchannel-logout": {},
+          });
+        }
+        assert.equal(
+          Number(
+            (
+              await database.query(
+                'SELECT count(*) FROM "session" WHERE id=$1',
+                [sessionId],
+              )
+            ).rows[0].count,
+          ),
+          0,
+        );
+        let login = await request("/sign-in/email", {
+          body: { email, password },
+        });
+        assert.equal(login.status, 200);
+        providerCookie = cookies(login);
+        const failureTokens = await issuedTokens(clients[0]);
+        const failureClaims = (
+          await jwtVerify(
+            failureTokens.id_token,
+            createLocalJWKSet(jwks),
+            { issuer, audience: clients[0].client_id },
+          )
+        ).payload;
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = async (url) =>
+          String(url) === `${issuer}/jwks`
+            ? Response.json(jwks)
+            : new Response(null, { status: 503 });
+        try {
+          const response = await request(
+            "/oauth2/end-session?" +
+              new URLSearchParams({
+                id_token_hint: failureTokens.id_token,
+                client_id: clients[0].client_id,
+              }),
+            { cookie: providerCookie, headers: { accept: "text/html" } },
+          );
+          assert.equal(response.status, 200);
+        } finally {
+          globalThis.fetch = originalFetch;
+        }
+        assert.equal(
+          Number(
+            (
+              await database.query(
+                'SELECT count(*) FROM "session" WHERE id=$1',
+                [failureClaims.sid],
+              )
+            ).rows[0].count,
+          ),
+          0,
+        );
+        assert.equal(
+          (
+            await readSessionState(database, {
+              subject: userId,
+              providerSessionId: failureClaims.sid,
+            })
+          ).active,
+          false,
+        );
+        login = await request("/sign-in/email", {
+          body: { email, password },
+        });
+        assert.equal(login.status, 200);
+        providerCookie = cookies(login);
       },
     );
 

@@ -7,7 +7,7 @@ import {
 } from "./operations";
 import { digest, type Round } from "./store";
 import type { GameHighScore } from "./operations-store";
-import { assertRoundAvailable, parseRules, utcDay } from "./rules";
+import { assertRoundAvailable, parseRules, publicRules, utcDay } from "./rules";
 export async function roundStandings(db: Db, roundId: string) {
   const contributions = (
     await db.execute(
@@ -113,10 +113,17 @@ export async function publicRound(db: Db, slug?: string) {
   const row = (
     await db.execute(
       slug
-        ? sql`SELECT * FROM competition_rounds WHERE slug=${slug} AND status<>'draft' LIMIT 1`
-        : sql`SELECT * FROM competition_rounds WHERE status<>'draft' ORDER BY opens_at DESC LIMIT 1`,
+        ? sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds WHERE slug=${slug} AND status<>'draft' LIMIT 1`
+        : sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds WHERE status<>'draft'
+              ORDER BY CASE
+                WHEN status='open' AND opens_at<=statement_timestamp() AND closes_at>statement_timestamp() THEN 0
+                WHEN status='open' AND opens_at>statement_timestamp() THEN 1
+                ELSE 2 END,
+                CASE WHEN status='open' AND opens_at>statement_timestamp() THEN opens_at END ASC,
+                opens_at DESC
+              LIMIT 1`,
     )
-  ).rows[0] as unknown as Round | undefined;
+  ).rows[0] as unknown as (Round & { server_now: Date | string }) | undefined;
   if (!row) return { round: null, standings: [], provisional: true };
   row.rules = parseRules(row.rules);
   assertRoundAvailable(row.rules);
@@ -131,6 +138,7 @@ export async function publicRound(db: Db, slug?: string) {
   const closesAt =
     row.closes_at instanceof Date ? row.closes_at : new Date(row.closes_at);
   return {
+    serverNow: new Date(row.server_now).toISOString(),
     round: {
       id: row.id,
       slug: row.slug,
@@ -138,7 +146,7 @@ export async function publicRound(db: Db, slug?: string) {
       opensAt: opensAt.toISOString(),
       closesAt: closesAt.toISOString(),
       mode: row.rules.mode,
-      rules: row.rules,
+      rules: publicRules(row.rules),
       rulesDigest: digest(row.rules),
     },
     standings: finalized?.standings ?? standing!.public,

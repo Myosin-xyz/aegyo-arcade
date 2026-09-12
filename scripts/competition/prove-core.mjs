@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 const confirmation = "disposable-local-postgres";
 if (process.env.ARCADE_COMPETITION_PROOF_CONFIRM !== confirmation) {
@@ -105,13 +106,20 @@ try {
   const port = run("docker", ["port", name, "5432/tcp"]).split(":").at(-1);
   const testUrl = `postgres://postgres:${password}@127.0.0.1:${port}/arcade_proof`;
   run(
-    "npx",
+    process.execPath,
     [
-      "vitest",
+      fileURLToPath(
+        new URL("../../node_modules/vitest/vitest.mjs", import.meta.url),
+      ),
       "run",
-      "tests/db/competition-core.test.ts",
-      "tests/db/counted-runs.test.ts",
-      "tests/db/claw-invariants.test.ts",
+      ...(process.argv.includes("--all")
+        ? []
+        : [
+            "tests/db/competition-core.test.ts",
+            "tests/db/competition-operations.test.ts",
+            "tests/db/counted-runs.test.ts",
+            "tests/db/claw-invariants.test.ts",
+          ]),
       "--no-file-parallelism",
     ],
     {

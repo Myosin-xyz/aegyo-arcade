@@ -17,6 +17,51 @@ export type RoundRules = {
     approvedBy: string;
   };
 };
+export type PublicRoundRules = Omit<RoundRules, "approval"> & {
+  approval?: Omit<NonNullable<RoundRules["approval"]>, "approvedBy">;
+};
+/** Explicit public projection: operator approval identities and extra metadata stay private. */
+export function publicRules(rules: RoundRules): PublicRoundRules {
+  return {
+    version: rules.version,
+    mode: rules.mode,
+    dailyAttempts: rules.dailyAttempts,
+    attemptTtlSeconds: rules.attemptTtlSeconds,
+    games: rules.games.map((game) => ({
+      gameId: game.gameId,
+      calibration: game.calibration.map(({ score, points }) => ({
+        score,
+        points,
+      })),
+    })),
+    ...(rules.rulesUrl ? { rulesUrl: rules.rulesUrl } : {}),
+    ...(rules.approval
+      ? {
+          approval: {
+            sponsor: rules.approval.sponsor,
+            operator: rules.approval.operator,
+            eligibility: rules.approval.eligibility,
+            prizes: rules.approval.prizes,
+            claims: rules.approval.claims,
+          },
+        }
+      : {}),
+  };
+}
+function isPublicHttpsUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      Boolean(url.hostname) &&
+      !url.username &&
+      !url.password
+    );
+  } catch {
+    return false;
+  }
+}
 export class CompetitionError extends Error {
   constructor(
     public readonly code: string,
@@ -58,6 +103,7 @@ export function parseRules(input: unknown): RoundRules {
       points = -1;
     for (const item of game.calibration) {
       if (
+        !item ||
         !Number.isSafeInteger(item.score) ||
         item.score < 0 ||
         item.score <= score ||
@@ -79,7 +125,7 @@ export function parseRules(input: unknown): RoundRules {
   }
   if (rules.mode === "material_prize") {
     if (
-      !rules.rulesUrl?.startsWith("https://") ||
+      !isPublicHttpsUrl(rules.rulesUrl) ||
       !rules.approval ||
       [
         "sponsor",

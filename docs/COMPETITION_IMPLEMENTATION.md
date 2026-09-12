@@ -1,6 +1,8 @@
 # Competition implementation handoff
 
-Status: disabled groundwork. This repository has not opened a production competition, deployed these changes remotely, or completed real three-product SSO acceptance. The implementation remains behind exact-string feature flags and the auth-first release gates in `AUTH_AND_LEADERBOARD_DELIVERY_PLAN.md`.
+Status: implemented and tested locally; disabled by default. These competition changes have not been deployed remotely or opened to production users. Real three-product SSO acceptance remains separate. The implementation stays behind exact-string feature flags and the auth-first release gates in `AUTH_AND_LEADERBOARD_DELIVERY_PLAN.md`.
+
+The delivered surfaces are `/account` (username and member session), `/championship` (enrollment, monthly standings, configured games, high scores, and award claims), official Snake/Flappy controls, and the operator CLI below. Homepage links appear only under their corresponding feature flags. Both pages evaluate flags at request time rather than freezing their state during a build.
 
 ## Runtime boundaries
 
@@ -20,7 +22,15 @@ If the identity provider is unavailable at submission, the receipt remains `pend
 
 Verification replays the trace, enforces size/event/time bounds, and converts the recomputed score through the round's fixed calibration table. The serialized daily-best update writes only the point difference to the immutable ledger. Public cumulative standings include positive totals only. Their tie order is total points, maximum combined points on one UTC day, then the earlier receipt that reached the final total. A remaining exact tie retains a shared rank and requires explicit review; member identity is never a hidden tie-breaker. Public per-game high scores are display-only and do not alter prize rank.
 
-Treat the active round's version 1 verifier and game core as frozen operationally. The database freezes the rules, dates, slug, evidence, ledger, candidate snapshot, final result, and operation audit at the relevant lifecycle stages, but the current rules do not store a verifier build hash. A game-core or verifier deployment during an active round could therefore change replay behavior and must wait for the next round or be handled through a separately reviewed versioned design.
+The [replay source freeze](DECISIONS/0008-replay-source-freeze.md) pins the complete local dependency closure of verifier v1 with source hashes and a guard test. Do not refresh those hashes to make a changed game pass: preserve the old verifier and introduce a new trace version. The database freezes rules, dates, slug, evidence, ledger, candidate snapshot, final result, and operation audit at the relevant lifecycle stages, but does not pin a verifier build hash itself. Run the guard before every release; the deployment process must enforce this policy through final review and claims.
+
+Replay establishes that an input sequence produces its reported result. It does not establish that a human played without automation. Keep published eligibility and finalist review in the prize process. Public rules use an explicit field allowlist: the approver identity and extra internal metadata are not published.
+
+## Migration and release order
+
+Apply the reviewed additive `src/db/migrations/0002_arcade_competition.sql` through the existing Drizzle migration process after `0000` and `0001`, before deploying code that reads the new profile/session fields. It creates competition tables and integrity triggers and adds `account_sessions.email_verified` with default `false`. It neither reassigns devices nor rewrites guest runs, old leaderboard rows, streaks, claw plays, or historical prizes. Existing member sessions need a fresh provider login before they carry a verified-email claim.
+
+Rehearse against the isolated Arcade staging database and grant the runtime role only the table permissions required by the app. Keep ordinary runtime credentials separate from migration/operation credentials. Complete shared-auth, existing-user preservation, email, DNS, rules, and operational launch gates before opening a real round. Roll back visibility by turning off the flags; preserve the additive tables, receipts, and ledger. Do not reverse the migration by deleting evidence.
 
 ## Closure and awards
 
@@ -180,7 +190,11 @@ ARCADE_COMPETITION_PROOF_CONFIRM=disposable-local-postgres \
   node scripts/competition/prove-core.mjs
 ```
 
-`node scripts/competition/browser-proof.mjs` creates a disposable local PostgreSQL cluster, a loopback identity-state stub, and a local HTTPS Next.js session for desktop/mobile journey evidence. It is explicitly synthetic and is not a real shared-SSO proof. Unit and database suites also cover trace replay, quotas, receipt idempotency, UTC boundaries, daily-best corrections, closure retries, exact ties, immutable final reads, claim ownership, and fulfillment rollback. Use the repository's pinned Node 24 environment for the complete suite; Node 26 currently exposes unrelated `localStorage` failures in existing UI tests.
+Add `--all` to the database proof for the complete root Vitest suite against the disposable database. The harness runs Vitest under its own Node binary rather than whichever `npx` happens to resolve. Use Node 24.21.0, the Accounts runtime already proved in this workspace; Node 26 exposes unrelated `localStorage` failures in existing UI tests. The local binary, when present, is `services/accounts/.proof/runtime/node-v24.21.0-darwin-arm64/bin/node`.
+
+`node scripts/competition/browser-proof.mjs` requires local `initdb`, `postgres`, `createdb`, `psql`, and the installed Playwright Chromium browser. It creates a disposable local PostgreSQL cluster, a loopback identity-state stub, and a local HTTPS Next.js session for desktop/mobile journey evidence. It waits for the homepage's actual guest bootstrap before measuring identity preservation; a second synthetic bootstrap would create an artificial first-visit race. It is explicitly synthetic and is not a real shared-SSO proof. Unit and database suites also cover trace replay, quotas, receipt idempotency, UTC boundaries, daily-best corrections, closure retries, exact ties, immutable final reads, claim ownership, and fulfillment rollback.
+
+Npm aliases are `test:competition:db`, `test:competition:browser`, and `competition:operator`. The operator uses the explicitly pinned `tsx` development dependency. Private local evidence remains in the ignored `.auth-proof/` directory and must not be added to a deployment source archive.
 
 ## Remaining operational gaps
 

@@ -127,6 +127,27 @@ beforeAll(async () => {
 afterAll(async () => {
   await pool.end();
 });
+it("a scheduled next month cannot hide the currently playable round", async () => {
+  const near = crypto.randomUUID();
+  const far = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at) VALUES
+    ($1,'next-round',$3,'open',now()+interval '2 days',now()+interval '3 days'),
+    ($2,'later-round',$3,'open',now()+interval '4 days',now()+interval '5 days')`,
+    [near, far, rules],
+  );
+  const current = await publicRound(db);
+  expect(current.round?.id).toBe(ROUND);
+  expect(Math.abs(Date.parse(current.serverNow!) - Date.now())).toBeLessThan(
+    5000,
+  );
+  await pool.query(
+    "UPDATE competition_rounds SET status='closing' WHERE id=$1",
+    [ROUND],
+  );
+  expect((await publicRound(db)).round?.id).toBe(near);
+  expect((await publicRound(db, "synthetic")).round?.id).toBe(ROUND);
+});
 beforeEach(async () => {
   await pool.query(
     `ALTER TABLE competition_ledger DISABLE TRIGGER competition_ledger_no_truncate;

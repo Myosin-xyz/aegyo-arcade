@@ -97,6 +97,7 @@ export const accountSessions = pgTable(
       .notNull()
       .references(() => accountMembers.id),
     providerSessionId: text("provider_session_id").notNull(),
+    emailVerified: boolean("email_verified").notNull().default(false),
     authenticatedAt: timestamp("authenticated_at", {
       withTimezone: true,
     }).notNull(),
@@ -422,3 +423,6 @@ export const analyticsOutbox = pgTable(
     ),
   ],
 );
+
+// Additive account championship namespace; guest/device tables remain independent.
+export * from "./competition-schema";

@@ -20,6 +20,7 @@ export type MemberSession = {
   memberId: string;
   subject: string;
   providerSessionId: string;
+  emailVerified: boolean;
   displayName: string | null;
   avatarUrl: string | null;
   authenticatedAt: Date;
@@ -34,6 +35,7 @@ export async function createMemberSession(
     issuer: string;
     subject: string;
     providerSessionId: string;
+    emailVerified?: boolean;
     name: string | null;
     picture: string | null;
     authenticatedAtMs: number;
@@ -68,6 +70,7 @@ export async function createMemberSession(
       tokenHash: hashMemberToken(token),
       memberId: member.id,
       providerSessionId: input.providerSessionId,
+      emailVerified: input.emailVerified === true,
       authenticatedAt: new Date(input.authenticatedAtMs),
       providerCheckedAt: now,
       securityVersion: input.securityVersion,
@@ -89,6 +92,7 @@ export async function resolveMemberSession(
       memberId: accountMembers.id,
       subject: accountMembers.subject,
       providerSessionId: accountSessions.providerSessionId,
+      emailVerified: accountSessions.emailVerified,
       displayName: accountMembers.displayName,
       avatarUrl: accountMembers.avatarUrl,
       authenticatedAt: accountSessions.authenticatedAt,

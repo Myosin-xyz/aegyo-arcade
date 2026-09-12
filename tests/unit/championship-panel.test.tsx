@@ -50,11 +50,13 @@ describe("championship journey", () => {
     vi.unstubAllGlobals();
   });
 
-  async function renderPanel() {
+  async function renderPanel(selectedRound?: string) {
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
-    await act(async () => root?.render(<ChampionshipPanel />));
+    await act(async () =>
+      root?.render(<ChampionshipPanel selectedRound={selectedRound} />),
+    );
   }
 
   it("changes phase at the exact published interval boundaries", () => {
@@ -239,5 +241,48 @@ describe("championship journey", () => {
       "Record my claim",
     );
     expect(container?.querySelector('a[href^="/play/"]')).toBeNull();
+  });
+
+  it("loads a selected past round and keeps other months navigable", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          round: { ...round, status: "final" },
+          serverNow: "2026-10-02T00:00:00.000Z",
+          rounds: [
+            {
+              slug: "october-test",
+              status: "open",
+              opensAt: "2026-10-01T00:00:00.000Z",
+              closesAt: "2026-11-01T00:00:00.000Z",
+            },
+            {
+              slug: round.slug,
+              status: "final",
+              opensAt: round.opensAt,
+              closesAt: round.closesAt,
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(response({ authenticated: false }, 401));
+    vi.stubGlobal("fetch", fetchMock);
+    await renderPanel(round.slug);
+    await vi.waitFor(() =>
+      expect(container?.textContent).toContain("Recent rounds"),
+    );
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/competition?round=september-test",
+    );
+    expect(
+      container?.querySelector('a[href="/championship?round=october-test"]')
+        ?.textContent,
+    ).toContain("October 2026");
+    expect(
+      container
+        ?.querySelector('a[href="/championship?round=september-test"]')
+        ?.getAttribute("aria-current"),
+    ).toBe("page");
   });
 });

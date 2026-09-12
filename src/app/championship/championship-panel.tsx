@@ -29,6 +29,12 @@ type PublicState = {
   provisional?: boolean;
   gameHighScores?: { gameId: string; username: string; score: number }[];
   serverNow?: string;
+  rounds?: {
+    slug: string;
+    status: string;
+    opensAt: string;
+    closesAt: string;
+  }[];
 };
 type Attempt = {
   id: string;
@@ -92,6 +98,7 @@ const translations = {
     final: "This round is final. Official attempts are closed.",
     practice: "Practice play stays available from Games.",
     provisional: "Standings are provisional while results are reviewed.",
+    rounds: "Recent rounds",
     standings: "Standings",
     highScores: "Game high scores",
     player: "Player",
@@ -156,6 +163,7 @@ const translations = {
     final: "Esta ronda terminó. Los intentos oficiales están cerrados.",
     practice: "Las partidas de práctica siguen disponibles en Juegos.",
     provisional: "La tabla es provisional mientras se revisan los resultados.",
+    rounds: "Rondas recientes",
     standings: "Clasificación",
     highScores: "Mejores puntajes por juego",
     player: "Jugador",
@@ -206,9 +214,12 @@ const translations = {
   },
 } as const;
 
-async function fetchChampionship(): Promise<LoadState> {
+async function fetchChampionship(selectedRound?: string): Promise<LoadState> {
   try {
-    const publicResponse = await fetch("/api/competition", {
+    const endpoint = selectedRound
+      ? `/api/competition?round=${encodeURIComponent(selectedRound)}`
+      : "/api/competition";
+    const publicResponse = await fetch(endpoint, {
       cache: "no-store",
     });
     if (!publicResponse.ok) return { kind: "unavailable" };
@@ -237,7 +248,11 @@ async function fetchChampionship(): Promise<LoadState> {
   }
 }
 
-export function ChampionshipPanel() {
+export function ChampionshipPanel({
+  selectedRound,
+}: {
+  selectedRound?: string;
+}) {
   const text = translations[getLocale()];
   const locale = getLocale() === "es-419" ? "es-419" : "en";
   const [state, setState] = useState<LoadState>({ kind: "loading" });
@@ -248,11 +263,13 @@ export function ChampionshipPanel() {
 
   useEffect(() => {
     let current = true;
-    void fetchChampionship().then((next) => current && setState(next));
+    void fetchChampionship(selectedRound).then(
+      (next) => current && setState(next),
+    );
     return () => {
       current = false;
     };
-  }, []);
+  }, [selectedRound]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockTick(Date.now()), 1_000);
@@ -260,7 +277,7 @@ export function ChampionshipPanel() {
   }, []);
 
   async function reload() {
-    setState(await fetchChampionship());
+    setState(await fetchChampionship(selectedRound));
   }
 
   async function enroll(event: FormEvent<HTMLFormElement>, round: Round) {
@@ -360,6 +377,29 @@ export function ChampionshipPanel() {
             {state.publicState.provisional && (
               <p className={styles.provisional}>{text.provisional}</p>
             )}
+            {state.publicState.rounds &&
+              state.publicState.rounds.length > 1 && (
+                <nav className={styles.rounds} aria-label={text.rounds}>
+                  <span>{text.rounds}</span>
+                  <div>
+                    {state.publicState.rounds.map((item) => (
+                      <Link
+                        href={`/championship?round=${encodeURIComponent(item.slug)}`}
+                        key={item.slug}
+                        aria-current={
+                          item.slug === round.slug ? "page" : undefined
+                        }
+                      >
+                        {new Intl.DateTimeFormat(locale, {
+                          month: "long",
+                          year: "numeric",
+                          timeZone: "UTC",
+                        }).format(new Date(item.opensAt))}
+                      </Link>
+                    ))}
+                  </div>
+                </nav>
+              )}
           </section>
 
           <section className={styles.card}>

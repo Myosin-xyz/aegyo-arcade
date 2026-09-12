@@ -48,6 +48,7 @@ try {
       "tests/seed.test.mjs",
       "tests/legacy-copy.test.mjs",
       "tests/legacy-import.test.mjs",
+      "tests/production-client-provisioner-pg.test.mjs",
     ],
     {
       cwd: root,

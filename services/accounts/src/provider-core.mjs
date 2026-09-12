@@ -24,9 +24,17 @@ export function createAccountsProvider({
   proofHooks = {},
   allowProofAdmin = false,
   offlineOAuthClientCredentials = null,
+  offlineAdapterDatabase = null,
 }) {
-  if (offlineOAuthClientCredentials && !allowProofAdmin)
-    throw new Error("offline_oauth_credentials_require_offline_admin");
+  if (
+    (offlineOAuthClientCredentials || offlineAdapterDatabase) &&
+    !allowProofAdmin
+  )
+    throw new Error("offline_oauth_configuration_requires_offline_admin");
+  if (
+    Boolean(offlineOAuthClientCredentials) !== Boolean(offlineAdapterDatabase)
+  )
+    throw new Error("offline_oauth_configuration_incomplete");
   const offlineClientIds = [
     ...(offlineOAuthClientCredentials?.clientIds ?? []),
   ];
@@ -58,7 +66,7 @@ export function createAccountsProvider({
     baseURL,
     basePath: "/api/auth",
     secret,
-    database,
+    database: offlineAdapterDatabase ?? database,
     trustedOrigins: [baseURL],
     logger: { disabled: true },
     onAPIError: {
@@ -107,6 +115,9 @@ export function createAccountsProvider({
     advanced: {
       useSecureCookies: true,
       ipAddress: { ipAddressHeaders: [ipHeader] },
+      ...(offlineAdapterDatabase
+        ? { database: { validateSchema: false } }
+        : {}),
     },
     rateLimit: {
       enabled: !offlineOAuthClientCredentials,

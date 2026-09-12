@@ -117,6 +117,26 @@ try {
   await page.waitForURL(arcade + "/");
   await assertActive(context, products[0]);
 
+  phase = "arcade-local-logout";
+  const arcadeLogout = await context.request.post(
+    arcade + "/api/accounts/logout",
+    { headers: { origin: arcade }, maxRedirects: 0 },
+  );
+  assert.equal(arcadeLogout.status(), 200);
+  assertInactive(await safeState(context, products[0]), products[0]);
+  assert.equal(
+    (await context.cookies(arcade)).find(
+      (cookie) => cookie.name === guestCookie.name,
+    )?.value,
+    guestCookie.value,
+  );
+  await page.goto(arcade + "/api/accounts/login");
+  await page.waitForURL(arcade + "/");
+  await assertActive(context, products[0]);
+  pass(
+    "Arcade local logout clears only its member session, preserves its guest identity and provider SSO restores it",
+  );
+
   phase = "aegyo-local-logout";
   await page.goto(aegyo + "/api/auth/shared/login");
   await page.waitForURL(aegyo + "/");
@@ -144,6 +164,19 @@ try {
   await page.waitForURL(daebak + "/account-link");
   await assertActive(context, products[2]);
   await page.getByText("Sign in to Daebak first", { exact: true }).waitFor();
+  phase = "daebak-local-logout";
+  const daebakLogout = await context.request.post(
+    daebak + "/api/accounts/logout",
+    { headers: { origin: daebak }, maxRedirects: 0 },
+  );
+  assert.equal(daebakLogout.status(), 303);
+  assertInactive(await safeState(context, products[2]), products[2]);
+  await page.goto(daebak + products[2].login);
+  await page.waitForURL(daebak + "/account-link");
+  await assertActive(context, products[2]);
+  pass(
+    "Daebak local logout clears only its local session and provider SSO restores it",
+  );
   for (const product of products) await assertActive(context, product);
   const providerCookiesBeforeLogout = await context.cookies(accounts);
   const providerCookie = providerCookiesBeforeLogout.find(

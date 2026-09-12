@@ -4,6 +4,8 @@ Status: implemented and tested locally; disabled by default. These competition c
 
 The delivered surfaces are `/account` (username and member session), `/championship` (enrollment, monthly standings, configured games, high scores, and award claims), official Snake/Flappy controls, and the operator CLI below. Homepage links appear only under their corresponding feature flags. Both pages evaluate flags at request time rather than freezing their state during a build.
 
+The default championship selects the currently playable round, then the nearest scheduled round, then the latest past round. Opening next month's schedule cannot hide this month's active contest. Recent-round links and `/championship?round=SLUG` keep past results and claims accessible. Enrollment and official controls follow server-clock-adjusted opening/closure boundaries while the page stays open; final award claims remain available after play closes.
+
 ## Runtime boundaries
 
 - `ARCADE_COMPETITION_ENABLED=true` enables competition routes and operations. Missing, `false`, or any other value keeps them unavailable.
@@ -195,6 +197,15 @@ Add `--all` to the database proof for the complete root Vitest suite against the
 `node scripts/competition/browser-proof.mjs` requires local `initdb`, `postgres`, `createdb`, `psql`, and the installed Playwright Chromium browser. It creates a disposable local PostgreSQL cluster, a loopback identity-state stub, and a local HTTPS Next.js session for desktop/mobile journey evidence. It waits for the homepage's actual guest bootstrap before measuring identity preservation; a second synthetic bootstrap would create an artificial first-visit race. It is explicitly synthetic and is not a real shared-SSO proof. Unit and database suites also cover trace replay, quotas, receipt idempotency, UTC boundaries, daily-best corrections, closure retries, exact ties, immutable final reads, claim ownership, and fulfillment rollback.
 
 Npm aliases are `test:competition:db`, `test:competition:browser`, and `competition:operator`. The operator uses the explicitly pinned `tsx` development dependency. Private local evidence remains in the ignored `.auth-proof/` directory and must not be added to a deployment source archive.
+
+### Recorded validation — 2026-09-12
+
+- Complete root suite under Node 24.21.0: **63 files / 499 tests passed**, including all four PostgreSQL integration suites against migrations `0000`–`0002`.
+- Database race evidence: 25 simultaneous issuance requests consume exactly three attempts; 25 retries with one key consume one. Concurrent overlapping round openings admit exactly one round.
+- Desktop/mobile browser proof: username, enrollment, official Snake replay, quota decrement, homepage entry points, and exact guest-cookie preservation through play and member logout. The identity-state service in this proof is a local synthetic stub.
+- Source changes passed ESLint and TypeScript. The production Next.js build passed with the new flags disabled; `/account` and `/championship` remain request-rendered.
+
+Evidence files: `.auth-proof/competition-final-regression.log`, `.auth-proof/competition-browser-final.log`, `.auth-proof/competition-build-final.log`, and `.auth-proof/competition-ui/report.json` plus the desktop/mobile screenshots. These are local proof records, not a Railway deployment report or evidence of real-user migration.
 
 ## Remaining operational gaps
 

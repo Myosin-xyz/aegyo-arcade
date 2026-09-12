@@ -110,11 +110,14 @@ async function finalPublishedRound(db: Db, roundId: string) {
   return { standings, gameHighScores };
 }
 export async function publicRound(db: Db, slug?: string) {
+  const materialVisible =
+    process.env.ARCADE_MATERIAL_COMPETITION_ENABLED === "true";
   const row = (
     await db.execute(
       slug
         ? sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds WHERE slug=${slug} AND status<>'draft' LIMIT 1`
-        : sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds WHERE status<>'draft'
+        : sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds
+              WHERE status<>'draft' AND (rules->>'mode'='synthetic' OR ${materialVisible})
               ORDER BY CASE
                 WHEN status='open' AND opens_at<=statement_timestamp() AND closes_at>statement_timestamp() THEN 0
                 WHEN status='open' AND opens_at>statement_timestamp() THEN 1
@@ -124,7 +127,17 @@ export async function publicRound(db: Db, slug?: string) {
               LIMIT 1`,
     )
   ).rows[0] as unknown as (Round & { server_now: Date | string }) | undefined;
-  if (!row) return { round: null, standings: [], provisional: true };
+  const rounds = (
+    await db.execute(sql`SELECT slug,status,opens_at,closes_at FROM competition_rounds
+      WHERE status<>'draft' AND (rules->>'mode'='synthetic' OR ${materialVisible})
+      ORDER BY opens_at DESC LIMIT 12`)
+  ).rows.map((item) => ({
+    slug: String(item.slug),
+    status: String(item.status),
+    opensAt: new Date(item.opens_at as string | Date).toISOString(),
+    closesAt: new Date(item.closes_at as string | Date).toISOString(),
+  }));
+  if (!row) return { round: null, rounds, standings: [], provisional: true };
   row.rules = parseRules(row.rules);
   assertRoundAvailable(row.rules);
   const finalized =
@@ -139,6 +152,7 @@ export async function publicRound(db: Db, slug?: string) {
     row.closes_at instanceof Date ? row.closes_at : new Date(row.closes_at);
   return {
     serverNow: new Date(row.server_now).toISOString(),
+    rounds,
     round: {
       id: row.id,
       slug: row.slug,

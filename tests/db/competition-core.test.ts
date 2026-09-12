@@ -138,6 +138,12 @@ it("a scheduled next month cannot hide the currently playable round", async () =
   );
   const current = await publicRound(db);
   expect(current.round?.id).toBe(ROUND);
+  expect(current.rounds.map((item) => item.slug)).toEqual([
+    "later-round",
+    "next-round",
+    "synthetic",
+  ]);
+  expect(JSON.stringify(current.rounds)).not.toContain(ROUND);
   expect(Math.abs(Date.parse(current.serverNow!) - Date.now())).toBeLessThan(
     5000,
   );

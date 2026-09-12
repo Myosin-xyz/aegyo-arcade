@@ -11,6 +11,7 @@ import {
   finalizeRound,
   fulfillAward,
 } from "@/competition/operations-store";
+import { memberRound, publicRound } from "@/competition/read";
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const integration = TEST_URL ? describe : describe.skip;
@@ -48,9 +49,14 @@ integration("competition closure operations", () => {
     db = drizzle(pool) as unknown as Db;
     await db.execute(sql`INSERT INTO account_members(id,issuer,subject) VALUES
       (${alice}::uuid,'test','alice'),(${bob}::uuid,'test','bob')`);
+    await db.execute(sql`INSERT INTO competition_profiles(member_id,username) VALUES
+      (${alice}::uuid,'alice'),(${bob}::uuid,'bob')`);
     await db.execute(sql`INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at) VALUES
       (${roundId}::uuid,'closed-rehearsal',${JSON.stringify(rules)}::jsonb,'open',now()-interval '2 days',now()-interval '1 day'),
       (${openRoundId}::uuid,'dq-rehearsal',${JSON.stringify(rules)}::jsonb,'open',now()-interval '1 day',now()+interval '1 day')`);
+    await db.execute(sql`INSERT INTO competition_enrollments(round_id,member_id,rules_digest) VALUES
+      (${roundId}::uuid,${alice}::uuid,${"a".repeat(64)}),
+      (${roundId}::uuid,${bob}::uuid,${"a".repeat(64)})`);
     await db.execute(sql`INSERT INTO competition_attempts
       (id,round_id,member_id,provider_session_id,game_id,day_key,ordinal,idempotency_key,seed,status,issued_at,expires_at,received_at,security_confirmed,score,points)
       VALUES
@@ -119,25 +125,43 @@ integration("competition closure operations", () => {
           awardKey: "synthetic-slot-a",
           allocationRationale: "Published rehearsal allocation",
         },
+        {
+          memberId: bob,
+          awardKey: "synthetic-slot-b",
+          allocationRationale: "Published rehearsal allocation",
+        },
       ],
     });
     expect(finalized.standings.map((row) => row.finalRank)).toEqual([1, 1]);
+    const published = await publicRound(db, "closed-rehearsal");
+    expect(published.provisional).toBe(false);
+    expect(published.standings.map((row) => row.rank)).toEqual([1, 1]);
     const award = (
-      await db.execute(sql`SELECT id FROM competition_award_claims`)
+      await db.execute(
+        sql`SELECT id FROM competition_award_claims WHERE member_id=${alice}::uuid`,
+      )
     ).rows[0];
+    expect((await memberRound(db, alice, true, roundId)).awards).toEqual([
+      expect.objectContaining({
+        id: award.id,
+        awardKey: "synthetic-slot-a",
+        status: "unclaimed",
+        rank: 1,
+      }),
+    ]);
     await expect(
       claimAward(db, {
         awardId: award.id as string,
         memberId: bob,
-        proof: { accepted: true },
+        proof: { acceptedInstructions: true },
         idempotencyKey: "claim-1",
       }),
-    ).rejects.toThrow(/not found/);
+    ).rejects.toMatchObject({ code: "award_not_found", status: 404 });
     expect(
       await claimAward(db, {
         awardId: award.id as string,
         memberId: alice,
-        proof: { accepted: true },
+        proof: { acceptedInstructions: true },
         idempotencyKey: "claim-1",
       }),
     ).toEqual({ status: "claimed", repeated: false });
@@ -145,7 +169,7 @@ integration("competition closure operations", () => {
       await claimAward(db, {
         awardId: award.id as string,
         memberId: alice,
-        proof: { accepted: true },
+        proof: { acceptedInstructions: true },
         idempotencyKey: "claim-1",
       }),
     ).toEqual({ status: "claimed", repeated: true });
@@ -153,15 +177,16 @@ integration("competition closure operations", () => {
       claimAward(db, {
         awardId: award.id as string,
         memberId: alice,
-        proof: { accepted: false },
-        idempotencyKey: "claim-1",
+        proof: { acceptedInstructions: true },
+        idempotencyKey: "claim-changed-0001",
       }),
-    ).rejects.toThrow(/cannot be claimed/);
+    ).rejects.toMatchObject({ code: "award_claim_conflict", status: 409 });
     expect(
       await fulfillAward(db, {
         awardId: award.id as string,
         actor: "operator",
         fulfillmentKey: "manual-rehearsal-1",
+        reason: "Synthetic rehearsal completion",
         idempotencyKey: "fulfill-1",
       }),
     ).toEqual({ status: "fulfilled", repeated: false });
@@ -170,7 +195,48 @@ integration("competition closure operations", () => {
         awardId: award.id as string,
         actor: "operator",
         fulfillmentKey: "manual-rehearsal-1",
+        reason: "Synthetic rehearsal completion",
         idempotencyKey: "fulfill-1",
+      }),
+    ).toEqual({ status: "fulfilled", repeated: true });
+    const bobAward = (
+      await db.execute(
+        sql`SELECT id FROM competition_award_claims WHERE member_id=${bob}::uuid`,
+      )
+    ).rows[0];
+    await claimAward(db, {
+      awardId: bobAward.id as string,
+      memberId: bob,
+      proof: { acceptedInstructions: true },
+      idempotencyKey: "claim-bob-000001",
+    });
+    await expect(
+      fulfillAward(db, {
+        awardId: bobAward.id as string,
+        actor: "operator",
+        fulfillmentKey: "manual-rehearsal-2",
+        reason: "Synthetic rehearsal completion",
+        idempotencyKey: "fulfill-1",
+      }),
+    ).rejects.toThrow();
+    expect(
+      (
+        await db.execute(
+          sql`SELECT status FROM competition_award_claims WHERE id=${bobAward.id as string}::uuid`,
+        )
+      ).rows[0].status,
+    ).toBe("claimed");
+    await expect(
+      db.execute(
+        sql`UPDATE competition_operation_audit SET actor='tampered' WHERE round_id=${roundId}::uuid`,
+      ),
+    ).rejects.toThrow();
+    expect(
+      await claimAward(db, {
+        awardId: award.id as string,
+        memberId: alice,
+        proof: { acceptedInstructions: true },
+        idempotencyKey: "claim-1",
       }),
     ).toEqual({ status: "fulfilled", repeated: true });
   });

@@ -92,6 +92,7 @@ async function main() {
         awardId: required(args, "award-id"),
         actor,
         fulfillmentKey: required(args, "fulfillment-key"),
+        reason: required(args, "reason"),
         idempotencyKey,
       });
     } else {

@@ -69,3 +69,9 @@ CREATE TRIGGER competition_final_results_immutable
 CREATE TRIGGER competition_final_results_no_truncate
   BEFORE TRUNCATE ON competition_final_results
   FOR EACH STATEMENT EXECUTE FUNCTION competition_immutable_record();
+CREATE TRIGGER competition_operation_audit_immutable
+  BEFORE UPDATE OR DELETE ON competition_operation_audit
+  FOR EACH ROW EXECUTE FUNCTION competition_immutable_record();
+CREATE TRIGGER competition_operation_audit_no_truncate
+  BEFORE TRUNCATE ON competition_operation_audit
+  FOR EACH STATEMENT EXECUTE FUNCTION competition_immutable_record();

@@ -11,6 +11,7 @@ import {
 } from "./operations";
 import {
   assertRoundAvailable,
+  CompetitionError,
   competitionEnabled,
   type RoundRules,
 } from "./rules";
@@ -338,16 +339,14 @@ export async function claimAward(
   input: {
     awardId: string;
     memberId: string;
-    proof: Record<string, unknown>;
+    proof: { acceptedInstructions: true };
     idempotencyKey: string;
   },
-): Promise<{ status: "claimed"; repeated: boolean }> {
+): Promise<{ status: "claimed" | "fulfilled"; repeated: boolean }> {
   requireOperationsEnabled();
   requireText(input.idempotencyKey, "idempotencyKey");
-  if (!input.proof || Object.keys(input.proof).length === 0)
-    throw new Error("Claim proof is required");
-  if (JSON.stringify(input.proof).length > 8_192)
-    throw new Error("Claim proof is too large");
+  if (input.proof?.acceptedInstructions !== true)
+    throw new CompetitionError("claim_instructions_required", 400);
   return db.transaction(async (tx) => {
     const award = rows<{
       status: string;
@@ -363,18 +362,21 @@ export async function claimAward(
     `),
     )[0];
     if (!award || award.member_id !== input.memberId)
-      throw new Error("Award claim not found");
+      throw new CompetitionError("award_not_found", 404);
     assertRoundAvailable(award.rules);
     const proofDigest = digest(input.proof);
     if (
-      award.status === "claimed" &&
+      ["claimed", "fulfilled"].includes(award.status) &&
       award.claim_idempotency_key === input.idempotencyKey &&
       award.claim_proof_digest === proofDigest
     ) {
-      return { status: "claimed", repeated: true };
+      return {
+        status: award.status as "claimed" | "fulfilled",
+        repeated: true,
+      };
     }
     if (award.status !== "unclaimed")
-      throw new Error(`Award cannot be claimed from ${award.status}`);
+      throw new CompetitionError("award_claim_conflict", 409);
     await tx.execute(sql`
       UPDATE competition_award_claims
          SET status='claimed', private_proof=${JSON.stringify(input.proof)}::jsonb,
@@ -391,12 +393,14 @@ export async function fulfillAward(
     awardId: string;
     actor: string;
     fulfillmentKey: string;
+    reason: string;
     idempotencyKey: string;
   },
 ): Promise<{ status: "fulfilled"; repeated: boolean }> {
   requireOperationsEnabled();
   requireText(input.actor, "actor");
   requireText(input.fulfillmentKey, "fulfillmentKey");
+  requireText(input.reason, "reason");
   requireText(input.idempotencyKey, "idempotencyKey");
   return db.transaction(async (tx) => {
     const identity = rows<{ round_id: string; rules: RoundRules }>(
@@ -435,7 +439,7 @@ export async function fulfillAward(
       INSERT INTO competition_operation_audit
         (id,round_id,operation,actor,idempotency_key,payload)
       VALUES (${randomUUID()},${award.round_id},'fulfill',${input.actor},${input.idempotencyKey},
-              ${JSON.stringify({ awardId: input.awardId, fulfillmentKey: input.fulfillmentKey })}::jsonb)
+              ${JSON.stringify({ awardId: input.awardId, fulfillmentKey: input.fulfillmentKey, reason: input.reason })}::jsonb)
     `);
     return { status: "fulfilled", repeated: false };
   });

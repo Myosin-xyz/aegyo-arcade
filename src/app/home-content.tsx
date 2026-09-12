@@ -12,15 +12,18 @@ import { StreakStrip } from "./streak-strip";
 import { AegyoLogo } from "./logo";
 import { GameCardPreview } from "./game-card-preview";
 import { LocaleToggle } from "./locale-toggle";
+import { AccountLink } from "./account-link";
 
 interface HomeContentProps {
   gameOrder: readonly string[];
   sharedAuthEnabled: boolean;
+  competitionEnabled: boolean;
 }
 
 export function HomeContent({
   gameOrder,
   sharedAuthEnabled,
+  competitionEnabled,
 }: HomeContentProps) {
   const gamesById = new Map(
     listGames().map((game) => [game.meta.id, game] as const),
@@ -95,15 +98,16 @@ export function HomeContent({
         >
           {t("install.link")}
         </Link>
-        {sharedAuthEnabled && (
+        {competitionEnabled && (
           <Link
-            href="/api/accounts/login"
+            href="/championship"
             prefetch={false}
             className="inline-flex min-h-11 items-center px-2 text-xs font-semibold text-brand underline-offset-4 hover:underline"
           >
-            {locale === "es-419" ? "Iniciar sesión" : "Sign in"}
+            {locale === "es-419" ? "Campeonato" : "Championship"}
           </Link>
         )}
+        <AccountLink enabled={sharedAuthEnabled} />
         <LocaleToggle />
         <p className="text-center font-arcade text-[0.625rem] uppercase tracking-wider text-muted">
           {t("portal.title")}

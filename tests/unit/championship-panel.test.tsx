@@ -83,7 +83,14 @@ describe("championship journey", () => {
       vi
         .fn()
         .mockResolvedValueOnce(
-          response({ round, standings: [], provisional: false }),
+          response({
+            round,
+            standings: [],
+            provisional: false,
+            gameHighScores: [
+              { gameId: "snake", username: "fan_99", score: 42 },
+            ],
+          }),
         )
         .mockResolvedValueOnce(
           response({
@@ -106,9 +113,11 @@ describe("championship journey", () => {
         ?.textContent,
     ).toContain("· 2");
     expect(
-      container?.querySelector('a[href^="/play/flappy?championship="]')
-        ?.textContent,
-    ).toContain("· 0");
+      container?.querySelector('a[href^="/play/flappy?championship="]'),
+    ).toBeNull();
     expect(container?.textContent).toContain("#3");
+    expect(container?.textContent).toContain("Game high scores");
+    expect(container?.textContent).toContain("@fan_99");
+    expect(container?.textContent).toContain("42");
   });
 });

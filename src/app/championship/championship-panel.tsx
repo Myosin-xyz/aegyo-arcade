@@ -27,6 +27,7 @@ type PublicState = {
   round: Round | null;
   standings?: Standing[];
   provisional?: boolean;
+  gameHighScores?: { gameId: string; username: string; score: number }[];
 };
 type Attempt = {
   id: string;
@@ -65,6 +66,7 @@ const translations = {
     closes: "Closes",
     provisional: "Standings are provisional while results are reviewed.",
     standings: "Standings",
+    highScores: "Game high scores",
     player: "Player",
     points: "Points",
     bestDay: "Best day",
@@ -122,6 +124,7 @@ const translations = {
     closes: "Cierra",
     provisional: "La tabla es provisional mientras se revisan los resultados.",
     standings: "Clasificación",
+    highScores: "Mejores puntajes por juego",
     player: "Jugador",
     points: "Puntos",
     bestDay: "Mejor día",
@@ -355,6 +358,10 @@ export function ChampionshipPanel() {
             standings={state.publicState.standings ?? []}
             text={text}
           />
+          <GameHighScores
+            scores={state.publicState.gameHighScores ?? []}
+            text={text}
+          />
         </>
       )}
       <Link className={styles.home} href="/">
@@ -388,18 +395,16 @@ function MemberRound({
       </div>
       <h3>{text.attempts}</h3>
       <div className={styles.gameActions}>
-        <Link
-          className="btn-arcade"
-          href={`/play/snake?championship=${encodeURIComponent(round.id)}`}
-        >
-          {text.playSnake} · {member.remaining.snake}
-        </Link>
-        <Link
-          className="btn-arcade"
-          href={`/play/flappy?championship=${encodeURIComponent(round.id)}`}
-        >
-          {text.playFlappy} · {member.remaining.flappy}
-        </Link>
+        {round.rules.games.map(({ gameId }) => (
+          <Link
+            className="btn-arcade"
+            href={`/play/${gameId}?championship=${encodeURIComponent(round.id)}`}
+            key={gameId}
+          >
+            {gameId === "snake" ? text.playSnake : text.playFlappy} ·{" "}
+            {member.remaining[gameId]}
+          </Link>
+        ))}
       </div>
       {member.attempts.length > 0 && (
         <div className={styles.recent}>
@@ -612,6 +617,43 @@ function Standings({
           </table>
         </div>
       )}
+    </section>
+  );
+}
+
+function GameHighScores({
+  scores,
+  text,
+}: {
+  scores: NonNullable<PublicState["gameHighScores"]>;
+  text: (typeof translations)["en"] | (typeof translations)["es-419"];
+}) {
+  if (scores.length === 0) return null;
+  return (
+    <section className={styles.card}>
+      <h2>{text.highScores}</h2>
+      <div className={styles.tableScroll}>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">{text.game}</th>
+              <th scope="col">{text.player}</th>
+              <th scope="col">{text.score}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scores.map((row) => (
+              <tr key={`${row.gameId}-${row.username}`}>
+                <th scope="row">
+                  {row.gameId === "snake" ? "Snake" : "Flappy Bird"}
+                </th>
+                <td>@{row.username}</td>
+                <td>{row.score}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

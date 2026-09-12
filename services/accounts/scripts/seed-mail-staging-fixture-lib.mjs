@@ -16,10 +16,34 @@ export function validateMailFixtureConfig(env) {
     refuse("mail_fixture_origin_mismatch");
   if (env.ACCOUNTS_MAIL_FIXTURE_EMAIL !== "mateo@myosin.xyz")
     refuse("mail_fixture_recipient_mismatch");
-  if (env.ACCOUNTS_MIGRATION_DATABASE_NAME !== "accounts_staging")
+  const localProof =
+    env.ACCOUNTS_MAIL_FIXTURE_LOCAL_PROOF === "disposable-unix-socket";
+  const databaseName = localProof ? "accounts_staging" : "railway";
+  if (env.ACCOUNTS_MIGRATION_DATABASE_NAME !== databaseName)
     refuse("mail_fixture_database_mismatch");
+  if (!localProof) {
+    if (
+      env.RAILWAY_PROJECT_ID !== "8229f87c-908d-426d-9562-4b01b0e89a50" ||
+      env.RAILWAY_ENVIRONMENT_ID !== "279e0a09-8ba3-42dc-8d44-a2598d1f3fe9" ||
+      env.RAILWAY_SERVICE_ID !== "38c74ef7-2b0b-4e4d-bc95-f32636274e3a"
+    )
+      refuse("mail_fixture_railway_identity_mismatch");
+    let database;
+    try {
+      database = new URL(env.ACCOUNTS_MIGRATION_DATABASE_URL);
+    } catch {
+      refuse("mail_fixture_database_url_invalid");
+    }
+    if (
+      database.protocol !== "postgresql:" ||
+      database.hostname !== "postgres.railway.internal" ||
+      database.pathname !== "/railway"
+    )
+      refuse("mail_fixture_private_database_binding_mismatch");
+  }
   return {
     baseURL: env.ACCOUNTS_BASE_URL,
     email: env.ACCOUNTS_MAIL_FIXTURE_EMAIL,
+    databaseName,
   };
 }

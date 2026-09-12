@@ -14,11 +14,13 @@ const valid = {
   ACCOUNTS_BASE_URL: "https://aegyo-accounts-accounts-staging.up.railway.app",
   ACCOUNTS_MAIL_FIXTURE_EMAIL: "mateo@myosin.xyz",
   ACCOUNTS_MIGRATION_DATABASE_NAME: "accounts_staging",
+  ACCOUNTS_MAIL_FIXTURE_LOCAL_PROOF: "disposable-unix-socket",
 };
 test("mail fixture is bound to the isolated stage and sole authorized recipient", () => {
   assert.deepEqual(validateMailFixtureConfig(valid), {
     baseURL: valid.ACCOUNTS_BASE_URL,
     email: "mateo@myosin.xyz",
+    databaseName: "accounts_staging",
   });
   for (const changed of [
     { DATABASE_URL: "postgresql://ordinary" },
@@ -27,6 +29,29 @@ test("mail fixture is bound to the isolated stage and sole authorized recipient"
     { ACCOUNTS_BASE_URL: "https://account.aegyoarena.com" },
   ])
     assert.throws(() => validateMailFixtureConfig({ ...valid, ...changed }));
+});
+
+test("remote fixture is bound to the exact staging service and private database", () => {
+  const remote = {
+    ...valid,
+    ACCOUNTS_MAIL_FIXTURE_LOCAL_PROOF: undefined,
+    ACCOUNTS_MIGRATION_DATABASE_NAME: "railway",
+    ACCOUNTS_MIGRATION_DATABASE_URL:
+      "postgresql://owner:secret@postgres.railway.internal:5432/railway",
+    RAILWAY_PROJECT_ID: "8229f87c-908d-426d-9562-4b01b0e89a50",
+    RAILWAY_ENVIRONMENT_ID: "279e0a09-8ba3-42dc-8d44-a2598d1f3fe9",
+    RAILWAY_SERVICE_ID: "38c74ef7-2b0b-4e4d-bc95-f32636274e3a",
+  };
+  assert.equal(validateMailFixtureConfig(remote).databaseName, "railway");
+  for (const changed of [
+    { RAILWAY_SERVICE_ID: "wrong" },
+    {
+      ACCOUNTS_MIGRATION_DATABASE_URL:
+        "postgresql://owner:secret@other.railway.internal:5432/railway",
+    },
+    { ACCOUNTS_MIGRATION_DATABASE_NAME: "accounts_staging" },
+  ])
+    assert.throws(() => validateMailFixtureConfig({ ...remote, ...changed }));
 });
 
 const socket = process.env.ACCOUNTS_PROOF_PG_SOCKET;

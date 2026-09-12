@@ -17,7 +17,7 @@ const required = (name) =>
   (() => {
     throw new MailFixtureRefusal(`missing_${name}`);
   })();
-const { baseURL, email } = validateMailFixtureConfig(process.env);
+const { baseURL, email, databaseName } = validateMailFixtureConfig(process.env);
 const root = fileURLToPath(new URL("../.proof", import.meta.url));
 const output = resolve(required("ACCOUNTS_MAIL_FIXTURE_OUTPUT"));
 await mkdir(root, { recursive: true, mode: 0o700 });
@@ -80,7 +80,7 @@ try {
     const identity = (
       await database.query("SELECT current_database() database")
     ).rows[0];
-    if (identity.database !== "accounts_staging")
+    if (identity.database !== databaseName)
       throw new MailFixtureRefusal("mail_fixture_database_mismatch");
     if (
       (

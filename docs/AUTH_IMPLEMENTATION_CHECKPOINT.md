@@ -1,6 +1,6 @@
 # Shared auth implementation checkpoint
 
-September 12, 2026. This checkpoint records completed code and local evidence. It does not activate shared login or authorize a production data migration.
+September 12, 2026. This checkpoint records completed code, local evidence and synthetic staging evidence. It does not activate shared login or authorize a production data migration.
 
 ## Code completed in this development pass
 
@@ -12,7 +12,7 @@ September 12, 2026. This checkpoint records completed code and local evidence. I
 | Daebak   | Opt-in account-linking page/menu and authenticated status, explicit confirmation, expired/conflicting/unavailable states, guarded asynchronous UI responses                                                               | `7d968f2`, `106cb48`                       |
 | Daebak   | Actual PostgreSQL/Drizzle proof of immutable, idempotent linking and unchanged existing product records                                                                                                                   | `106cb48`                                  |
 
-Aegyo is pushed to the existing fork branch and [draft PR #12](https://github.com/Francisgood/kpop-lyrics/pull/12), with its description rewritten for the final behavior. No merge occurred. Accounts and Daebak changes are committed locally; Daebak's automatic production-migration build behavior still requires a controlled deployment path.
+Aegyo is pushed to the existing fork branch and [draft PR #12](https://github.com/Francisgood/kpop-lyrics/pull/12), with its description rewritten for the final behavior. No merge occurred. Accounts and Daebak changes are committed locally. Isolated staging images now avoid the ordinary production migration build commands; the existing production deployment path remains unchanged.
 
 ## Verification
 
@@ -31,7 +31,7 @@ Daebak does not claim a failed network response means a link was not committed. 
 
 ## Next execution boundary
 
-1. Deploy the latest candidates to isolated staging and exercise real Accounts → Aegyo → Arcade → Daebak browser journeys, including fresh-browser sessions, verification, recovery, logout/revocation and expired sessions. The previously deployed Accounts/Arcade staging services are not evidence that this pass's latest code is deployed.
+1. Complete the remaining staging gates: actual delivered verification/recovery email, user-driven Daebak wallet-ownership linking, provider-wide browser logout and expiry journeys. The eleven cross-product browser checks below now pass; they do not stand in for these remaining cases.
 2. Run the full-data restore/freeze/import/reconciliation rehearsal with the private operator runbooks. A source credential freeze is an external condition: the importer detects drift but cannot create a cross-service freeze itself. The local mapping installer checks IDs/roles/mappings; the separate ownership reconciler still checks every linked record.
 3. Close the previously identified delivery/domain/rollout dependencies and review production activation. Do not run either `apply` or `activate` against production on the strength of local tests alone.
 4. Proceed with the competition/leaderboard after the shared-auth acceptance gate, as agreed.
@@ -39,3 +39,55 @@ Daebak does not claim a failed network response means a link was not committed. 
 Daebak's implemented fallback requires both existing Privy authentication and shared Accounts authentication. It preserves the wallet but does not turn Privy into automatic shared SSO. The gated custom-auth path and fresh-browser continuity decision remain explicit acceptance items. Automatic legacy password rehash also remains disabled; retain the pepper while imported credentials use it. Signup does not automatically subscribe or reactivate users in Beehiiv; existing newsletter forms are unchanged.
 
 This pass changed no production accounts, wallet identities, balances, grants, referrals, histories, DNS records, email sends or deployment configuration.
+
+## September 12 staging result — 17:42 UTC
+
+The existing Railway project now runs all three product previews against Accounts,
+with isolated logical product databases and scoped runtime logins. No new Railway
+account was created. The final deployed candidates are:
+
+| Service  | Source commit                      | Successful Railway deployment          |
+| -------- | ---------------------------------- | -------------------------------------- |
+| Accounts | `6434293`                          | `80a50d74-3ce3-453f-a045-ef0809b72385` |
+| Aegyo    | `0c36773`                          | `d6844960-0524-4314-b4a6-7e31a7959e02` |
+| Arcade   | Existing staging adapter candidate | `42427b71-3db6-4ce2-9d29-1053bbb7486e` |
+| Daebak   | `c51f1aa`                          | `cad82133-f3ca-4251-8530-b25e589decb8` |
+
+**Eleven real-browser checks passed** across the four HTTPS origins. They prove
+Arcade guest-cookie preservation, Aegyo existing local ID/profile/moderator-role
+preservation, cross-product provider SSO, Daebak local logout, verified new-user
+provisioning without duplicate mappings, password recovery and invalidation of
+both retained product sessions and stale provider cookies. All three retained
+product sessions rejected authorization **20.743 seconds after reset**. A clean
+browser then authenticated with the new password. The pending recovery journal
+was removed only after that login succeeded.
+
+Aegyo and Daebak runtime probes independently confirmed the expected restricted
+role, staging database and TLS-enabled connection. Daebak's probe used the same
+pinned postgres-js 3.4.9 client in an ephemeral operator bundle because Next's
+standalone build folds that dependency into private application chunks. It ran
+one read-only query and left no runtime file or package installation.
+
+The pinned Linux Node 24.21.0 proof passed **26 unit/runtime/UI/email checks plus
+40 PostgreSQL checks (66 total), zero skips**, with runtime networking disabled.
+Image: `sha256:b23e64cbbcd5eaacedff242eea4578b7311d6a6bd9bf11549547f2ec490d693b`.
+Scoped lint, formatting and diff checks passed.
+
+Staging exposed and resolved two application/deployment issues: Daebak's origin
+check rejected Railway's internal reconstructed URL, so it now checks the
+canonical public Host without trusting forwarded-host headers; and the provider
+omitted standard profile/email claims from ID tokens. Accounts now explicitly
+emits those claims only under their granted scopes, with verification status
+read from its own user record. Signed-token tests cover all three clients,
+unverified users and omission when scopes are absent. Aegyo's staging Dockerfile
+also drops a cache mount incompatible with Railway's builder.
+
+Earlier build failures and partial browser runs are not acceptance evidence.
+The final complete browser report is private; SHA-256:
+`58b22ce33602ed166a29d7b2bc3ebb343885e9517b03379843faf618746b605e`.
+Screenshots were visually inspected. The temporary database TCP proxy was
+removed and **zero remaining proxies** were verified for this staging database.
+
+See [the cross-product staging runbook](CROSS_APP_STAGING_PROOF.md) for the exact
+scope, safeguards and replay procedure. This is synthetic acceptance, not a
+production account migration or an email-delivery/Privy-linking approval.

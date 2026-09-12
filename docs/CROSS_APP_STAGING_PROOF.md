@@ -86,3 +86,15 @@ Privy custom-auth entitlement, provider-wide browser logout, or leaderboard
 acceptance follows from this proof. Existing local protocol tests and new
 browser evidence must be recorded separately. The real-data restore/freeze
 rehearsal, domain/email readiness and explicit production review remain gates.
+
+## Recorded execution
+
+September 12, 2026, 17:42 UTC: all eleven browser checks passed. Retained product
+sessions stopped authorizing 20.743 seconds after recovery. The new password
+then worked in a clean browser, and its pending recovery journal was removed.
+The operator removed the temporary TCP proxy and verified zero remaining proxies.
+
+The final report SHA-256 is
+`58b22ce33602ed166a29d7b2bc3ebb343885e9517b03379843faf618746b605e`.
+The deployment identifiers, resolved defects and Linux regression evidence are
+recorded in [the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md).

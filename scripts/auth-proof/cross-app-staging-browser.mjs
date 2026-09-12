@@ -91,6 +91,20 @@ try {
     viewport: { width: 1280, height: 900 },
   });
   const page = await context.newPage();
+  report.navigation = [];
+  page.on("response", (response) => {
+    if (
+      response.request().isNavigationRequest() &&
+      response.frame() === page.mainFrame()
+    ) {
+      const u = new URL(response.url());
+      report.navigation.push({
+        origin: u.origin,
+        path: u.pathname,
+        status: response.status(),
+      });
+    }
+  });
   page.setDefaultTimeout(30000);
   const fillLogin = async (p, member) => {
     await p.getByLabel("Email address", { exact: true }).fill(member.email);
@@ -181,7 +195,7 @@ try {
     path: new URL("cross-app-daebak-link-required.png", root).pathname,
   });
   pass(
-    "Daebak accepts Accounts SSO while requiring separate Privy ownership; zero users, wallets, grants or bindings created",
+    "Daebak accepts Accounts SSO while requiring separate Privy ownership; zero product users, grants or bindings created",
   );
   phase = "product-logout";
   const out = await context.request.post(daebak + "/api/accounts/logout", {

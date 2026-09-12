@@ -63,8 +63,9 @@ These are availability checks, not evidence of production shared-auth activation
 ## Activation still requires
 
 1. Simon applies the [exact DNS records](SIMON_DNS_HANDOFF.md), then the Accounts
-   hostname and certificate are checked. Mailjet suspension is resolved and
-   verification/recovery delivery is proven separately.
+   hostname and certificate are checked. Configure the selected Resend runtime
+   credentials only after its domain verifies, then prove verification/recovery
+   delivery separately. Mailjet suspension is historical and is not on this path.
 2. The [real Aegyo restore](REAL_AEGYO_RESTORE_PROOF.md) has passed; migration
    reconciliation still needs an authorized returning-user password canary. The live credential-writer freeze occurs only
    in the coordinated cutover, not during the backup rehearsal.

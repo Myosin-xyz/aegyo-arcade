@@ -1,12 +1,10 @@
 # Transactional email decision — September 12, 2026
 
-**Latest research, no provider change:** [Mailjet investigation and Resend comparison](EMAIL_PROVIDER_RESEARCH_2026-09-12.md). The new Myosin account's suspension cause remains unknown after checking its dashboard and recent mailbox, including spam/trash. The older blocked API credentials do not establish why this new account is suspended. Support intervention after DNS is possible, not yet a confirmed requirement.
+**Current decision: Mateo selected Resend.** The domain was created in the Resend Myosin team under `mateo@myosin.xyz` on September 12, 2026. Its domain ID is `1c6c34a8-56e6-4105-8193-b7173c84a205`, region `us-east-1`; sending is on and receiving is off. The exact pending DNS records are in [Simon's handoff](SIMON_DNS_HANDOFF.md). Resend configuration and real delivery proof remain pending.
 
-**Later decision: Mateo selected Mailjet.** The signed-in Myosin account is activated but still shows sending suspended. Aegyo domain ownership verification and permission to send remain unproven; the latest research above supersedes any assumption that support review is definitely required. Simon's Manager invitation requires a Premium upgrade and has not been sent. See [current Mailjet onboarding status](MAILJET_ONBOARDING_STATUS.md). Resend support below is retained as an unused alternative; it was not activated or purchased.
+Mailjet was considered first because Aegyo already integrated it. The accessible account rejected sandbox sends and reported a temporary block. That suspension is historical provider-selection evidence, not the selected delivery blocker. No Mailjet ownership challenge needs to be added for the current plan, and existing Mailjet authentication records do not need to be removed.
 
-Mailjet was chosen initially because Aegyo already integrated it. That assumption has now been tested: the accessible account rejects sandbox sends with HTTP 401 and explicitly reports a temporary account block. Sender metadata access and a verified sender do not establish permission to send. The offline Railway configuration-holder service is unrelated to the provider block.
-
-Mateo authorized managing the email setup after observing failed password recovery. The source now supports **Resend as an alternative** while retaining Mailjet support. Resend is not yet configured, purchased, or deployed. Provider-account ownership and DNS access are pending. The default remains email disabled with public signup closed; existing Aegyo production settings and Beehiiv are unchanged.
+Mateo authorized managing the email setup after observing failed password recovery. The Accounts source supports the selected Resend transport while retaining Mailjet as an explicit alternative. The runtime remains email-disabled and public signup remains closed until DNS, provider configuration and delivered-message acceptance pass. Existing Aegyo production settings and Beehiiv are unchanged.
 
 ## Why this option
 
@@ -18,14 +16,14 @@ Beehiiv remains the newsletter/marketing system. Its 270 subscribers must not be
 
 ## Configuration and behavior
 
-For Resend, configure only the isolated Accounts staging service:
+For Resend, configure only the isolated Accounts service being tested or activated:
 
 - `ACCOUNTS_MAIL_MODE=resend`
 - `RESEND_API_KEY`: a private, appropriately scoped sending key for the authorized domain.
 - `RESEND_FROM_EMAIL`: the approved bare sender address on that verified domain.
 - Keep `ACCOUNTS_SIGNUP_ENABLED` false until delivery and new-user/migration acceptance pass.
 
-Mailjet remains selectable with `ACCOUNTS_MAIL_MODE=mailjet` and the three `MAILJET_*` settings. Do not reuse its credentials for Resend or copy the blocked configuration merely to satisfy startup validation.
+Mailjet remains selectable with `ACCOUNTS_MAIL_MODE=mailjet` and the three `MAILJET_*` settings, but it is not the selected rollout provider. Do not reuse its credentials for Resend.
 
 The transport uses the provider's HTTPS API, refuses redirects, times out after ten seconds, bounds response size, validates provider acknowledgement, and suppresses raw error bodies and reset links from thrown errors. Resend receives an opaque idempotency key per recipient and logical reset/verification link; retrying that same message uses the same key. A provider acknowledgement means accepted by the API, not delivered to an inbox. [Resend send-email API](https://resend.com/docs/api-reference/emails/send-email).
 

@@ -108,11 +108,12 @@ service would split the account rollout and does not satisfy the agreed shared-a
 
 ## What remains before production activation
 
-1. **Email readiness:** the signed-in Chrome Mailjet account still shows sending
-   suspended. Aegyo domain ownership is Pending; its SPF/DKIM screen says OK/OK.
-   Resolver 1.1.1.1 returns no TXT answer for the ownership challenge. Complete
-   the [exact DNS handoff](SIMON_DNS_HANDOFF.md), resolve the account suspension,
-   then test real verification/reset delivery. No support message was sent.
+1. **Email readiness:** Resend is the selected provider. The Aegyo domain exists
+   in the Resend Myosin team with sending on and receiving off, but its exact DKIM,
+   `send` subdomain MX/SPF and Accounts CNAME records have not been applied.
+   Complete the [exact DNS handoff](SIMON_DNS_HANDOFF.md), configure the scoped
+   Accounts runtime credentials, then test real verification/reset delivery.
+   Mailjet's suspension is historical and is no longer the selected delivery path.
 2. **Production identity preparation:** the separate service is deployed in
    dormant mode. Its private database has schema version 1, guard revision 2,
    a restricted runtime role and three production clients, with zero users or

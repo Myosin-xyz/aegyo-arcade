@@ -82,7 +82,7 @@ Set only scoped Accounts staging variables. Their values must stay in Railway an
 - `ACCOUNTS_BASE_URL`: the Accounts HTTPS origin for this environment.
 - `BETTER_AUTH_SECRET`: an environment-specific generated secret.
 - `ACCOUNTS_STATE_READERS_JSON`: per-application state-reader keys for the three administered clients.
-- `ACCOUNTS_MAIL_MODE`: `disabled` by default; choose `resend` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`, or `mailjet` with `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` and `MAILJET_FROM_EMAIL`. Use scoped staging credentials. Signup remains closed until delivery and capacity are proven. Mateo's selected Mailjet account is activated but sending remains suspended; see [the current onboarding status](MAILJET_ONBOARDING_STATUS.md).
+- `ACCOUNTS_MAIL_MODE`: `disabled` by default. Resend is selected; use `resend` with a scoped `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Mailjet remains an explicit alternative through `mailjet` and the three `MAILJET_*` variables, but its suspension is historical and it is not the selected rollout path. Signup remains closed until Resend DNS, delivery and capacity are proven.
 - `ACCOUNTS_LEGACY_PEPPER`: only for an authorized migration rehearsal; remove it when no retained legacy credential needs it.
 
 Accounts must not receive Arcade production database URLs, wallet private keys, minter/paymaster credentials, production peppers in staging, or unrelated application secrets.

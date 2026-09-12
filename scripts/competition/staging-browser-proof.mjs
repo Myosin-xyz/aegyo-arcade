@@ -45,10 +45,11 @@ assert.equal(infra.environmentId, "279e0a09-8ba3-42dc-8d44-a2598d1f3fe9");
 assert.equal(infra.baseURL, origins.accounts);
 assert.equal(seed.baseURL, origins.accounts);
 assert.equal(fixture.issuer, origins.accounts + "/api/auth");
-assert.equal(seed.member.email, fixture.existing.email);
-assert(seed.member.email.endsWith("@example.invalid"));
-assert.equal(typeof seed.member.password, "string");
-assert(seed.member.password.length >= 12);
+const member = fixture.new;
+assert(member.email.endsWith("@example.invalid"));
+assert.equal(typeof member.password, "string");
+assert(member.password.length >= 12);
+assert.equal(typeof member.subject, "string");
 
 const report = {
   startedAt: new Date().toISOString(),
@@ -70,10 +71,8 @@ const json = async (response) => ({
 const productState = (context, origin, path) =>
   context.request.get(origin + path, { timeout: 10_000 }).then(json);
 const fillLogin = async (page) => {
-  await page
-    .getByLabel("Email address", { exact: true })
-    .fill(seed.member.email);
-  await page.getByLabel("Password", { exact: true }).fill(seed.member.password);
+  await page.getByLabel("Email address", { exact: true }).fill(member.email);
+  await page.getByLabel("Password", { exact: true }).fill(member.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 };
 
@@ -87,9 +86,15 @@ try {
   });
   const page = await context.newPage();
   page.setDefaultTimeout(30_000);
-  page.on("request", (request) => {
+  await page.route("**/*", async (route) => {
+    const request = route.request();
     const origin = new URL(request.url()).origin;
-    assert(allowedOrigins.has(origin), `unexpected browser origin: ${origin}`);
+    if (allowedOrigins.has(origin)) return route.continue();
+    if (request.isNavigationRequest() || request.method() !== "GET") {
+      throw new Error(`unexpected active browser origin: ${origin}`);
+    }
+    // Third-party analytics/assets are outside this proof and receive no request.
+    return route.abort("blockedbyclient");
   });
 
   phase = "synthetic-round-preflight";
@@ -110,11 +115,13 @@ try {
   pass("allowlisted open synthetic round is available");
 
   phase = "guest-then-real-accounts-login";
-  await page.goto(origins.arcade + "/");
-  const guestResponse = await context.request.post(
-    origins.arcade + "/api/session",
-    { headers: { origin: origins.arcade }, data: { locale: "en" } },
+  const guestBootstrap = page.waitForResponse(
+    (response) =>
+      response.url() === origins.arcade + "/api/session" &&
+      response.request().method() === "POST",
   );
+  await page.goto(origins.arcade + "/");
+  const guestResponse = await guestBootstrap;
   assert.equal(guestResponse.status(), 200);
   const guestBefore = (await context.cookies(origins.arcade)).find(
     (cookie) => cookie.name === "__Host-aegyo_device",
@@ -158,7 +165,7 @@ try {
   assert.equal(profile.body.emailVerified, true);
   if (profile.body.username === null) {
     const suffix = createHash("sha256")
-      .update(seed.member.email)
+      .update(member.email)
       .digest("hex")
       .slice(0, 10);
     const chosen = `stg_${suffix}`;
@@ -179,16 +186,30 @@ try {
     `${origins.arcade}/championship?round=${encodeURIComponent(roundSlug)}`,
   );
   await page.getByText("Test round · no prizes", { exact: true }).waitFor();
-  let member = await productState(
+  let memberState = await productState(
     context,
     origins.arcade,
     `/api/competition/me?roundId=${encodeURIComponent(roundResponse.body.round.id)}`,
   );
-  assert.equal(member.status, 200);
-  assert.equal(member.body.remaining.snake, 3);
-  if (!member.body.enrolled) {
+  assert.equal(memberState.status, 200);
+  assert.equal(memberState.body.remaining.snake, 3);
+  if (!memberState.body.enrolled) {
     await page.getByRole("checkbox").check();
+    const enrollmentResponse = page.waitForResponse(
+      (response) =>
+        response.url() === origins.arcade + "/api/competition/enroll" &&
+        response.request().method() === "POST",
+    );
     await page.getByRole("button", { name: "Enroll", exact: true }).click();
+    const enrollment = await enrollmentResponse;
+    if (!enrollment.ok()) {
+      const body = await enrollment.json().catch(() => ({}));
+      report.enrollmentFailure = {
+        status: enrollment.status(),
+        code: typeof body.code === "string" ? body.code : "unknown",
+      };
+    }
+    assert.equal(enrollment.status(), 200);
     await page.getByText("You’re enrolled", { exact: true }).waitFor();
   }
   await page.getByRole("link", { name: /Play Snake/ }).click();
@@ -198,15 +219,17 @@ try {
   await page
     .getByText(/Replay verified|did not qualify/, { exact: false })
     .waitFor({ timeout: 30_000 });
-  member = await productState(
+  memberState = await productState(
     context,
     origins.arcade,
     `/api/competition/me?roundId=${encodeURIComponent(roundResponse.body.round.id)}`,
   );
-  assert.equal(member.status, 200);
-  assert.equal(member.body.remaining.snake, 2);
-  assert.equal(member.body.attempts[0]?.gameId, "snake");
-  assert(["verified", "rejected"].includes(member.body.attempts[0]?.status));
+  assert.equal(memberState.status, 200);
+  assert.equal(memberState.body.remaining.snake, 2);
+  assert.equal(memberState.body.attempts[0]?.gameId, "snake");
+  assert(
+    ["verified", "rejected"].includes(memberState.body.attempts[0]?.status),
+  );
   pass("official Snake trace completes and consumes exactly one daily quota");
 
   phase = "cross-product-provider-session";
@@ -219,7 +242,7 @@ try {
     "/api/auth/shared/session",
   );
   assert.equal(aegyoState.status, 200);
-  assert.equal(aegyoState.body.user.id, fixture.existing.localUserId);
+  assert.equal(typeof aegyoState.body.user.id, "string");
   await page.goto(
     origins.daebak + "/api/accounts/login?returnTo=%2Faccount-link",
   );
@@ -227,6 +250,13 @@ try {
   assert.deepEqual(
     (await productState(context, origins.daebak, "/api/accounts/session")).body,
     { authenticated: true },
+  );
+  await page.goto(origins.aegyo + "/api/auth/shared/login");
+  await page.waitForURL(origins.aegyo + "/");
+  assert.equal(
+    (await productState(context, origins.aegyo, "/api/auth/shared/session"))
+      .body.user.id,
+    aegyoState.body.user.id,
   );
   assert.equal(
     (await context.cookies(origins.accounts)).find(
@@ -273,6 +303,9 @@ try {
     error instanceof assert.AssertionError
       ? "assertion_failed"
       : "proof_failed";
+  report.failureLocation = error?.stack?.match(
+    /staging-browser-proof\.mjs:\d+:\d+/,
+  )?.[0];
   console.error(JSON.stringify({ failed: true, phase, error: report.failure }));
   process.exitCode = 1;
 } finally {

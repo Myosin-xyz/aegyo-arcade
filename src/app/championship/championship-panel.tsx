@@ -44,6 +44,7 @@ type MemberState = {
   remaining: { snake: number; flappy: number };
   totalPoints: number;
   rank: number | null;
+  awards?: { id: string; awardKey: string; status: string; rank: number }[];
 };
 type LoadState =
   | { kind: "loading" }
@@ -86,6 +87,14 @@ const translations = {
     playSnake: "Play Snake",
     playFlappy: "Play Flappy Bird",
     recent: "Recent attempts",
+    awards: "Your awards",
+    awardInstructions: "Claim instructions",
+    acknowledge: "I’ve read and accept these claim instructions.",
+    claim: "Record my claim",
+    claiming: "Recording…",
+    claimed: "Claim recorded",
+    claimUnknown:
+      "We couldn’t confirm the claim. Check its status before trying again.",
     score: "Score",
     rules: "Rules for this round",
     utc: "Daily limits reset at 00:00 UTC.",
@@ -136,6 +145,14 @@ const translations = {
     playSnake: "Jugar Snake",
     playFlappy: "Jugar Flappy Bird",
     recent: "Intentos recientes",
+    awards: "Tus reconocimientos",
+    awardInstructions: "Instrucciones para reclamar",
+    acknowledge: "Leí y acepto estas instrucciones para reclamar.",
+    claim: "Registrar mi solicitud",
+    claiming: "Registrando…",
+    claimed: "Solicitud registrada",
+    claimUnknown:
+      "No pudimos confirmar la solicitud. Revisa su estado antes de intentar de nuevo.",
     score: "Puntaje",
     rules: "Reglas de esta ronda",
     utc: "Los límites diarios se reinician a las 00:00 UTC.",
@@ -403,7 +420,114 @@ function MemberRound({
           </ul>
         </div>
       )}
+      {member.awards && member.awards.length > 0 && (
+        <AwardClaims
+          awards={member.awards}
+          instructions={round.rules.approval?.claims}
+          text={text}
+        />
+      )}
     </div>
+  );
+}
+
+function AwardClaims({
+  awards,
+  instructions,
+  text,
+}: {
+  awards: NonNullable<MemberState["awards"]>;
+  instructions?: string;
+  text: (typeof translations)["en"] | (typeof translations)["es-419"];
+}) {
+  const [accepted, setAccepted] = useState<Record<string, boolean>>({});
+  const [pending, setPending] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Record<string, string>>({});
+  const [keys] = useState(() => new Map<string, string>());
+  async function claim(awardId: string) {
+    const key = keys.get(awardId) ?? crypto.randomUUID();
+    keys.set(awardId, key);
+    setPending(awardId);
+    try {
+      const response = await fetch(
+        `/api/competition/awards/${encodeURIComponent(awardId)}/claim`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            acceptedInstructions: true,
+            idempotencyKey: key,
+          }),
+        },
+      );
+      const body = (await response.json()) as { status?: string };
+      if (
+        response.ok &&
+        (body.status === "claimed" || body.status === "fulfilled")
+      ) {
+        setMessages((current) => ({ ...current, [awardId]: text.claimed }));
+      } else {
+        if (response.status < 500) keys.delete(awardId);
+        setMessages((current) => ({
+          ...current,
+          [awardId]: text.claimUnknown,
+        }));
+      }
+    } catch {
+      setMessages((current) => ({ ...current, [awardId]: text.claimUnknown }));
+    } finally {
+      setPending(null);
+    }
+  }
+  return (
+    <section className={styles.awards}>
+      <h3>{text.awards}</h3>
+      {instructions && (
+        <p>
+          <strong>{text.awardInstructions}:</strong> {instructions}
+        </p>
+      )}
+      {awards.map((award) => (
+        <div className={styles.award} key={award.id}>
+          <p>
+            <strong>#{award.rank}</strong> · {award.awardKey}
+          </p>
+          {award.status === "offered" ? (
+            <>
+              <label className={styles.checkbox}>
+                <input
+                  type="checkbox"
+                  checked={accepted[award.id] ?? false}
+                  onChange={(event) =>
+                    setAccepted((current) => ({
+                      ...current,
+                      [award.id]: event.target.checked,
+                    }))
+                  }
+                />
+                <span>{text.acknowledge}</span>
+              </label>
+              <button
+                className="btn-arcade"
+                type="button"
+                disabled={!accepted[award.id] || pending === award.id}
+                onClick={() => void claim(award.id)}
+              >
+                {pending === award.id ? text.claiming : text.claim}
+              </button>
+            </>
+          ) : (
+            <p className={styles.enrolled}>{text.claimed}</p>
+          )}
+          {messages[award.id] && (
+            <p className={styles.error} role="status">
+              {messages[award.id]}
+            </p>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }
 

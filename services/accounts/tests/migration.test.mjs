@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import pg from "pg";
 import { createAccountsProvider } from "../src/provider-core.mjs";
@@ -28,6 +29,21 @@ function migrate(database, extra = {}) {
   for (const [name, value] of Object.entries(env))
     if (value === undefined) delete env[name];
   return spawnSync(process.execPath, ["scripts/migrate.mjs"], {
+    cwd: new URL("..", import.meta.url),
+    encoding: "utf8",
+    env,
+  });
+}
+
+function upgradeGuards(database) {
+  const env = {
+    ...process.env,
+    ACCOUNTS_GUARD_UPGRADE_CONFIRM: "oauth-token-revocation-v2",
+    ACCOUNTS_GUARD_UPGRADE_DATABASE_NAME: database,
+    ACCOUNTS_MIGRATION_DATABASE_URL: ownerURL(database),
+  };
+  delete env.DATABASE_URL;
+  return spawnSync(process.execPath, ["scripts/upgrade-credential-guards.mjs"], {
     cwd: new URL("..", import.meta.url),
     encoding: "utf8",
     env,
@@ -69,6 +85,23 @@ test(
       await owner.end();
     });
     assert.equal(await checkDatabaseReadiness(app), true);
+
+    await owner.query(
+      await readFile(
+        new URL("../src/credential-guards-v1.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    await owner.query(
+      "ALTER TABLE public.aegyo_schema_version DROP COLUMN guard_revision",
+    );
+    await assert.rejects(checkDatabaseReadiness(app));
+    const upgraded = upgradeGuards(fixture);
+    assert.equal(upgraded.status, 0, upgraded.stderr);
+    assert.equal(await checkDatabaseReadiness(app), true);
+    const repeatedUpgrade = upgradeGuards(fixture);
+    assert.equal(repeatedUpgrade.status, 1);
+    assert.match(repeatedUpgrade.stderr, /guard_upgrade_already_applied/);
 
     await assert.rejects(
       app.query(

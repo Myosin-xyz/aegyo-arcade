@@ -53,7 +53,7 @@ export async function readSessionState(database, input) {
 
 export async function checkDatabaseReadiness(database) {
   const result = await database.query(`SELECT
-    (SELECT count(*) FROM public.aegyo_schema_version WHERE version=1) AS version,
+    (SELECT count(*) FROM public.aegyo_schema_version WHERE version=1 AND guard_revision=2) AS version,
     (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgenabled='O'
       AND (tgname='aegyo_credential_changed' AND tgrelid='public.account'::regclass
         OR tgname='aegyo_session_credential_guard' AND tgrelid='public.session'::regclass)) AS guards,

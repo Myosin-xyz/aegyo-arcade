@@ -140,13 +140,14 @@ try {
     await database.query(
       `CREATE TABLE public.${MARKER} (
         version integer PRIMARY KEY CHECK (version > 0),
+        guard_revision integer NOT NULL CHECK (guard_revision = 2),
         tables text[] NOT NULL,
         schema_hash text NOT NULL CHECK (length(schema_hash) = 64),
         installed_at timestamptz NOT NULL DEFAULT clock_timestamp()
       )`,
     );
     await database.query(
-      `INSERT INTO public.${MARKER} (version, tables, schema_hash) VALUES ($1, $2, $3)`,
+      `INSERT INTO public.${MARKER} (version, guard_revision, tables, schema_hash) VALUES ($1, 2, $2, $3)`,
       [VERSION, generatedTables, schemaHash],
     );
     recordedTables = generatedTables;

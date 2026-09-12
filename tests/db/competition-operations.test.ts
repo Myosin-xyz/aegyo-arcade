@@ -106,6 +106,24 @@ integration("competition closure operations", () => {
         idempotencyKey: "reject-pending-0001",
       }),
     ).toEqual({ status: "rejected", repeated: false });
+    expect(
+      await rejectPendingAttempt(db, {
+        roundId,
+        attemptId: pendingAttempt,
+        actor: "operator",
+        reason: "identity_not_confirmed_after_review",
+        idempotencyKey: "reject-pending-0001",
+      }),
+    ).toEqual({ status: "rejected", repeated: true });
+    await expect(
+      rejectPendingAttempt(db, {
+        roundId,
+        attemptId: pendingAttempt,
+        actor: "operator",
+        reason: "changed_reason",
+        idempotencyKey: "reject-pending-0001",
+      }),
+    ).rejects.toThrow(/idempotency conflict/);
     const closed = await closeRound(db, {
       roundId,
       actor: "operator",
@@ -152,6 +170,49 @@ integration("competition closure operations", () => {
         },
       ],
     });
+    expect(
+      await finalizeRound(db, {
+        roundId,
+        approvedBy: "operator",
+        idempotencyKey: "final-1",
+        tieDecisions: [
+          {
+            exactTieKey: tieKey,
+            resolution: "shared_rank",
+            memberIds: [alice, bob],
+            rationale: "Published rehearsal rule",
+          },
+        ],
+        awards: [
+          {
+            memberId: alice,
+            awardKey: "synthetic-slot-a",
+            allocationRationale: "Published rehearsal allocation",
+          },
+          {
+            memberId: bob,
+            awardKey: "synthetic-slot-b",
+            allocationRationale: "Published rehearsal allocation",
+          },
+        ],
+      }),
+    ).toMatchObject({ repeated: true });
+    await expect(
+      finalizeRound(db, {
+        roundId,
+        approvedBy: "operator",
+        idempotencyKey: "final-1",
+        tieDecisions: [
+          {
+            exactTieKey: tieKey,
+            resolution: "shared_rank",
+            memberIds: [alice, bob],
+            rationale: "Published rehearsal rule",
+          },
+        ],
+        awards: [],
+      }),
+    ).rejects.toThrow(/conflicts/);
     expect(finalized.standings.map((row) => row.finalRank)).toEqual([1, 1]);
     const published = await publicRound(db, "closed-rehearsal");
     expect(published.provisional).toBe(false);
@@ -266,6 +327,18 @@ integration("competition closure operations", () => {
   });
 
   it("creates a future draft idempotently and opens it through audited gates", async () => {
+    await expect(
+      createDraftRound(db, {
+        definition: {
+          slug: "invalid-date-round",
+          opensAt: "not-a-date",
+          closesAt: "also-not-a-date",
+          rules,
+        },
+        actor: "operator",
+        idempotencyKey: "create-invalid-0001",
+      }),
+    ).rejects.toThrow("opensAt must be a valid ISO date");
     const definition = {
       slug: "future-synthetic-round",
       opensAt: new Date(Date.now() + 2 * 86_400_000).toISOString(),
@@ -285,20 +358,59 @@ integration("competition closure operations", () => {
         idempotencyKey: "create-future-0001",
       }),
     ).toEqual({ ...created, repeated: true });
-    expect(
-      await openRound(db, {
+    const overlap = await createDraftRound(db, {
+      definition: { ...definition, slug: "overlapping-synthetic-round" },
+      actor: "operator",
+      idempotencyKey: "create-overlap-0001",
+    });
+    const openings = await Promise.allSettled([
+      openRound(db, {
         roundId: created.roundId,
         actor: "operator",
         idempotencyKey: "open-future-0001",
       }),
-    ).toEqual({ roundId: created.roundId, status: "open", repeated: false });
+      openRound(db, {
+        roundId: overlap.roundId,
+        actor: "operator",
+        idempotencyKey: "open-overlap-0001",
+      }),
+    ]);
+    expect(
+      openings.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      openings.filter((result) => result.status === "rejected"),
+    ).toHaveLength(1);
+    const openedIndex = openings.findIndex(
+      (result) => result.status === "fulfilled",
+    );
+    const opened = openedIndex === 0 ? created : overlap;
+    const openedKey =
+      openedIndex === 0 ? "open-future-0001" : "open-overlap-0001";
     expect(
       await openRound(db, {
-        roundId: created.roundId,
+        roundId: opened.roundId,
         actor: "operator",
-        idempotencyKey: "open-future-0001",
+        idempotencyKey: openedKey,
       }),
-    ).toEqual({ roundId: created.roundId, status: "open", repeated: true });
+    ).toEqual({ roundId: opened.roundId, status: "open", repeated: true });
+    const nonoverlap = await createDraftRound(db, {
+      definition: {
+        ...definition,
+        slug: "nonoverlapping-synthetic-round",
+        opensAt: new Date(Date.now() + 4 * 86_400_000).toISOString(),
+        closesAt: new Date(Date.now() + 5 * 86_400_000).toISOString(),
+      },
+      actor: "operator",
+      idempotencyKey: "create-nonoverlap-0001",
+    });
+    await expect(
+      openRound(db, {
+        roundId: nonoverlap.roundId,
+        actor: "operator",
+        idempotencyKey: "open-nonoverlap-0001",
+      }),
+    ).resolves.toMatchObject({ status: "open", repeated: false });
   });
 
   it("audits disqualification and recomputes the daily best", async () => {
@@ -311,6 +423,24 @@ integration("competition closure operations", () => {
         idempotencyKey: "dq-1",
       }),
     ).toEqual({ repeated: false });
+    expect(
+      await disqualifyAttempt(db, {
+        roundId: openRoundId,
+        attemptId: dqAttempt,
+        actor: "operator",
+        reason: "synthetic_rehearsal",
+        idempotencyKey: "dq-1",
+      }),
+    ).toEqual({ repeated: true });
+    await expect(
+      disqualifyAttempt(db, {
+        roundId: openRoundId,
+        attemptId: dqAttempt,
+        actor: "operator",
+        reason: "changed_reason",
+        idempotencyKey: "dq-1",
+      }),
+    ).rejects.toThrow(/idempotency conflict/);
     expect(
       (
         await db.execute(

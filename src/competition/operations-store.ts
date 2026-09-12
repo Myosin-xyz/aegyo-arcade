@@ -61,6 +61,15 @@ function asDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value);
 }
 
+function inputDate(value: unknown, label: string): Date {
+  if (typeof value !== "string")
+    throw new Error(`${label} must be an ISO date`);
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()))
+    throw new Error(`${label} must be a valid ISO date`);
+  return parsed;
+}
+
 function requireText(value: string, label: string): void {
   if (!value.trim()) throw new Error(`${label} is required`);
 }
@@ -87,8 +96,8 @@ export async function createDraftRound(
   if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(input.definition.slug))
     throw new Error("Round slug is invalid");
   const rules = parseRules(input.definition.rules);
-  const opensAt = asDate(input.definition.opensAt);
-  const closesAt = asDate(input.definition.closesAt);
+  const opensAt = inputDate(input.definition.opensAt, "opensAt");
+  const closesAt = inputDate(input.definition.closesAt, "closesAt");
   if (closesAt <= opensAt)
     throw new Error("Round close must follow its open time");
   return db.transaction(async (tx) => {
@@ -158,6 +167,11 @@ export async function openRound(
   requireText(input.actor, "actor");
   requireText(input.idempotencyKey, "idempotencyKey");
   return db.transaction(async (tx) => {
+    // Every opening decision must observe the same serialized schedule. A
+    // per-round lock alone allows two different overlapping drafts to pass.
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended('competition-schedule',0))`,
+    );
     const round = await lockRound(tx, input.roundId);
     assertRoundAvailable(round.rules);
     const prior = rows<{ id: string }>(
@@ -352,17 +366,28 @@ export async function finalizeRound(
   return db.transaction(async (tx) => {
     const lockedRound = await lockRound(tx, input.roundId);
     assertRoundAvailable(lockedRound.rules);
-    const existing = rows<{ id: string; standings: FinalStanding[] }>(
+    const requestedReview = {
+      tieDecisions: input.tieDecisions,
+      awards: input.awards,
+    };
+    const existing = rows<{
+      id: string;
+      standings: FinalStanding[];
+      review: unknown;
+    }>(
       await tx.execute(
-        sql`SELECT id, standings FROM competition_final_results WHERE round_id = ${input.roundId}`,
+        sql`SELECT id,standings,review FROM competition_final_results WHERE round_id = ${input.roundId}`,
       ),
     )[0];
-    if (existing)
+    if (existing) {
+      if (digest(existing.review) !== digest(requestedReview))
+        throw new Error("Final review conflicts with the immutable result");
       return {
         finalResultId: existing.id,
         standings: existing.standings,
         repeated: true,
       };
+    }
     const round = rows<{ status: string }>(
       await tx.execute(
         sql`SELECT status,rules FROM competition_rounds WHERE id = ${input.roundId} FOR UPDATE`,
@@ -399,7 +424,7 @@ export async function finalizeRound(
       INSERT INTO competition_final_results
         (id, round_id, candidate_snapshot_id, standings, review, approved_by, approved_at)
       VALUES (${finalResultId}, ${input.roundId}, ${snapshot.id}, ${JSON.stringify(standings)}::jsonb,
-              ${JSON.stringify({ tieDecisions: input.tieDecisions, awards: input.awards })}::jsonb,
+              ${JSON.stringify(requestedReview)}::jsonb,
               ${input.approvedBy}, ${now})
     `);
     for (const award of input.awards) {
@@ -440,13 +465,20 @@ export async function disqualifyAttempt(
   return db.transaction(async (tx) => {
     const lockedRound = await lockRound(tx, input.roundId);
     assertRoundAvailable(lockedRound.rules);
-    const prior = rows<{ id: string }>(
+    const prior = rows<{ payload: { attemptId?: string; reason?: string } }>(
       await tx.execute(sql`
-      SELECT id FROM competition_operation_audit
+      SELECT payload FROM competition_operation_audit
        WHERE round_id=${input.roundId} AND operation='disqualify' AND idempotency_key=${input.idempotencyKey}
     `),
     )[0];
-    if (prior) return { repeated: true };
+    if (prior) {
+      if (
+        prior.payload.attemptId !== input.attemptId ||
+        prior.payload.reason !== input.reason
+      )
+        throw new Error("Disqualification idempotency conflict");
+      return { repeated: true };
+    }
     const round = rows<{ status: string }>(
       await tx.execute(sql`
       SELECT status,rules FROM competition_rounds WHERE id=${input.roundId} FOR UPDATE
@@ -513,14 +545,21 @@ export async function rejectPendingAttempt(
   return db.transaction(async (tx) => {
     const round = await lockRound(tx, input.roundId);
     assertRoundAvailable(round.rules);
-    const prior = rows<{ id: string }>(
+    const prior = rows<{ payload: { attemptId?: string; reason?: string } }>(
       await tx.execute(sql`
-      SELECT id FROM competition_operation_audit
+      SELECT payload FROM competition_operation_audit
        WHERE round_id=${input.roundId} AND operation='reject-pending'
          AND idempotency_key=${input.idempotencyKey}
     `),
     )[0];
-    if (prior) return { status: "rejected", repeated: true };
+    if (prior) {
+      if (
+        prior.payload.attemptId !== input.attemptId ||
+        prior.payload.reason !== input.reason
+      )
+        throw new Error("Pending rejection idempotency conflict");
+      return { status: "rejected", repeated: true };
+    }
     if (!["open", "closing"].includes(round.status))
       throw new Error(
         `Pending receipt cannot be rejected from round ${round.status}`,

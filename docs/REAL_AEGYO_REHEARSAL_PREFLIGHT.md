@@ -14,3 +14,8 @@ The verification used `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY` and the 
 The canonical snapshot was assembled and hashed inside the read-only connection. No user row, email, password hash, password, session value, or snapshot body was exported or printed. Aggregate database activity showed no remaining preflight connection after the one-shot deployment stopped.
 
 No human password canary was supplied. The preflight therefore remains `canaryRequired: true` and `canaryVerified: false`. A designated human must provide the separately controlled canary through the guarded handoff before legacy-password compatibility can be accepted. This check did not freeze source writers, migrate any user, initialize the production Accounts schema, or authorize a real migration or authentication cutover.
+
+After verification, the temporary reader's table, schema and database grants were
+revoked and the role was dropped. The stopped operator's service variables were
+replaced with a disabled confirmation only. The restored data and its isolation
+remain intact for the later canary rehearsal.

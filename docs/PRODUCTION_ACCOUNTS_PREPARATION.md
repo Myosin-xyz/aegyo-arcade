@@ -30,10 +30,35 @@ dormant mode. Through the generated Railway hostname, the parent verified:
 - `/readyz`, `/sign-in`, `/api/auth/sign-up/email` and OIDC discovery → 503,
   `accounts_not_activated`.
 
-The service has no database URL, application secrets, client registrations or
-mail credentials. The [database proof](ACCOUNTS_PRODUCTION_DATABASE_PROOF.md)
-records an empty persistent PostgreSQL 18 database with no public TCP proxy or
-HTTP domain. It has not received schema, users or synthetic fixtures.
+Production preparation is complete through schema and client registration. The
+service configuration now holds a restricted database connection, pinned database
+trust material, provider secret, three state-reader keys and the private client
+manifest. No mail credentials or real legacy pepper have been installed. These
+variables were saved without redeploying or enabling the dormant application.
+
+The [database proof](ACCOUNTS_PRODUCTION_DATABASE_PROOF.md) records schema version
+1, credential-guard revision 2, a restricted runtime role and three confidential
+OAuth clients. Users, accounts, sessions and issued tokens are all zero. No real
+users or persistent synthetic identities have been introduced. The database has
+no public TCP proxy or HTTP domain.
+
+The private preparation operator used committed source `e31ee3c`; its deployment
+was `70143407-c290-4fff-84f8-ba17ef07ce54`. Registration runs through the maintained
+provider API inside one supported Kysely transaction, checks exact callbacks and
+client secrets, and removes its temporary bootstrap identity before commit.
+An injected failure after the first registration rolls back every write; an
+identical retry preserves the clients. The pinned Linux image passed 29 unit,
+runtime, UI and email checks plus 42 real-PostgreSQL proof tests.
+
+Railway did not retain the operator's final stdout result. The resulting database
+population and runtime privileges were independently verified through a read-only
+transaction assuming the restricted application role. The operator was then
+stopped and its service credentials removed. The private manifest remains in the
+Accounts service's Railway variables for the coordinated client cutover.
+
+At `2026-09-12T20:47:57Z`, all three public homepages returned HTTP 200; dormant
+Accounts health returned 200 and readiness, sign-in and discovery returned 503.
+These are availability checks, not evidence of production shared-auth activation.
 
 ## Activation still requires
 
@@ -43,9 +68,10 @@ HTTP domain. It has not received schema, users or synthetic fixtures.
 2. The [real Aegyo restore](REAL_AEGYO_RESTORE_PROOF.md) has passed; migration
    reconciliation still needs an authorized returning-user password canary. The live credential-writer freeze occurs only
    in the coordinated cutover, not during the backup rehearsal.
-3. Production schema, restricted database roles, credentials and three confidential
-   OAuth clients are provisioned through a reviewed production procedure. The
-   synthetic-only staging seed tool must not be used here.
+3. Complete the guarded real-data import/reconciliation rehearsal using the
+   [restored-clone preflight](REAL_AEGYO_REHEARSAL_PREFLIGHT.md), then prepare the
+   reviewed production import and exact legacy-pepper transfer. The synthetic-only
+   staging seed tool must not be used in production.
 4. Reviewed adapters, identity mappings, rollback evidence and real Privy ownership
    acceptance are ready before shared authentication is enabled across products.
 

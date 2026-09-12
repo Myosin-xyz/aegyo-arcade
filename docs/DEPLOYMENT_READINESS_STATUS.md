@@ -12,7 +12,9 @@ Baseline HTTP checks repeated at 2026-09-12T18:18:43.798Z; subsequent staging co
 
 These are unauthenticated GET and server-rendered content checks. They do not
 prove production sign-in, transactions, games, wallets or user migration. No
-production login, signup, password reset, schema change or release was performed.
+production-product login, signup, password reset, schema change or release was
+performed. The separate dormant Accounts database was subsequently initialized
+as recorded below; it contains no users.
 
 ## Shared-auth staging
 
@@ -31,7 +33,7 @@ the production 404s are the expected pre-rollout baseline, not shared-auth succe
 
 The existing eleven cross-product browser checks remain recorded in
 [the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md). The latest
-pinned Linux run passes 67 provider checks (26 unit/runtime/UI/email plus 41 real
+pinned Linux run passes 71 provider checks (29 unit/runtime/UI/email plus 42 real
 PostgreSQL), with zero skips.
 The latest endpoint-specific run passed **seven browser logout checks**. Arcade,
 Aegyo and Daebak local logout each cleared only that product session, and provider
@@ -111,22 +113,26 @@ service would split the account rollout and does not satisfy the agreed shared-a
    Resolver 1.1.1.1 returns no TXT answer for the ownership challenge. Complete
    the [exact DNS handoff](SIMON_DNS_HANDOFF.md), resolve the account suspension,
    then test real verification/reset delivery. No support message was sent.
-2. **Production identity preparation:** the separate service is now successfully
-   deployed in dormant mode, its private database is empty, and Railway has
-   returned the exact custom-domain record. The [real restore](REAL_AEGYO_RESTORE_PROOF.md)
-   matched all 48 tables, including 52 users. Complete DNS/certificate checks,
-   the restored-data migration rehearsal, and
+2. **Production identity preparation:** the separate service is deployed in
+   dormant mode. Its private database has schema version 1, guard revision 2,
+   a restricted runtime role and three production clients, with zero users or
+   sessions. Railway has returned the exact custom-domain record. The
+   [real restore](REAL_AEGYO_RESTORE_PROOF.md) matched all 48 tables, including
+   52 users; the [read-only clone preflight](REAL_AEGYO_REHEARSAL_PREFLIGHT.md)
+   verified its inventory again. Complete DNS/certificate checks,
+   the restored-data import/reconciliation rehearsal, and
    demonstrate a known authorized canary's existing password. Never point the
    production Accounts hostname to the synthetic staging database.
 3. **Remaining continuity evidence:** complete the real user-driven Privy
-   ownership/linking journey and remaining expiry/endpoint-specific logout cases.
+   ownership/linking journey. Endpoint-specific logout, controlled local expiry,
+   renewal and two-device operator revocation now pass in staging.
    The tested dual-session Daebak fallback does not create automatic Privy SSO.
 4. **Coordinated release:** finish review of the Aegyo adapter; stage the credential
    freeze, copy, exact mapping/ownership reconciliation and activation; deploy
    Arcade and Daebak against that same production issuer; then smoke-test existing
    users in all three products. Publish the leaderboard after the auth gate.
 
-The production Accounts CNAME is now verified: `account` →
+The Railway-provided production Accounts CNAME target is verified: `account` →
 `2tmkqmk3.up.railway.app`. DNS remains a separate owner action. The generated
 Railway hostname passes liveness and rejects all authentication routes with 503.
 See [production preparation](PRODUCTION_ACCOUNTS_PREPARATION.md) and the updated

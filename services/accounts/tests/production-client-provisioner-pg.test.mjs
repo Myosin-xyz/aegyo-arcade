@@ -130,6 +130,18 @@ test(
       JSON.parse(run().stdout.trim().split("\n").at(-1)).provisioned,
       false,
     );
+    const storedClients = (
+      await database.query(
+        `SELECT "clientId", "clientSecret" FROM "oauthClient" ORDER BY "clientId"`,
+      )
+    ).rows;
+    assert.equal(storedClients.length, 3);
+    for (const stored of storedClients) {
+      const source = clients.find((row) => row.clientId === stored.clientId);
+      assert.ok(source);
+      assert.notEqual(stored.clientSecret, source.clientSecret);
+      assert.ok(stored.clientSecret.length > 32);
+    }
     const changed = {
       version: 1,
       clients: clients.map((x, i) =>

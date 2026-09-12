@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import type { RoundRules } from "@/competition/rules";
+import type { PublicRoundRules } from "@/competition/rules";
 import { getLocale } from "@/i18n/t";
 import { AegyoLogo } from "../logo";
 import styles from "./championship.module.css";
@@ -20,7 +20,7 @@ type Round = {
   opensAt: string;
   closesAt: string;
   mode: "synthetic" | "material_prize";
-  rules: RoundRules;
+  rules: PublicRoundRules;
   rulesDigest: string;
 };
 type PublicState = {
@@ -28,6 +28,7 @@ type PublicState = {
   standings?: Standing[];
   provisional?: boolean;
   gameHighScores?: { gameId: string; username: string; score: number }[];
+  serverNow?: string;
 };
 type Attempt = {
   id: string;
@@ -50,7 +51,28 @@ type MemberState = {
 type LoadState =
   | { kind: "loading" }
   | { kind: "unavailable" }
-  | { kind: "ready"; publicState: PublicState; member: MemberState | null };
+  | {
+      kind: "ready";
+      publicState: PublicState;
+      member: MemberState | null;
+      clockOffsetMs: number;
+    };
+
+type RoundPhase = "upcoming" | "open" | "review" | "final";
+
+export function phaseAt(
+  round: Pick<Round, "status" | "opensAt" | "closesAt">,
+  nowMs: number,
+): RoundPhase {
+  if (round.status === "final") return "final";
+  if (round.status === "review" || round.status === "closing") return "review";
+  const opensAt = Date.parse(round.opensAt);
+  const closesAt = Date.parse(round.closesAt);
+  if (Number.isFinite(opensAt) && nowMs < opensAt) return "upcoming";
+  if (round.status === "open" && Number.isFinite(closesAt) && nowMs < closesAt)
+    return "open";
+  return "review";
+}
 
 const translations = {
   en: {
@@ -64,6 +86,11 @@ const translations = {
     retry: "Try again",
     noRound: "There isn’t an active round yet. Check back soon.",
     closes: "Closes",
+    opens: "Opens",
+    upcoming: "Official enrollment and attempts open at the time shown above.",
+    review: "This round is closed while results are reviewed.",
+    final: "This round is final. Official attempts are closed.",
+    practice: "Practice play stays available from Games.",
     provisional: "Standings are provisional while results are reviewed.",
     standings: "Standings",
     highScores: "Game high scores",
@@ -122,6 +149,12 @@ const translations = {
     retry: "Intentar de nuevo",
     noRound: "Todavía no hay una ronda activa. Vuelve pronto.",
     closes: "Cierra",
+    opens: "Abre",
+    upcoming:
+      "La inscripción y los intentos oficiales abren a la hora indicada arriba.",
+    review: "Esta ronda cerró mientras se revisan los resultados.",
+    final: "Esta ronda terminó. Los intentos oficiales están cerrados.",
+    practice: "Las partidas de práctica siguen disponibles en Juegos.",
     provisional: "La tabla es provisional mientras se revisan los resultados.",
     standings: "Clasificación",
     highScores: "Mejores puntajes por juego",
@@ -180,18 +213,24 @@ async function fetchChampionship(): Promise<LoadState> {
     });
     if (!publicResponse.ok) return { kind: "unavailable" };
     const publicState = (await publicResponse.json()) as PublicState;
-    if (!publicState.round) return { kind: "ready", publicState, member: null };
+    const parsedServerNow = Date.parse(publicState.serverNow ?? "");
+    const clockOffsetMs = Number.isFinite(parsedServerNow)
+      ? parsedServerNow - Date.now()
+      : 0;
+    if (!publicState.round)
+      return { kind: "ready", publicState, member: null, clockOffsetMs };
     const memberResponse = await fetch(
       `/api/competition/me?roundId=${encodeURIComponent(publicState.round.id)}`,
       { cache: "no-store", credentials: "same-origin" },
     );
     if (memberResponse.status === 401)
-      return { kind: "ready", publicState, member: null };
+      return { kind: "ready", publicState, member: null, clockOffsetMs };
     if (!memberResponse.ok) return { kind: "unavailable" };
     return {
       kind: "ready",
       publicState,
       member: (await memberResponse.json()) as MemberState,
+      clockOffsetMs,
     };
   } catch {
     return { kind: "unavailable" };
@@ -205,6 +244,7 @@ export function ChampionshipPanel() {
   const [accepted, setAccepted] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [clockTick, setClockTick] = useState(() => Date.now());
 
   useEffect(() => {
     let current = true;
@@ -212,6 +252,11 @@ export function ChampionshipPanel() {
     return () => {
       current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   async function reload() {
@@ -256,6 +301,10 @@ export function ChampionshipPanel() {
 
   const round = state.kind === "ready" ? state.publicState.round : null;
   const member = state.kind === "ready" ? state.member : null;
+  const phase =
+    round && state.kind === "ready"
+      ? phaseAt(round, clockTick + state.clockOffsetMs)
+      : null;
 
   return (
     <main className={styles.page}>
@@ -295,12 +344,16 @@ export function ChampionshipPanel() {
                 <h2>{round.slug.replaceAll("-", " ")}</h2>
               </div>
               <p className={styles.date}>
-                {text.closes}{" "}
+                {phase === "upcoming" ? text.opens : text.closes}{" "}
                 {new Intl.DateTimeFormat(locale, {
                   dateStyle: "medium",
                   timeStyle: "short",
                   timeZone: "UTC",
-                }).format(new Date(round.closesAt))}{" "}
+                }).format(
+                  new Date(
+                    phase === "upcoming" ? round.opensAt : round.closesAt,
+                  ),
+                )}{" "}
                 UTC
               </p>
             </div>
@@ -311,7 +364,26 @@ export function ChampionshipPanel() {
 
           <section className={styles.card}>
             <h2>{text.yourRound}</h2>
-            {!member ? (
+            {phase !== "open" ? (
+              <div className={styles.actionBlock}>
+                <p>
+                  {phase === "upcoming"
+                    ? text.upcoming
+                    : phase === "final"
+                      ? text.final
+                      : text.review}{" "}
+                  {text.practice}
+                </p>
+                {member?.enrolled && (
+                  <MemberRound
+                    member={member}
+                    round={round}
+                    text={text}
+                    canPlay={false}
+                  />
+                )}
+              </div>
+            ) : !member ? (
               <div className={styles.actionBlock}>
                 <p>{text.signedOut}</p>
                 <Link className="btn-arcade" href="/account">
@@ -326,7 +398,7 @@ export function ChampionshipPanel() {
                 </Link>
               </div>
             ) : member.enrolled ? (
-              <MemberRound member={member} round={round} text={text} />
+              <MemberRound member={member} round={round} text={text} canPlay />
             ) : (
               <form
                 className={styles.enroll}
@@ -375,10 +447,12 @@ function MemberRound({
   member,
   round,
   text,
+  canPlay,
 }: {
   member: MemberState;
   round: Round;
   text: (typeof translations)["en"] | (typeof translations)["es-419"];
+  canPlay: boolean;
 }) {
   return (
     <div className={styles.member}>
@@ -393,19 +467,23 @@ function MemberRound({
           <strong>{member.rank ? `#${member.rank}` : "—"}</strong>
         </div>
       </div>
-      <h3>{text.attempts}</h3>
-      <div className={styles.gameActions}>
-        {round.rules.games.map(({ gameId }) => (
-          <Link
-            className="btn-arcade"
-            href={`/play/${gameId}?championship=${encodeURIComponent(round.id)}`}
-            key={gameId}
-          >
-            {gameId === "snake" ? text.playSnake : text.playFlappy} ·{" "}
-            {member.remaining[gameId]}
-          </Link>
-        ))}
-      </div>
+      {canPlay && (
+        <>
+          <h3>{text.attempts}</h3>
+          <div className={styles.gameActions}>
+            {round.rules.games.map(({ gameId }) => (
+              <Link
+                className="btn-arcade"
+                href={`/play/${gameId}?championship=${encodeURIComponent(round.id)}`}
+                key={gameId}
+              >
+                {gameId === "snake" ? text.playSnake : text.playFlappy} ·{" "}
+                {member.remaining[gameId]}
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
       {member.attempts.length > 0 && (
         <div className={styles.recent}>
           <h3>{text.recent}</h3>

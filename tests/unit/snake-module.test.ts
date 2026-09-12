@@ -20,6 +20,10 @@ import { dpadRects, snakeDefinition } from "@/games/snake/module";
 import { DESIGN_H } from "@/games/snake/render";
 import * as snakeLogic from "@/games/snake/logic";
 import * as snakeRender from "@/games/snake/render";
+import {
+  verifyCompetitionTrace,
+  type CompetitionTraceV1,
+} from "@/competition/replay";
 
 vi.mock("@/games/snake/logic", { spy: true });
 vi.mock("@/games/snake/render", { spy: true });
@@ -83,6 +87,7 @@ function mount() {
   const audio = createRecordingAudio();
   const scores: number[] = [];
   const ends: string[] = [];
+  const traces: CompetitionTraceV1[] = [];
   const ctx: GameContext = {
     host,
     surface: {
@@ -98,7 +103,10 @@ function mount() {
       score: (n) => scores.push(n),
       // `end` may legally be called with no result; record that distinctly
       // rather than letting it read as a normal reason.
-      end: (e) => ends.push(e?.reason ?? "<no-result>"),
+      end: (e) => {
+        ends.push(e?.reason ?? "<no-result>");
+        if (e?.competitionTrace) traces.push(e.competitionTrace);
+      },
     },
   };
   const game = snakeDefinition.create(ctx);
@@ -118,7 +126,7 @@ function mount() {
     audio.destroy();
     host.remove();
   };
-  return { game, canvas, audio, scores, ends, pointer, teardown };
+  return { game, canvas, audio, scores, ends, traces, pointer, teardown };
 }
 
 const centerOf = (name: string) => {
@@ -137,6 +145,37 @@ afterEach(() => {
 });
 
 describe("snake module — input decoding", () => {
+  it("captures a real accepted direction and terminal loss for deterministic replay", async () => {
+    const { game, ends, traces, teardown } = mount();
+    await game.init(new AbortController().signal);
+    game.start({
+      ...makeRun("live-snake-trace"),
+      competition: { captureTrace: true },
+    });
+    if (game.loop !== "shell") throw new Error("expected shell-loop game");
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { code: "ArrowDown", bubbles: true }),
+    );
+    game.pause("system");
+    game.resume();
+    for (let i = 0; i < 2_000 && ends.length === 0; i++) game.update(1000 / 60);
+    expect(ends).toEqual(["lost"]);
+    expect(traces).toHaveLength(1);
+    expect(traces[0].events.map((event) => event.action)).toEqual([
+      "snake:down",
+      "pause",
+      "resume",
+    ]);
+    expect(verifyCompetitionTrace(traces[0])).toMatchObject({
+      ok: true,
+      gameId: "snake",
+      seed: "live-snake-trace",
+      reason: "lost",
+      status: "lost",
+    });
+    teardown();
+  });
+
   it("a REJECTED first turn does not arm the run (M2.5 review P1)", async () => {
     const { game, ends, teardown } = mount();
     await game.init(new AbortController().signal);

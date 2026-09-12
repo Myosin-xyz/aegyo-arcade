@@ -42,6 +42,7 @@ import {
   tickHitFeedback,
   triggerHitFeedback,
 } from "@/shell/feedback";
+import { CompetitionTraceCapture } from "@/competition/replay";
 
 const ASSETS_BASE = "/games/flappy/";
 const CRASH_PHRASES = 3;
@@ -96,6 +97,7 @@ class FlappyGame {
   private crashPhraseIndex = 0;
   private hitFx = createHitFeedback();
   private unsubscribers: (() => void)[] = [];
+  private competitionTrace: CompetitionTraceCapture | null = null;
 
   constructor(private readonly ctx: GameContext) {}
 
@@ -129,19 +131,24 @@ class FlappyGame {
         if (state.status === "levelBreak") {
           if (flapKey || k.code === "Enter") {
             continueFromLevelBreak(state, rng);
+            this.competitionTrace?.record("flappy:continue");
           }
           return;
         }
         if (state.status === "quitConfirm") {
-          if (k.code === "Escape") keepFlying(state);
-          else if (k.code === "Enter") {
+          if (k.code === "Escape") {
+            keepFlying(state);
+            this.competitionTrace?.record("flappy:keep-flying");
+          } else if (k.code === "Enter") {
             cashOut(state);
+            this.competitionTrace?.record("flappy:cash-out");
             if (!this.endedReported) this.endRun("cashout", "quit");
           }
           return;
         }
         if (k.code === "Escape") {
-          openQuitConfirm(state);
+          if (openQuitConfirm(state))
+            this.competitionTrace?.record("flappy:open-quit");
           return;
         }
         if (flapKey) this.doFlap();
@@ -159,14 +166,19 @@ class FlappyGame {
     this.hearts = [];
     this.toast = null;
     this.toastMs = 0;
+    this.competitionTrace = run.competition?.captureTrace
+      ? new CompetitionTraceCapture("flappy", run.seed)
+      : null;
     this.ctx.report.score(0);
   }
 
   pause(): void {
+    if (!this.paused) this.competitionTrace?.record("pause");
     this.paused = true;
   }
 
   resume(): void {
+    if (this.paused) this.competitionTrace?.record("resume");
     this.paused = false;
   }
 
@@ -180,6 +192,9 @@ class FlappyGame {
     // step() RETURNS the new status; re-reading state.status keeps
     // TypeScript's pre-call narrowing and dead-ends the comparisons.
     const after = step(state, dtMs, rng);
+    if (before === "crashed" && after === "waiting")
+      this.competitionTrace?.record("flappy:retry", "after");
+    this.competitionTrace?.advanceTick();
     tickHitFeedback(this.hitFx, dtMs);
 
     if (state.score !== this.lastScore) {
@@ -264,13 +279,20 @@ class FlappyGame {
     this.endedReported = true;
     this.ctx.audio.play(sound);
     this.render();
-    this.ctx.report.end({ reason });
+    this.ctx.report.end({
+      reason,
+      competitionTrace: this.competitionTrace?.finish(
+        reason,
+        this.state?.status ?? "cashedOut",
+      ),
+    });
   }
 
   private doFlap(): void {
     const state = this.state;
     if (!state) return;
     if (flap(state)) {
+      this.competitionTrace?.record("flappy:flap");
       this.ctx.audio.play("flap");
       this.spawnHeart();
     }
@@ -297,14 +319,17 @@ class FlappyGame {
 
     if (state.status === "levelBreak") {
       continueFromLevelBreak(state, rng);
+      this.competitionTrace?.record("flappy:continue");
       return;
     }
     if (state.status === "quitConfirm") {
       const zones = quitConfirmRects();
       if (within(p, zones.keep)) {
         keepFlying(state);
+        this.competitionTrace?.record("flappy:keep-flying");
       } else if (within(p, zones.leave)) {
         cashOut(state);
+        this.competitionTrace?.record("flappy:cash-out");
         if (!this.endedReported) this.endRun("cashout", "quit");
       }
       return; // taps outside the zones do nothing — no accidental exits
@@ -314,7 +339,8 @@ class FlappyGame {
       (state.status === "flying" || state.status === "waiting") &&
       within(p, leaveRect())
     ) {
-      openQuitConfirm(state);
+      if (openQuitConfirm(state))
+        this.competitionTrace?.record("flappy:open-quit");
       return;
     }
     this.doFlap();

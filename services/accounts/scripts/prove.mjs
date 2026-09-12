@@ -46,6 +46,7 @@ try {
       "tests/provider.test.mjs",
       "tests/migration.test.mjs",
       "tests/seed.test.mjs",
+      "tests/legacy-copy.test.mjs",
     ],
     {
       cwd: root,

@@ -31,10 +31,6 @@ export function createAccountsProvider({
     !allowProofAdmin
   )
     throw new Error("offline_oauth_configuration_requires_offline_admin");
-  if (
-    Boolean(offlineOAuthClientCredentials) !== Boolean(offlineAdapterDatabase)
-  )
-    throw new Error("offline_oauth_configuration_incomplete");
   const offlineClientIds = [
     ...(offlineOAuthClientCredentials?.clientIds ?? []),
   ];

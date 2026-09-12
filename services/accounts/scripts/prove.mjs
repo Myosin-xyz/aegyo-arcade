@@ -49,6 +49,7 @@ try {
       "tests/legacy-copy.test.mjs",
       "tests/legacy-import.test.mjs",
       "tests/production-client-provisioner-pg.test.mjs",
+      "tests/mail-staging-fixture.test.mjs",
     ],
     {
       cwd: root,

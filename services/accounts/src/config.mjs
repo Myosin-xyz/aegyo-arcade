@@ -20,6 +20,27 @@ export function readConfig(env = process.env) {
     base.password
   )
     throw new Error("ACCOUNTS_BASE_URL must be a bare HTTPS origin");
+  const trafficSetting = env.ACCOUNTS_TRAFFIC_ENABLED;
+  if (
+    trafficSetting !== undefined &&
+    !["true", "false"].includes(trafficSetting)
+  )
+    throw new Error("Invalid ACCOUNTS_TRAFFIC_ENABLED");
+  const trafficEnabled =
+    trafficSetting === "true" ||
+    (environment === "staging" && trafficSetting === undefined);
+  const port = Number(env.PORT || 3000);
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error("Invalid PORT");
+  if (!trafficEnabled)
+    return Object.freeze({
+      environment,
+      baseURL: base.origin,
+      trafficEnabled: false,
+      signupAllowed: false,
+      mail: null,
+      port,
+    });
   const databaseURL = required("DATABASE_URL");
   if (!["postgres:", "postgresql:"].includes(new URL(databaseURL).protocol))
     throw new Error("Invalid DATABASE_URL protocol");
@@ -75,12 +96,10 @@ export function readConfig(env = process.env) {
     throw new Error(
       "Production requires email and verified Railway client IP handling",
     );
-  const port = Number(env.PORT || 3000);
-  if (!Number.isInteger(port) || port < 1 || port > 65535)
-    throw new Error("Invalid PORT");
   return Object.freeze({
     environment,
     baseURL: base.origin,
+    trafficEnabled: true,
     databaseURL,
     secret: required("BETTER_AUTH_SECRET", 32),
     legacyPepper: required("ACCOUNTS_LEGACY_PEPPER"),

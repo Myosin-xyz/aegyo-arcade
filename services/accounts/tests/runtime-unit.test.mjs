@@ -7,6 +7,7 @@ import {
   registeredContinuation,
   createAccountsServer,
 } from "../src/http-server.mjs";
+import { createAccountsRuntime } from "../src/runtime.mjs";
 
 const baseEnv = {
   ACCOUNTS_ENVIRONMENT: "staging",
@@ -27,12 +28,103 @@ test("runtime defaults keep signup closed; production requires verified proxy an
     { ACCOUNTS_BASE_URL: "http://accounts.example.test" },
     { ACCOUNTS_SIGNUP_ENABLED: "true" },
     { ACCOUNTS_CLIENT_IP_MODE: "railway-x-real-ip" },
-    { ACCOUNTS_ENVIRONMENT: "production" },
+    {
+      ACCOUNTS_ENVIRONMENT: "production",
+      ACCOUNTS_TRAFFIC_ENABLED: "true",
+    },
     { BETTER_AUTH_SECRET: "" },
     { ACCOUNTS_LEGACY_PEPPER: "" },
     { ACCOUNTS_STATE_READERS_JSON: JSON.stringify({ arcade: "short" }) },
   ])
     assert.throws(() => readConfig({ ...baseEnv, ...override }));
+});
+
+test("production defaults to dormant with only an HTTPS origin and activation restores strict configuration", () => {
+  const dormant = readConfig({
+    ACCOUNTS_ENVIRONMENT: "production",
+    ACCOUNTS_BASE_URL: "https://account.aegyoarena.com",
+  });
+  assert.equal(dormant.trafficEnabled, false);
+  assert.equal(dormant.signupAllowed, false);
+  assert.equal(dormant.mail, null);
+  assert.equal(dormant.databaseURL, undefined);
+
+  assert.throws(() =>
+    readConfig({
+      ACCOUNTS_ENVIRONMENT: "production",
+      ACCOUNTS_BASE_URL: "https://account.aegyoarena.com",
+      ACCOUNTS_TRAFFIC_ENABLED: "true",
+    }),
+  );
+  assert.throws(() =>
+    readConfig({
+      ACCOUNTS_ENVIRONMENT: "production",
+      ACCOUNTS_BASE_URL: "http://account.aegyoarena.com",
+    }),
+  );
+  assert.throws(() =>
+    readConfig({
+      ACCOUNTS_ENVIRONMENT: "production",
+      ACCOUNTS_BASE_URL: "https://account.aegyoarena.com",
+      ACCOUNTS_TRAFFIC_ENABLED: "yes",
+    }),
+  );
+});
+
+test("dormant runtime does not initialize database, mail, or provider", async (t) => {
+  const config = readConfig({
+    ACCOUNTS_ENVIRONMENT: "production",
+    ACCOUNTS_BASE_URL: "https://account.aegyoarena.com",
+  });
+  let initializations = 0;
+  const refuse = () => {
+    initializations += 1;
+    throw new Error("must not initialize");
+  };
+  const runtime = createAccountsRuntime(config, {
+    Pool: refuse,
+    mailSender: refuse,
+    provider: refuse,
+  });
+  assert.equal(runtime.database, null);
+  assert.equal(initializations, 0);
+  await new Promise((resolve) =>
+    runtime.server.listen(0, "127.0.0.1", resolve),
+  );
+  t.after(() => new Promise((resolve) => runtime.server.close(resolve)));
+  const origin = `http://127.0.0.1:${runtime.server.address().port}`;
+  assert.equal((await fetch(`${origin}/healthz`)).status, 200);
+  for (const path of [
+    "/readyz",
+    "/",
+    "/sign-in",
+    "/sign-up",
+    "/forgot-password",
+    "/api/auth/sign-in/email",
+    "/.well-known/openid-configuration",
+    "/assets/accounts.css",
+    "//invalid-host-form",
+  ]) {
+    const response = await fetch(`${origin}${path}`);
+    assert.equal(response.status, 503, path);
+    assert.deepEqual(await response.json(), {
+      error: "accounts_not_activated",
+    });
+  }
+  assert.equal(
+    (await fetch(`${origin}/healthz`, { method: "POST" })).status,
+    503,
+  );
+});
+
+test("staging remains active by default and can be explicitly made dormant", () => {
+  assert.equal(readConfig(baseEnv).trafficEnabled, true);
+  const dormant = readConfig({
+    ACCOUNTS_ENVIRONMENT: "staging",
+    ACCOUNTS_BASE_URL: baseEnv.ACCOUNTS_BASE_URL,
+    ACCOUNTS_TRAFFIC_ENABLED: "false",
+  });
+  assert.equal(dormant.trafficEnabled, false);
 });
 
 test("caller-supplied IP headers cannot bypass socket mode or malformed trusted header handling", () => {

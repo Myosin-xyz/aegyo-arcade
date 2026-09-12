@@ -85,7 +85,8 @@ export function createAccountsServer({
   config,
   readiness = checkDatabaseReadiness,
 }) {
-  const providerHandler = toNodeHandler(auth);
+  const providerHandler =
+    config.trafficEnabled === false ? null : toNodeHandler(auth);
   const canonical = new URL(config.baseURL);
   let checkedAt = 0;
   let ready = false;
@@ -113,6 +114,11 @@ export function createAccountsServer({
         res.end(typeof value === "string" ? value : JSON.stringify(value));
       };
       try {
+        if (config.trafficEnabled === false) {
+          if (req.method === "GET" && req.url === "/healthz")
+            return send(200, { ok: true });
+          return send(503, { error: "accounts_not_activated" });
+        }
         if (
           !req.url?.startsWith("/") ||
           req.url.startsWith("//") ||

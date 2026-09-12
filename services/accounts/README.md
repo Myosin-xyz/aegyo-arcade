@@ -4,6 +4,8 @@ Separate Better Auth service inside the Arcade repository. Deploy it independent
 
 The service now includes EN/ES account pages, Mailjet delivery support, database-backed rate limiting, atomic password/reset session guards, an authenticated session-state endpoint, restricted-role readiness checks, and explicit migration/synthetic bootstrap commands. Arcade has a feature-flagged client adapter with a real staging browser proof. The main-site adapter and Daebak binding foundation are being developed in separate repository branches; production migration/rehash and full cross-product browser acceptance remain unfinished. See [deployment runbook](../../docs/ACCOUNTS_DEPLOYMENT.md) and [current evidence](../../docs/AUTH_PROOF_PROGRESS.md).
 
+Production starts dormant unless `ACCOUNTS_TRAFFIC_ENABLED=true` exactly. Dormant mode initializes no database, provider, or mail client, serves only `/healthz`, and returns 503 for every other route. Use `/healthz` as Railway's deploy check during provisioning. Activation requires the complete production configuration and a simultaneous switch back to `/readyz`; it does not enable signup.
+
 ```sh
 cd services/accounts
 npm ci

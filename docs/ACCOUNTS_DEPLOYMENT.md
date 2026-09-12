@@ -26,6 +26,12 @@ Railway rejected a newly assigned `railwayConfigFile` setting as deprecated duri
 
 Railway deploy health checks use `/readyz`, which checks the database connection and the expected schema/credential guards before a deployment can become active. `/healthz` remains the process liveness endpoint for runtime monitoring. A live but unready instance must not receive authentication traffic.
 
+### Dormant production service
+
+Production traffic is closed unless `ACCOUNTS_TRAFFIC_ENABLED=true` exactly. A dormant production instance needs only `ACCOUNTS_ENVIRONMENT=production`, a bare HTTPS `ACCOUNTS_BASE_URL`, and Railway's `PORT`. It does not create a database pool, initialize Better Auth, or configure an email provider. `GET /healthz` returns 200; every other path, including `/readyz`, account pages, assets, discovery and auth APIs, returns 503. Configure Railway's deployment health check as `/healthz` while the service is dormant.
+
+Keep the latch absent while provisioning the isolated service and private database. Migration, application-role configuration, OAuth clients, email delivery, proxy-header proof and product acceptance are separate prerequisites. After they pass, change the Railway health check to `/readyz` and set `ACCOUNTS_TRAFFIC_ENABLED=true` in the same reviewed activation. Active production then requires the complete strict configuration below. `ACCOUNTS_SIGNUP_ENABLED=true` remains a separate decision and is not implied by activating traffic. Staging remains active by default for compatibility; setting `ACCOUNTS_TRAFFIC_ENABLED=false` explicitly makes it dormant under the same health-only contract.
+
 ### Current staging source layout
 
 The first staging upload used an explicit 26-file, approximately 121 KB allowlisted source bundle containing only the Accounts service. For that historical CLI-uploaded cutout, paths inside the bundle began at the Accounts package root and deployment `03a0f7a0-3530-49db-91bb-b66d57c2effc` used the bundle-root layout. This remains historical image/source evidence, not the current deployment identifier or a template for future service configuration.
@@ -64,6 +70,7 @@ The isolated proof is also defined in `.github/workflows/accounts-proof.yml`. It
 Set only scoped Accounts staging variables. Their values must stay in Railway and an approved secret manager; never print or copy them into Git, CI logs or review notes.
 
 - `ACCOUNTS_ENVIRONMENT`: exactly `staging` or `production`; use `staging` for the isolated proof environment.
+- `ACCOUNTS_TRAFFIC_ENABLED`: production traffic opens only when this is exactly `true`; leave absent for a dormant production service. Staging defaults to active, while explicit `false` makes either environment health-only.
 - `DATABASE_URL`: runtime application-role reference to the new Accounts PostgreSQL service.
 - `ACCOUNTS_MIGRATION_DATABASE_URL`: separate migration-owner reference, exposed only to the reviewed migration job/operator and not the running application.
 - `ACCOUNTS_MIGRATION_DATABASE_CA_CERT`: the authenticated Railway database root CA PEM for an operator connection through a public TCP proxy.

@@ -38,6 +38,7 @@ export type VerifiedAuthorization = {
   providerSessionId: string;
   name: string | null;
   picture: string | null;
+  emailVerified: boolean;
   authTime: unknown;
   resetState: unknown;
   securityVersion: unknown;
@@ -64,7 +65,7 @@ export async function beginAuthorization(
   const url = oidc.buildAuthorizationUrl(await provider(config), {
     redirect_uri: `${config.appOrigin}/api/accounts/callback`,
     response_type: "code",
-    scope: "openid profile",
+    scope: "openid email profile",
     code_challenge: await oidc.calculatePKCECodeChallenge(codeVerifier),
     code_challenge_method: "S256",
     state: transaction.state,
@@ -100,12 +101,15 @@ export async function finishAuthorization(
     throw new Error("invalid_identity_claims");
   if (typeof claims.sid !== "string" || claims.sid.length === 0)
     throw new Error("missing_provider_session");
+  if (typeof claims.email_verified !== "boolean")
+    throw new Error("missing_verified_email_claim");
   return {
     issuer: claims.iss,
     subject: claims.sub,
     providerSessionId: claims.sid,
     name: typeof claims.name === "string" ? claims.name : null,
     picture: typeof claims.picture === "string" ? claims.picture : null,
+    emailVerified: claims.email_verified,
     authTime: claims.auth_time,
     resetState: claims["https://aegyoarena.com/claims/password-reset-state"],
     securityVersion: claims["https://aegyoarena.com/claims/security-version"],

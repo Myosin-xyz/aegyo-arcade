@@ -72,6 +72,7 @@ describe("member callback authoritative state check", () => {
       providerSessionId: "sid-1",
       name: "Member",
       picture: null,
+      emailVerified: true,
       authTime: now / 1_000,
       resetState,
       securityVersion: 7,

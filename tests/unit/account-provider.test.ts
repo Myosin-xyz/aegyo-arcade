@@ -99,12 +99,24 @@ describe("OIDC callback attack defenses", () => {
     );
   });
 
+  it("requests the provider-owned email verification claim", async () => {
+    await beginAuthorization(config, {
+      maxAgeSeconds: 3_600,
+      reauthenticationAttempt: 0,
+    });
+    expect(mocks.buildAuthorizationUrl).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ scope: "openid email profile" }),
+    );
+  });
+
   it("delegates code, issuer/audience/signature, PKCE, state, nonce and max_age validation to openid-client", async () => {
     mocks.grant.mockResolvedValue({
       claims: () => ({
         iss: config.issuer,
         sub: "user-1",
         sid: "sid-1",
+        email_verified: true,
         auth_time: 1,
         "https://aegyoarena.com/claims/password-reset-state": {
           version: 1,
@@ -146,4 +158,25 @@ describe("OIDC callback attack defenses", () => {
       ),
     ).rejects.toThrow("missing_provider_session");
   });
+
+  it.each([undefined, "true", 1])(
+    "refuses a non-boolean verified-email claim %j",
+    async (emailVerified) => {
+      mocks.grant.mockResolvedValue({
+        claims: () => ({
+          iss: config.issuer,
+          sub: "user-1",
+          sid: "sid-1",
+          email_verified: emailVerified,
+        }),
+      });
+      await expect(
+        finishAuthorization(
+          config,
+          new URL("https://arcade.example.test/api/accounts/callback?code=x"),
+          transaction,
+        ),
+      ).rejects.toThrow("missing_verified_email_claim");
+    },
+  );
 });

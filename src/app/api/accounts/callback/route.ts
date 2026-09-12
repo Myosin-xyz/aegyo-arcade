@@ -125,6 +125,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       providerSessionId: identity.providerSessionId,
       name: identity.name,
       picture: identity.picture,
+      emailVerified: identity.emailVerified,
       authenticatedAtMs: decision.authenticatedAtMs,
       securityVersion: state.securityVersion,
       resetState: state.passwordResetState as ResetState,

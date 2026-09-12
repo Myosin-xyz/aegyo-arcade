@@ -1,5 +1,7 @@
 # Transactional email decision — September 12, 2026
 
+**Later decision: Mateo selected Mailjet.** The signed-in Myosin account is activated but still shows sending suspended. Aegyo domain ownership verification and support review remain pending; Simon's Manager invitation requires a Premium upgrade and has not been sent. See [current Mailjet onboarding status](MAILJET_ONBOARDING_STATUS.md). Resend support below is retained as an unused alternative; it was not activated or purchased.
+
 Mailjet was chosen initially because Aegyo already integrated it. That assumption has now been tested: the accessible account rejects sandbox sends with HTTP 401 and explicitly reports a temporary account block. Sender metadata access and a verified sender do not establish permission to send. The offline Railway configuration-holder service is unrelated to the provider block.
 
 Mateo authorized managing the email setup after observing failed password recovery. The source now supports **Resend as an alternative** while retaining Mailjet support. Resend is not yet configured, purchased, or deployed. Provider-account ownership and DNS access are pending. The default remains email disabled with public signup closed; existing Aegyo production settings and Beehiiv are unchanged.

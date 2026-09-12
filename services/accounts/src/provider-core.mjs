@@ -108,7 +108,10 @@ export function createAccountsProvider({
       useSecureCookies: true,
       ipAddress: { ipAddressHeaders: [ipHeader] },
     },
-    rateLimit: { enabled: true, storage: "database" },
+    rateLimit: {
+      enabled: !offlineOAuthClientCredentials,
+      storage: "database",
+    },
     user: {
       additionalFields: {
         passwordChangedAt: { type: "date", required: false, input: false },

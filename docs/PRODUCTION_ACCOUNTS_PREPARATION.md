@@ -48,7 +48,7 @@ provider API inside one supported Kysely transaction, checks exact callbacks and
 client secrets, and removes its temporary bootstrap identity before commit.
 An injected failure after the first registration rolls back every write; an
 identical retry preserves the clients. The pinned Linux image passed 29 unit,
-runtime, UI and email checks plus 42 real-PostgreSQL proof tests.
+runtime, UI and email checks plus 45 real-PostgreSQL proof tests.
 
 Railway did not retain the operator's final stdout result. The resulting database
 population and runtime privileges were independently verified through a read-only
@@ -65,7 +65,9 @@ These are availability checks, not evidence of production shared-auth activation
 1. Simon applies the [exact DNS records](SIMON_DNS_HANDOFF.md), then the Accounts
    hostname and certificate are checked. Configure the selected Resend runtime
    credentials only after its domain verifies, then prove verification/recovery
-   delivery separately. Mailjet suspension is historical and is not on this path.
+   delivery and inbox placement with the branded sender. Staging sandbox delivery
+   succeeded for both message types, but both arrived in Spam. Mailjet suspension
+   is historical and is not on this path.
 2. The [real Aegyo restore](REAL_AEGYO_RESTORE_PROOF.md) has passed; migration
    reconciliation still needs an authorized returning-user password canary. The live credential-writer freeze occurs only
    in the coordinated cutover, not during the backup rehearsal.

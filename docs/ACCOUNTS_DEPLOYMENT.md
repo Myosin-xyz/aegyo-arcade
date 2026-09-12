@@ -38,7 +38,7 @@ The first staging upload used an explicit 26-file, approximately 121 KB allowlis
 
 Do not copy the historical bundle-root `/` setting into a full-repository source configuration. A future Git connection should begin by revalidating `/services/accounts` as the intended source boundary and `/services/accounts/**` as the intended watch boundary, then record the concrete settings Railway accepts at that time.
 
-The final four-origin staging candidates are Accounts deployment `80a50d74-3ce3-453f-a045-ef0809b72385`, Aegyo `d6844960-0524-4314-b4a6-7e31a7959e02`, Arcade `42427b71-3db6-4ce2-9d29-1053bbb7486e`, and Daebak `cad82133-f3ca-4251-8530-b25e589decb8`. Their origins are listed in [the cross-product staging proof](CROSS_APP_STAGING_PROOF.md). All eleven final browser checks passed, together with 66 local Linux checks. The product previews use separate logical databases and restricted roles on the same isolated staging Postgres service.
+The current Accounts staging deployment is `4546e488-b42c-43dd-b602-94fda7271c81` from guarded fixture source `13b920a`; Aegyo `d6844960-0524-4314-b4a6-7e31a7959e02`, Arcade `42427b71-3db6-4ce2-9d29-1053bbb7486e`, and Daebak `cad82133-f3ca-4251-8530-b25e589decb8` remain the recorded product previews. Their origins are listed in [the cross-product staging proof](CROSS_APP_STAGING_PROOF.md). The current pinned proof passes 29 unit/runtime/UI/email checks and 45 real-PostgreSQL checks. The product previews use separate logical databases and restricted roles on the same isolated staging Postgres service.
 
 The temporary public Postgres proxy was deleted after the browser proof; zero TCP proxies remain on the new database service. Readiness was rechecked after removal. The private credential fixture's public URL is now stale and must not be treated as an active connection. Reopening access is a separate, explicitly targeted operator action, followed by removal after the next proof. No migration-owner credentials were added to the runtime services.
 
@@ -86,6 +86,8 @@ Set only scoped Accounts staging variables. Their values must stay in Railway an
 - `ACCOUNTS_LEGACY_PEPPER`: only for an authorized migration rehearsal; remove it when no retained legacy credential needs it.
 
 Accounts must not receive Arcade production database URLs, wallet private keys, minter/paymaster credentials, production peppers in staging, or unrelated application secrets.
+
+Staging currently uses Resend with a sending-only key kept privately in Railway, the temporary `onboarding@resend.dev` sandbox sender restricted to the authorized `mateo@myosin.xyz` mailbox, and signup disabled. Runtime verification and reset messages were delivered, but both went to Gmail Spam. Consuming the delivered verification link updated both existing synthetic provider sessions to verified email. This is sandbox transport evidence only; branded-domain delivery and inbox placement remain pending the DNS handoff. No paid plan or production configuration changed.
 
 The staging runtime currently uses the same authenticated root CA and pinned leaf-certificate contract as the migration connection. Never replace it with `rejectUnauthorized: false`. When Railway rotates either certificate, retrieve the new public CA and fingerprint through authenticated access to the explicitly selected Accounts database, verify the chain, update the scoped variables, and repeat readiness checks.
 

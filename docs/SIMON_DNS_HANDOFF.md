@@ -19,4 +19,4 @@ The production service is deployed but deliberately dormant: health succeeds, wh
 
 Optional repository access request: grant GitHub user `mateodaza` Write access to `Francisgood/kpop-lyrics`. Current upstream access is read-only; work and a draft PR can continue from `mateodaza/kpop-lyrics` in the meantime.
 
-No DNS records were changed by the agent. Recheck all four exact records and the Railway certificate after Simon applies them, then verify Resend's domain status and real delivery separately.
+No DNS records were changed by the agent. Staging has delivered verification and reset messages through Resend's temporary sandbox sender, but both went to Gmail Spam; this does not prove branded-domain inbox placement. Recheck all four exact records and the Railway certificate after Simon applies them, then verify Resend's domain status, branded delivery and inbox placement separately.

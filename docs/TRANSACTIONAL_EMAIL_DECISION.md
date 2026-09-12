@@ -1,10 +1,10 @@
 # Transactional email decision — September 12, 2026
 
-**Current decision: Mateo selected Resend.** The domain was created in the Resend Myosin team under `mateo@myosin.xyz` on September 12, 2026. Its domain ID is `1c6c34a8-56e6-4105-8193-b7173c84a205`, region `us-east-1`; sending is on and receiving is off. The exact pending DNS records are in [Simon's handoff](SIMON_DNS_HANDOFF.md). Resend configuration and real delivery proof remain pending.
+**Current decision: Mateo selected Resend.** The domain was created in the Resend Myosin team under `mateo@myosin.xyz` on September 12, 2026. Its domain ID is `1c6c34a8-56e6-4105-8193-b7173c84a205`, region `us-east-1`; sending is on and receiving is off. The exact pending DNS records are in [Simon's handoff](SIMON_DNS_HANDOFF.md). Staging runtime delivery now works through Resend's temporary sandbox sender; branded-domain delivery remains pending DNS.
 
 Mailjet was considered first because Aegyo already integrated it. The accessible account rejected sandbox sends and reported a temporary block. That suspension is historical provider-selection evidence, not the selected delivery blocker. No Mailjet ownership challenge needs to be added for the current plan, and existing Mailjet authentication records do not need to be removed.
 
-Mateo authorized managing the email setup after observing failed password recovery. The Accounts source supports the selected Resend transport while retaining Mailjet as an explicit alternative. The runtime remains email-disabled and public signup remains closed until DNS, provider configuration and delivered-message acceptance pass. Existing Aegyo production settings and Beehiiv are unchanged.
+Mateo authorized managing the email setup after observing failed password recovery. The Accounts source supports the selected Resend transport while retaining Mailjet as an explicit alternative. Staging uses `ACCOUNTS_MAIL_MODE=resend` with a sending-only key held privately in Railway and the temporary `onboarding@resend.dev` sender restricted to `mateo@myosin.xyz`; public signup remains closed. Production and existing Aegyo production settings remain unchanged, as does Beehiiv.
 
 ## Why this option
 
@@ -29,9 +29,11 @@ The transport uses the provider's HTTPS API, refuses redirects, times out after 
 
 ## Required live proof
 
+Staging deployment `4546e488-b42c-43dd-b602-94fda7271c81` from guarded fixture source `13b920a` reported `SUCCESS`. The running Accounts service delivered a verification message (`94be5bcb-f5ff-409c-8c4e-078ddfe69be3`) and password-reset message (`ee03f27c-57c6-41a4-a97a-4c2d61d078c8`) to the authorized Gmail mailbox. Both arrived in Spam under the sandbox sender. The verification link read from the actual mailbox was consumed successfully, and both existing synthetic provider sessions then reported `emailVerified: true`. Password-reset consumption is recorded separately when complete. These checks prove runtime submission and receipt through Resend's sandbox; they do not prove branded-domain delivery or inbox placement.
+
 1. Establish the Myosin-owned account/access and verify the sending domain using the provider's exact DNS records. Inspect existing SPF/DKIM/DMARC and Beehiiv records before adding anything; do not invent records or replace a working root SPF indiscriminately.
 2. Confirm plan limits and expected peak verification/reset volume. Define an owner for quota/rejection monitoring and a recovery path for failed mail before opening signup.
-3. Use an authorized test mailbox and synthetic staging identity to receive verification and reset messages. Prove arrival, sender, correct origin, expiry, one-use reset, return path, and supported-language behavior.
+3. Repeat the delivered verification/reset journey with the verified branded sender after DNS. Prove arrival, sender, correct origin, expiry, one-use reset, return path, supported-language behavior and acceptable inbox placement.
 4. Repeat the stale-device/cookies-cleared security test using the **delivered** reset link. A mock transport, sandbox response, or captured in-memory link does not satisfy delivery acceptance.
 5. Review any production email fix separately from the auth migration; this candidate sender belongs to the Accounts service and has not repaired the current site's recovery route.
 

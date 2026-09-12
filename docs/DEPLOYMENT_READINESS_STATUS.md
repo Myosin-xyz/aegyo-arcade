@@ -20,7 +20,7 @@ as recorded below; it contains no users.
 
 | Service  | Preview                                                        | Railway deployment                     |
 | -------- | -------------------------------------------------------------- | -------------------------------------- |
-| Accounts | https://aegyo-accounts-accounts-staging.up.railway.app/sign-in | `15423d18-07b4-478d-b795-77c42ea54d57` |
+| Accounts | https://aegyo-accounts-accounts-staging.up.railway.app/sign-in | `4546e488-b42c-43dd-b602-94fda7271c81` |
 | Aegyo    | https://aegyo-auth-preview-accounts-staging.up.railway.app     | `d6844960-0524-4314-b4a6-7e31a7959e02` |
 | Arcade   | https://arcade-auth-preview-accounts-staging.up.railway.app    | `82d0253e-42aa-411e-83b8-99b13f2cca16` |
 | Daebak   | https://daebak-auth-preview-accounts-staging.up.railway.app    | `cad82133-f3ca-4251-8530-b25e589decb8` |
@@ -33,8 +33,17 @@ the production 404s are the expected pre-rollout baseline, not shared-auth succe
 
 The existing eleven cross-product browser checks remain recorded in
 [the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md). The latest
-pinned Linux run passes 71 provider checks (29 unit/runtime/UI/email plus 42 real
+pinned Linux run passes 74 provider checks (29 unit/runtime/UI/email plus 45 real
 PostgreSQL), with zero skips.
+
+The current Accounts staging deployment uses Resend with a sending-only key held
+privately in Railway, the temporary `onboarding@resend.dev` sandbox sender limited
+to `mateo@myosin.xyz`, and signup disabled. Runtime verification and reset emails
+were delivered with Resend IDs `94be5bcb-f5ff-409c-8c4e-078ddfe69be3` and
+`ee03f27c-57c6-41a4-a97a-4c2d61d078c8`. Both appeared in Gmail Spam. The actual
+mailbox verification link was consumed, after which both retained synthetic
+provider sessions reported verified email. Branded-domain delivery and inbox
+placement remain unproved pending DNS; production was not changed.
 The latest endpoint-specific run passed **seven browser logout checks**. Arcade,
 Aegyo and Daebak local logout each cleared only that product session, and provider
 SSO restored it. Arcade retained the exact guest cookie. Accounts current-session
@@ -112,7 +121,8 @@ service would split the account rollout and does not satisfy the agreed shared-a
    in the Resend Myosin team with sending on and receiving off, but its exact DKIM,
    `send` subdomain MX/SPF and Accounts CNAME records have not been applied.
    Complete the [exact DNS handoff](SIMON_DNS_HANDOFF.md), configure the scoped
-   Accounts runtime credentials, then test real verification/reset delivery.
+   branded sender, then repeat verification/reset delivery and inbox-placement
+   acceptance. Sandbox staging delivery works, but both observed messages went to Spam.
    Mailjet's suspension is historical and is no longer the selected delivery path.
 2. **Production identity preparation:** the separate service is deployed in
    dormant mode. Its private database has schema version 1, guard revision 2,
@@ -167,7 +177,7 @@ credentials, change passwords, authenticate to Privy or send email.
 - [Credential guard revision 2](CREDENTIAL_GUARD_UPGRADE.md) closes a discovered
   OAuth-token revocation gap. The staging database upgrade committed via private
   Railway SSH; no public proxy was needed. Accounts deployment
-  `15423d18-07b4-478d-b795-77c42ea54d57` uses source `3841cf5` and requires the new
+  `4546e488-b42c-43dd-b602-94fda7271c81` uses source `13b920a` and requires the new
   guard revision before serving auth traffic. It reports SUCCESS and readiness
   `{ready:true}`. Production was not upgraded.
 

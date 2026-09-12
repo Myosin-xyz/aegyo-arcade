@@ -8,31 +8,31 @@ Create the Accounts application service and its staging PostgreSQL service in an
 
 Configure the Accounts application service with:
 
-| Setting                     | Required value                                                       |
-| --------------------------- | -------------------------------------------------------------------- |
-| Source repository           | this `aegyo-arcade` repository                                       |
-| Root Directory              | `/services/accounts`                                                 |
-| Config as Code path         | `/services/accounts/railway.toml`                                    |
-| Dockerfile                  | `Dockerfile` (resolved inside the Root Directory)                    |
-| Watch Paths                 | `/services/accounts/**`                                              |
-| Build                       | Docker production target; `npm ci --omit=dev`, with no schema change |
-| Start                       | `npm start` → plain Node `src/server.mjs`                            |
-| Port                        | Railway-provided `PORT`; bind on `0.0.0.0`                           |
-| Liveness                    | `GET /healthz` (runtime monitoring)                                  |
-| Railway deploy health check | `GET /readyz` (database/schema/guard readiness)                      |
-| Restart                     | on failure, at most 10 retries                                       |
+| Setting                     | Required value                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| Source repository           | this `aegyo-arcade` repository                                                                |
+| Root Directory              | `/services/accounts`                                                                          |
+| Config as Code              | Existing legacy `services/accounts/railway.toml`; revalidate before any future Git connection |
+| Dockerfile                  | `Dockerfile` (resolved inside the Root Directory)                                             |
+| Watch Paths                 | `/services/accounts/**`                                                                       |
+| Build                       | Docker production target; `npm ci --omit=dev`, with no schema change                          |
+| Start                       | `npm start` → plain Node `src/server.mjs`                                                     |
+| Port                        | Railway-provided `PORT`; bind on `0.0.0.0`                                                    |
+| Liveness                    | `GET /healthz` (runtime monitoring)                                                           |
+| Railway deploy health check | `GET /readyz` (database/schema/guard readiness)                                               |
+| Restart                     | on failure, at most 10 retries                                                                |
 
-Railway's current monorepo documentation says Root Directory restricts the downloaded build source, while the Config as Code path must remain repository-absolute. That makes the service-level `.dockerignore` effective and prevents the Accounts image from receiving unrelated repository files. No repository-root `.dockerignore` is required with this setup.
+Railway rejected a newly assigned `railwayConfigFile` setting as deprecated during this staging pass. The current preview services were configured through the scoped service API; the existing Accounts `railway.toml` remains as a legacy source artifact. Before a future Git-connected deployment, revalidate Railway's then-current repository-root, Dockerfile and watch-path behavior instead of silently requiring the deprecated field. Keep the build context narrow enough that the service-level `.dockerignore` prevents unrelated repository files from entering the image.
 
 Railway deploy health checks use `/readyz`, which checks the database connection and the expected schema/credential guards before a deployment can become active. `/healthz` remains the process liveness endpoint for runtime monitoring. A live but unready instance must not receive authentication traffic.
 
 ### Current staging source layout
 
-The first staging upload used an explicit 26-file, approximately 121 KB allowlisted source bundle containing only the Accounts service. For that CLI-uploaded cutout, the service source root is `/` and Config as Code is `/railway.toml`; paths inside the bundle already begin at the Accounts package root. Deployment `03a0f7a0-3530-49db-91bb-b66d57c2effc` was created from that layout in the isolated staging environment.
+The first staging upload used an explicit 26-file, approximately 121 KB allowlisted source bundle containing only the Accounts service. For that historical CLI-uploaded cutout, paths inside the bundle began at the Accounts package root and deployment `03a0f7a0-3530-49db-91bb-b66d57c2effc` used the bundle-root layout. This remains historical image/source evidence, not the current deployment identifier or a template for future service configuration.
 
-That cutout layout is specific to the current CLI upload. A future Git-connected deployment from the full repository must use `/services/accounts` as Root Directory, `/services/accounts/railway.toml` as Config as Code, and `/services/accounts/**` as its watch path, as specified in the table above. Do not copy the bundle-root `/` setting into a full-repository source configuration.
+Do not copy the historical bundle-root `/` setting into a full-repository source configuration. A future Git connection should begin by revalidating `/services/accounts` as the intended source boundary and `/services/accounts/**` as the intended watch boundary, then record the concrete settings Railway accepts at that time.
 
-Current Accounts deployment is `1a22dee3-44a5-46f0-89ca-f7322b9fb272` at `https://aegyo-accounts-accounts-staging.up.railway.app`. The separate Arcade preview is `https://arcade-auth-preview-accounts-staging.up.railway.app`, service `01e424b3-6137-4ef6-b8fc-94def7963b48`. It uses a separate `arcade_auth_staging` logical database and restricted role on the same new staging Postgres instance. Both services passed the real Chromium reset/SSO/guest-preservation proof; Aegyo and Daebak remain unintegrated protocol fixtures.
+The final four-origin staging candidates are Accounts deployment `80a50d74-3ce3-453f-a045-ef0809b72385`, Aegyo `d6844960-0524-4314-b4a6-7e31a7959e02`, Arcade `42427b71-3db6-4ce2-9d29-1053bbb7486e`, and Daebak `cad82133-f3ca-4251-8530-b25e589decb8`. Their origins are listed in [the cross-product staging proof](CROSS_APP_STAGING_PROOF.md). All eleven final browser checks passed, together with 66 local Linux checks. The product previews use separate logical databases and restricted roles on the same isolated staging Postgres service.
 
 The temporary public Postgres proxy was deleted after the browser proof; zero TCP proxies remain on the new database service. Readiness was rechecked after removal. The private credential fixture's public URL is now stale and must not be treated as an active connection. Reopening access is a separate, explicitly targeted operator action, followed by removal after the next proof. No migration-owner credentials were added to the runtime services.
 
@@ -74,7 +74,7 @@ Set only scoped Accounts staging variables. Their values must stay in Railway an
 - `ACCOUNTS_BASE_URL`: the Accounts HTTPS origin for this environment.
 - `BETTER_AUTH_SECRET`: an environment-specific generated secret.
 - `ACCOUNTS_STATE_READERS_JSON`: per-application state-reader keys for the three administered clients.
-- `ACCOUNTS_MAIL_MODE`: `disabled` by default; choose `resend` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`, or `mailjet` with `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` and `MAILJET_FROM_EMAIL`. Use scoped staging credentials. Signup remains closed until delivery and capacity are proven. The existing Mailjet account is blocked as of September 12; see the [email decision](TRANSACTIONAL_EMAIL_DECISION.md).
+- `ACCOUNTS_MAIL_MODE`: `disabled` by default; choose `resend` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`, or `mailjet` with `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` and `MAILJET_FROM_EMAIL`. Use scoped staging credentials. Signup remains closed until delivery and capacity are proven. Mateo's selected Mailjet account is activated but sending remains suspended; see [the current onboarding status](MAILJET_ONBOARDING_STATUS.md).
 - `ACCOUNTS_LEGACY_PEPPER`: only for an authorized migration rehearsal; remove it when no retained legacy credential needs it.
 
 Accounts must not receive Arcade production database URLs, wallet private keys, minter/paymaster credentials, production peppers in staging, or unrelated application secrets.
@@ -97,7 +97,7 @@ Before running it, record the selected Railway project, environment, application
 
 Schema version 1 was installed successfully in the new isolated Accounts staging database. The staging seed remains a separate explicit operator command. It requires `ACCOUNTS_ENVIRONMENT=staging`, `ACCOUNTS_STAGING_SEED_CONFIRM=synthetic-only`, exactly three distinct HTTPS client definitions, an empty Accounts user table, and a private output path under `services/accounts/.proof`. It creates synthetic identities only, writes generated credentials with private permissions, and refuses a second run without altering its prior output. These gates do not authorize real-member import.
 
-Staging still has no configured email delivery and has not passed real Aegyo or Daebak browser/identity continuity checks. Production migration or deployment remains blocked on the documented G1 evidence, restored legacy-data rehearsal, backup/restore proof, DNS and mail configuration, Privy continuity, and explicit release approval. No command in this contract authorizes contact with the production Arcade database.
+Staging has passed the final synthetic four-origin browser journey, including Aegyo identity continuity and Daebak's local shared-auth boundary. It has not passed actual email delivery, real Privy identity linking, a full-data restore/import/reconciliation rehearsal, or any production cutover. Production migration or deployment remains blocked on those gates, DNS and mail readiness, backup/restore proof, and explicit release approval. A read-only public check found all three production homepages healthy with HTTP 200 while their shared-session routes returned 404, consistent with the adapters not being active there. No command in this contract authorizes contact with the production Arcade database.
 
 ## References
 

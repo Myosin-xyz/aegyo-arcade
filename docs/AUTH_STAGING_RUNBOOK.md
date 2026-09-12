@@ -2,7 +2,7 @@
 
 The current provider is the independently operated Better Auth service described in [the provider decision](BETTER_AUTH_PROVIDER_DECISION.md). Auth0 setup/import/Action instructions in earlier revisions are historical. The original Auth0-specific helper files remain reference tests, not staging configuration.
 
-Accounts and the Arcade preview are already deployed in isolated staging and have passed the two-origin Chromium proof. The remaining three-product, migration and real-email gates below still apply. Consult [current progress](AUTH_PROOF_PROGRESS.md) for deployed resources and source-only adapter work, and [Mailjet handoff](MAILJET_HANDOFF.md) for Simon's configuration steps.
+Accounts, Aegyo, Arcade and Daebak are deployed at the four isolated staging origins in [the cross-product proof](CROSS_APP_STAGING_PROOF.md). The final candidates passed eleven real-browser checks and the pinned Linux image passed 66 local checks. Actual email delivery, real Privy identity linking, full-data restore/import/reconciliation and production approval remain open. Consult [the implementation checkpoint](AUTH_IMPLEMENTATION_CHECKPOINT.md) for the current deployment IDs and [Mailjet onboarding status](MAILJET_ONBOARDING_STATUS.md) for the selected provider's blocker.
 
 ## Local package proof
 
@@ -27,7 +27,7 @@ The existing root `npm run test:auth-proof` tests remain useful for strict fresh
 2. Use isolated staging secrets, a separate database and stable issuer URL. A Railway-generated domain can be used for G1. The eventual `account.aegyoarena.com` DNS points to the production Accounts service. Do not mix staging/production issuers or change a live issuer without a migration.
 3. Register three separate first-party clients with exact HTTPS callback/logout origins. Disable public/dynamic client registration, ordinary-user client administration, unused grants and implicit account linking. Use authorization-code/S256 PKCE and supported client libraries for issuer/signature/audience/state/nonce checks.
 4. Set database rate storage, explicit rate limiting, reset-session revocation and no cookie-session caching. Validate actual edge IP headers and denial behavior with spoofed forwarded headers and requests across instances. `auth.api` does not exercise HTTP rate limits.
-5. Simon holds Mailjet access. Configure scoped credentials and an approved sender through secret storage; use the read-only sender preflight before delivery tests. Test real sign-in/signup/reset/verification pages, verification state, consent, locale and delivery on an authorized test mailbox. A metadata check or local memory mailbox is not an email delivery proof.
+5. Mateo has completed the initial Mailjet account and domain setup, but sending on that account remains suspended and domain ownership validation is pending. Simon was not added because the account-sharing flow required an unapproved upgrade. After Mailjet clears sending and the domain is authorized, configure scoped credentials through secret storage and use the read-only sender preflight before delivery tests. Test real sign-in/signup/reset/verification pages, verification state, consent, locale and delivery on an authorized test mailbox. A metadata check or local memory mailbox is not an email delivery proof.
 6. Bootstrap staff privileges through a reviewed operator procedure, never an email-to-role rule or public signup field. Establish backup/restore, independent rollback, signing-key retention, advisory notifications and patch ownership before production. No production migration is performed by a build command.
 
 ## Aegyo aggregate inventory and restored migration
@@ -40,7 +40,7 @@ node scripts/auth-proof/inventory.mjs \
   --database-env AUTH_PROOF_INVENTORY_DATABASE_URL
 ```
 
-Simon supplies the authorized read-only connection, restored snapshot and effective hash-configuration verification through secure channels. The collector reads catalog/counts under a repeatable-read, read-only transaction with timeouts and rollback; it never fetches individual records. It requires User, Session, PasswordReset, EventRegistration and CommunityAnnotation and still inventories every public table. A missing expected table is investigation/exit-code-2, not a zero-user assumption or permission to create it. Reconfirm the deployment-to-database binding.
+An authorized operator supplies the read-only connection, restored snapshot and effective hash-configuration verification through secure channels. The collector reads catalog/counts under a repeatable-read, read-only transaction with timeouts and rollback; it never fetches individual records. It requires User, Session, PasswordReset, EventRegistration and CommunityAnnotation and still inventories every public table. A missing expected table is investigation/exit-code-2, not a zero-user assumption or permission to create it. Reconfirm the deployment-to-database binding.
 
 Rehearse the full credential/account write freeze, including in-flight reset/login/admin/email/signup/deletion operations. Copy hashes and stable IDs into a closed target with explicit format/credential version and unchanged verification flags. Record the scoped pepper transfer privately. Preserve all original product ownership, roles, sessions, aliases and consent. Reconcile before one coherent login/recovery cutover. Do not overwrite a newer password or resurrect a deleted user in a late copy.
 
@@ -59,7 +59,7 @@ Run T25/T27/T28 anew on Better Auth in real browsers, independently for every cl
 
 ## Privy continuity
 
-The existing app has retained users/wallets; there is no zero-user shortcut. Production JWT entitlement, exact price and supported link-before-provision/direct-call restrictions have been requested by email and remain pending. Do not enable the feature based on the development badge.
+The existing app has retained users/wallets; there is no zero-user shortcut. Production JWT entitlement, exact price and supported link-before-provision/direct-call restrictions remain pending product-owner confirmation. There is no recorded evidence here that an email request was sent. Do not enable the feature based on the development badge.
 
 Authenticate the existing Privy identity and central identity before linking, preserve the same DID/wallet/grants/referrals, and verify provider state server-side. Interrupt before/after link persistence and repeat direct valid-JWT provisioning attempts. A new identity must not receive duplicate grants or replace an old wallet. Test fresh-browser login and existing wallet-only recovery. A dual-session link-table path remains a documented UX decision, not automatic completion of shared login.
 

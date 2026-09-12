@@ -13,6 +13,7 @@ import {
   assertRoundAvailable,
   CompetitionError,
   competitionEnabled,
+  parseRules,
   type RoundRules,
 } from "./rules";
 
@@ -45,6 +46,12 @@ export type FinalAward = {
   awardKey: string;
   allocationRationale: string;
 };
+export type DraftRoundDefinition = {
+  slug: string;
+  opensAt: string;
+  closesAt: string;
+  rules: unknown;
+};
 
 function rows<T>(result: unknown): T[] {
   return (result as SqlRows<T>).rows;
@@ -60,6 +67,136 @@ function requireText(value: string, label: string): void {
 
 function requireOperationsEnabled(): void {
   if (!competitionEnabled()) throw new Error("Arcade competition is disabled");
+}
+
+function requireAuthEnabled(): void {
+  if (process.env.ARCADE_SHARED_AUTH_ENABLED !== "true")
+    throw new Error("Shared authentication is disabled");
+}
+
+export async function createDraftRound(
+  db: Db,
+  input: {
+    definition: DraftRoundDefinition;
+    actor: string;
+    idempotencyKey: string;
+  },
+): Promise<{ roundId: string; slug: string; repeated: boolean }> {
+  requireText(input.actor, "actor");
+  requireText(input.idempotencyKey, "idempotencyKey");
+  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(input.definition.slug))
+    throw new Error("Round slug is invalid");
+  const rules = parseRules(input.definition.rules);
+  const opensAt = asDate(input.definition.opensAt);
+  const closesAt = asDate(input.definition.closesAt);
+  if (closesAt <= opensAt)
+    throw new Error("Round close must follow its open time");
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`competition-round-slug:${input.definition.slug}`},0))`,
+    );
+    const existing = rows<{
+      id: string;
+      rules: RoundRules;
+      opens_at: Date | string;
+      closes_at: Date | string;
+    }>(
+      await tx.execute(
+        sql`SELECT id,rules,opens_at,closes_at FROM competition_rounds WHERE slug=${input.definition.slug}`,
+      ),
+    )[0];
+    const definitionDigest = digest({
+      slug: input.definition.slug,
+      opensAt: opensAt.toISOString(),
+      closesAt: closesAt.toISOString(),
+      rules,
+    });
+    if (existing) {
+      const audit = rows<{ payload: { definitionDigest?: string } }>(
+        await tx.execute(sql`
+          SELECT payload FROM competition_operation_audit
+           WHERE round_id=${existing.id} AND operation='create-draft'
+             AND idempotency_key=${input.idempotencyKey}
+        `),
+      )[0];
+      if (audit?.payload.definitionDigest === definitionDigest)
+        return {
+          roundId: existing.id,
+          slug: input.definition.slug,
+          repeated: true,
+        };
+      throw new Error("Round slug already exists with a different operation");
+    }
+    const now = asDate(
+      rows<{ now: Date | string }>(
+        await tx.execute(sql`SELECT now() AS now`),
+      )[0].now,
+    );
+    if (opensAt <= now)
+      throw new Error("A draft round cannot start retroactively");
+    const roundId = randomUUID();
+    await tx.execute(sql`
+      INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+      VALUES(${roundId},${input.definition.slug},${JSON.stringify(rules)}::jsonb,'draft',${opensAt},${closesAt})
+    `);
+    await tx.execute(sql`
+      INSERT INTO competition_operation_audit
+        (id,round_id,operation,actor,idempotency_key,payload)
+      VALUES(${randomUUID()},${roundId},'create-draft',${input.actor},${input.idempotencyKey},
+             ${JSON.stringify({ definitionDigest, rulesDigest: digest(rules) })}::jsonb)
+    `);
+    return { roundId, slug: input.definition.slug, repeated: false };
+  });
+}
+
+export async function openRound(
+  db: Db,
+  input: { roundId: string; actor: string; idempotencyKey: string },
+): Promise<{ roundId: string; status: "open"; repeated: boolean }> {
+  requireOperationsEnabled();
+  requireAuthEnabled();
+  requireText(input.actor, "actor");
+  requireText(input.idempotencyKey, "idempotencyKey");
+  return db.transaction(async (tx) => {
+    const round = await lockRound(tx, input.roundId);
+    assertRoundAvailable(round.rules);
+    const prior = rows<{ id: string }>(
+      await tx.execute(sql`
+      SELECT id FROM competition_operation_audit
+       WHERE round_id=${input.roundId} AND operation='open' AND idempotency_key=${input.idempotencyKey}
+    `),
+    )[0];
+    if (round.status === "open" && prior)
+      return { roundId: round.id, status: "open", repeated: true };
+    if (round.status !== "draft")
+      throw new Error(`Round cannot open from ${round.status}`);
+    const now = asDate(
+      rows<{ now: Date | string }>(
+        await tx.execute(sql`SELECT now() AS now`),
+      )[0].now,
+    );
+    if (now >= round.opens_at)
+      throw new Error("A round cannot be opened retroactively");
+    const overlap = rows<{ id: string }>(
+      await tx.execute(sql`
+      SELECT id FROM competition_rounds
+       WHERE id<>${round.id} AND status<>'draft'
+         AND tstzrange(opens_at,closes_at,'[)') && tstzrange(${round.opens_at},${round.closes_at},'[)')
+       LIMIT 1
+    `),
+    )[0];
+    if (overlap)
+      throw new Error("Round schedule overlaps another active round");
+    await tx.execute(
+      sql`UPDATE competition_rounds SET status='open' WHERE id=${round.id}`,
+    );
+    await tx.execute(sql`
+      INSERT INTO competition_operation_audit(id,round_id,operation,actor,idempotency_key,payload)
+      VALUES(${randomUUID()},${round.id},'open',${input.actor},${input.idempotencyKey},
+             ${JSON.stringify({ rulesDigest: digest(round.rules) })}::jsonb)
+    `);
+    return { roundId: round.id, status: "open", repeated: false };
+  });
 }
 
 export async function closeRound(
@@ -357,6 +494,123 @@ export async function disqualifyAttempt(
     `);
     return { repeated: false };
   });
+}
+
+export async function rejectPendingAttempt(
+  db: Db,
+  input: {
+    roundId: string;
+    attemptId: string;
+    actor: string;
+    reason: string;
+    idempotencyKey: string;
+  },
+): Promise<{ status: "rejected"; repeated: boolean }> {
+  requireOperationsEnabled();
+  requireText(input.actor, "actor");
+  requireText(input.reason, "reason");
+  requireText(input.idempotencyKey, "idempotencyKey");
+  return db.transaction(async (tx) => {
+    const round = await lockRound(tx, input.roundId);
+    assertRoundAvailable(round.rules);
+    const prior = rows<{ id: string }>(
+      await tx.execute(sql`
+      SELECT id FROM competition_operation_audit
+       WHERE round_id=${input.roundId} AND operation='reject-pending'
+         AND idempotency_key=${input.idempotencyKey}
+    `),
+    )[0];
+    if (prior) return { status: "rejected", repeated: true };
+    if (!["open", "closing"].includes(round.status))
+      throw new Error(
+        `Pending receipt cannot be rejected from round ${round.status}`,
+      );
+    const attempt = rows<{ status: string }>(
+      await tx.execute(sql`
+      SELECT status FROM competition_attempts
+       WHERE id=${input.attemptId} AND round_id=${input.roundId} FOR UPDATE
+    `),
+    )[0];
+    if (!attempt) throw new Error("Competition attempt not found");
+    if (attempt.status !== "pending")
+      throw new Error(`Attempt cannot be rejected from ${attempt.status}`);
+    await tx.execute(sql`
+      UPDATE competition_attempts SET status='rejected',rejection_code=${input.reason}
+       WHERE id=${input.attemptId}
+    `);
+    await tx.execute(sql`
+      INSERT INTO competition_operation_audit(id,round_id,operation,actor,idempotency_key,payload)
+      VALUES(${randomUUID()},${input.roundId},'reject-pending',${input.actor},${input.idempotencyKey},
+             ${JSON.stringify({ attemptId: input.attemptId, reason: input.reason })}::jsonb)
+    `);
+    return { status: "rejected", repeated: false };
+  });
+}
+
+export async function operatorReviewBundle(db: Db, roundId: string) {
+  requireOperationsEnabled();
+  const round = rows<{
+    id: string;
+    slug: string;
+    status: string;
+    closes_at: Date | string;
+  }>(
+    await db.execute(sql`
+      SELECT id,slug,status,closes_at FROM competition_rounds WHERE id=${roundId}
+    `),
+  )[0];
+  if (!round) throw new Error("Competition round not found");
+  const pending = rows<{
+    id: string;
+    status: string;
+    security_confirmed: boolean;
+    receipt: unknown;
+  }>(
+    await db.execute(sql`
+    SELECT id,status,security_confirmed,receipt FROM competition_attempts
+     WHERE round_id=${roundId} AND status='pending' AND received_at<${asDate(round.closes_at)}
+     ORDER BY received_at,id
+  `),
+  );
+  const snapshot = rows<{
+    id: string;
+    source_digest: string;
+    standings: CandidateStanding[];
+  }>(
+    await db.execute(sql`
+    SELECT id,source_digest,standings FROM competition_candidate_snapshots WHERE round_id=${roundId}
+  `),
+  )[0];
+  const tieKeys = new Map<string, string[]>();
+  for (const standing of snapshot?.standings ?? []) {
+    if (!standing.exactTieKey) continue;
+    const members = tieKeys.get(standing.exactTieKey) ?? [];
+    members.push(standing.memberId);
+    tieKeys.set(standing.exactTieKey, members);
+  }
+  return {
+    round: { id: round.id, slug: round.slug, status: round.status },
+    pending: pending.map((attempt) => ({
+      attemptId: attempt.id,
+      status: attempt.status,
+      securityConfirmed: attempt.security_confirmed,
+      receiptDigest: digest(attempt.receipt),
+    })),
+    candidate: snapshot
+      ? {
+          snapshotId: snapshot.id,
+          sourceDigest: snapshot.source_digest,
+          standings: snapshot.standings,
+        }
+      : null,
+    tieDecisions: [...tieKeys].map(([exactTieKey, memberIds]) => ({
+      exactTieKey,
+      resolution: "shared_rank" as const,
+      memberIds,
+      rationale: "",
+    })),
+    awards: [],
+  };
 }
 
 export async function claimAward(

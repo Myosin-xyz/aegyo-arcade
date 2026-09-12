@@ -1,14 +1,19 @@
 #!/usr/bin/env -S node --import tsx
-import { readFile } from "node:fs/promises";
+import { open as openFile, readFile } from "node:fs/promises";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import type { Db } from "../../src/db/client";
 import {
   closeRound,
+  createDraftRound,
   disqualifyAttempt,
   finalizeRound,
   fulfillAward,
+  openRound,
+  operatorReviewBundle,
+  rejectPendingAttempt,
 } from "../../src/competition/operations-store";
+import { verifyAttempt } from "../../src/competition/store";
 
 type Args = Record<string, string>;
 
@@ -44,7 +49,10 @@ async function main() {
       "--confirm-database must exactly match --expected-database",
     );
   }
-  if (process.env.ARCADE_COMPETITION_ENABLED !== "true") {
+  if (
+    command !== "create-draft" &&
+    process.env.ARCADE_COMPETITION_ENABLED !== "true"
+  ) {
     throw new Error(
       "ARCADE_COMPETITION_ENABLED must equal true for an operator rehearsal",
     );
@@ -59,45 +67,78 @@ async function main() {
         "Connected database does not match the explicitly confirmed name",
       );
     const db = drizzle(pool) as unknown as Db;
-    const actor = required(args, "actor");
-    const idempotencyKey = required(args, "idempotency-key");
+    const mutationIdentity = () => ({
+      actor: required(args, "actor"),
+      idempotencyKey: required(args, "idempotency-key"),
+    });
     let result: unknown;
-    if (command === "close") {
+    if (command === "create-draft") {
+      const definition = JSON.parse(
+        await readFile(required(args, "definition-file"), "utf8"),
+      );
+      result = await createDraftRound(db, {
+        definition,
+        ...mutationIdentity(),
+      });
+    } else if (command === "open") {
+      result = await openRound(db, {
+        roundId: required(args, "round-id"),
+        ...mutationIdentity(),
+      });
+    } else if (command === "close") {
       result = await closeRound(db, {
         roundId: required(args, "round-id"),
-        actor,
-        idempotencyKey,
+        ...mutationIdentity(),
       });
     } else if (command === "disqualify") {
       result = await disqualifyAttempt(db, {
         roundId: required(args, "round-id"),
         attemptId: required(args, "attempt-id"),
-        actor,
+        ...mutationIdentity(),
         reason: required(args, "reason"),
-        idempotencyKey,
       });
+    } else if (command === "settle") {
+      result = await verifyAttempt(db, required(args, "attempt-id"));
+      if (typeof result === "object" && result && "receipt" in result)
+        delete (result as { receipt?: unknown }).receipt;
+    } else if (command === "reject-pending") {
+      result = await rejectPendingAttempt(db, {
+        roundId: required(args, "round-id"),
+        attemptId: required(args, "attempt-id"),
+        reason: required(args, "reason"),
+        ...mutationIdentity(),
+      });
+    } else if (command === "export-review") {
+      result = await operatorReviewBundle(db, required(args, "round-id"));
+      const output = required(args, "output");
+      const file = await openFile(output, "wx", 0o600);
+      try {
+        await file.writeFile(`${JSON.stringify(result, null, 2)}\n`, "utf8");
+      } finally {
+        await file.close();
+      }
+      result = { written: output };
     } else if (command === "finalize") {
       const review = JSON.parse(
         await readFile(required(args, "review-file"), "utf8"),
       );
       result = await finalizeRound(db, {
         roundId: required(args, "round-id"),
-        approvedBy: actor,
-        idempotencyKey,
+        approvedBy: required(args, "actor"),
+        idempotencyKey: required(args, "idempotency-key"),
         tieDecisions: review.tieDecisions,
         awards: review.awards,
       });
     } else if (command === "fulfill") {
       result = await fulfillAward(db, {
         awardId: required(args, "award-id"),
-        actor,
+        ...mutationIdentity(),
         fulfillmentKey: required(args, "fulfillment-key"),
         reason: required(args, "reason"),
-        idempotencyKey,
       });
     } else {
       throw new Error(
-        "Command must be close, disqualify, finalize, or fulfill",
+        "Command must be create-draft, open, close, settle, reject-pending, disqualify, export-review, finalize, or fulfill",
       );
     }
     const safeResult =

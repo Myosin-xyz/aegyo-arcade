@@ -7,9 +7,13 @@ import type { Db } from "@/db/client";
 import {
   claimAward,
   closeRound,
+  createDraftRound,
   disqualifyAttempt,
   finalizeRound,
   fulfillAward,
+  openRound,
+  operatorReviewBundle,
+  rejectPendingAttempt,
 } from "@/competition/operations-store";
 import { memberRound, publicRound } from "@/competition/read";
 
@@ -45,6 +49,7 @@ integration("competition closure operations", () => {
 
   beforeAll(async () => {
     process.env.ARCADE_COMPETITION_ENABLED = "true";
+    process.env.ARCADE_SHARED_AUTH_ENABLED = "true";
     pool = new Pool({ connectionString: TEST_URL, max: 2 });
     db = drizzle(pool) as unknown as Db;
     await db.execute(sql`INSERT INTO account_members(id,issuer,subject) VALUES
@@ -83,9 +88,24 @@ integration("competition closure operations", () => {
       kind: "awaiting_pending",
       pendingCount: 1,
     });
-    await db.execute(
-      sql`UPDATE competition_attempts SET status='rejected' WHERE id=${pendingAttempt}::uuid`,
-    );
+    const reviewBeforeClose = await operatorReviewBundle(db, roundId);
+    expect(reviewBeforeClose.pending).toEqual([
+      expect.objectContaining({
+        attemptId: pendingAttempt,
+        status: "pending",
+        securityConfirmed: false,
+        receiptDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      }),
+    ]);
+    expect(
+      await rejectPendingAttempt(db, {
+        roundId,
+        attemptId: pendingAttempt,
+        actor: "operator",
+        reason: "identity_not_confirmed_after_review",
+        idempotencyKey: "reject-pending-0001",
+      }),
+    ).toEqual({ status: "rejected", repeated: false });
     const closed = await closeRound(db, {
       roundId,
       actor: "operator",
@@ -243,6 +263,42 @@ integration("competition closure operations", () => {
         idempotencyKey: "claim-1",
       }),
     ).toEqual({ status: "fulfilled", repeated: true });
+  });
+
+  it("creates a future draft idempotently and opens it through audited gates", async () => {
+    const definition = {
+      slug: "future-synthetic-round",
+      opensAt: new Date(Date.now() + 2 * 86_400_000).toISOString(),
+      closesAt: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+      rules,
+    };
+    const created = await createDraftRound(db, {
+      definition,
+      actor: "operator",
+      idempotencyKey: "create-future-0001",
+    });
+    expect(created.repeated).toBe(false);
+    expect(
+      await createDraftRound(db, {
+        definition,
+        actor: "operator",
+        idempotencyKey: "create-future-0001",
+      }),
+    ).toEqual({ ...created, repeated: true });
+    expect(
+      await openRound(db, {
+        roundId: created.roundId,
+        actor: "operator",
+        idempotencyKey: "open-future-0001",
+      }),
+    ).toEqual({ roundId: created.roundId, status: "open", repeated: false });
+    expect(
+      await openRound(db, {
+        roundId: created.roundId,
+        actor: "operator",
+        idempotencyKey: "open-future-0001",
+      }),
+    ).toEqual({ roundId: created.roundId, status: "open", repeated: true });
   });
 
   it("audits disqualification and recomputes the daily best", async () => {

@@ -24,6 +24,8 @@ BEGIN
           "updatedAt" = changed_at
       WHERE id = NEW."userId";
     IF NOT FOUND THEN RAISE EXCEPTION 'credential_owner_missing'; END IF;
+    DELETE FROM public."oauthAccessToken" WHERE "userId" = NEW."userId";
+    DELETE FROM public."oauthRefreshToken" WHERE "userId" = NEW."userId";
     DELETE FROM public."session" WHERE "userId" = NEW."userId";
   END IF;
   RETURN NEW;
@@ -78,6 +80,8 @@ BEGIN
     "operatorRevokedAt"=GREATEST("operatorRevokedAt", changed_at),
     "updatedAt"=changed_at, banned=CASE WHEN block_login THEN true ELSE banned END
     WHERE id=target_user;
+  DELETE FROM public."oauthAccessToken" WHERE "userId"=target_user;
+  DELETE FROM public."oauthRefreshToken" WHERE "userId"=target_user;
   DELETE FROM public."session" WHERE "userId"=target_user;
 END;
 $$;

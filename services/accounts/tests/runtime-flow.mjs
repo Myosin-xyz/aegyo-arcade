@@ -291,6 +291,16 @@ export async function proveRuntimeFlow(t, context) {
           kind: "database",
           lastPasswordReset: null,
         });
+        assert.equal(
+          (
+            await request("/api/auth/oauth2/userinfo", {
+              headers: {
+                authorization: `Bearer ${beforeRevokeJwt.access_token}`,
+              },
+            })
+          ).status,
+          200,
+        );
         const beforeState = await request(statePath, {
           method: "POST",
           headers: {
@@ -329,6 +339,16 @@ export async function proveRuntimeFlow(t, context) {
         const operatorCutoff = Date.parse(revokedState.operatorCutoff);
         assert.ok(operatorCutoff >= revokeStarted);
         assert.ok(operatorCutoff <= revokeFinished);
+        assert.equal(
+          (
+            await request("/api/auth/oauth2/userinfo", {
+              headers: {
+                authorization: `Bearer ${beforeRevokeJwt.access_token}`,
+              },
+            })
+          ).status,
+          401,
+        );
 
         const freshLogin = await providerRequest("/sign-in/email", {
           body: { email: revokedEmail, password: revokedPassword },

@@ -228,6 +228,13 @@ test(
       return response.json();
     }
 
+    async function accessUserInfo(accessToken) {
+      return request("/oauth2/userinfo", {
+        method: "GET",
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+    }
+
     await t.test(
       "three distinct clients reuse the same IdP session and receive verified identity claims",
       async () => {
@@ -333,6 +340,50 @@ test(
     );
 
     await t.test(
+      "expired access tokens and unavailable refresh grants fail closed",
+      async () => {
+        const tokens = await issuedTokens(clients[0]);
+        assert.equal(tokens.token_type, "Bearer");
+        assert.equal(tokens.expires_in, 3600);
+        assert.equal((await accessUserInfo(tokens.access_token)).status, 200);
+        const jwks = await (await request("/jwks")).json();
+        const { payload } = await jwtVerify(
+          tokens.id_token,
+          createLocalJWKSet(jwks),
+          { issuer, audience: clients[0].client_id },
+        );
+        const expired = await database.query(
+          'UPDATE "oauthAccessToken" SET "expiresAt"=now()-interval \'1 second\' WHERE "sessionId"=$1 RETURNING id',
+          [payload.sid],
+        );
+        assert.ok(expired.rowCount >= 1);
+        assert.equal((await accessUserInfo(tokens.access_token)).status, 401);
+
+        const offline = await authorize(
+          transaction(clients[0], { scope: "openid offline_access" }),
+        );
+        assert.equal(offline.searchParams.has("code"), false);
+        assert.equal(offline.searchParams.get("error"), "invalid_scope");
+
+        const refresh = await request("/oauth2/token", {
+          body: new URLSearchParams({
+            grant_type: "refresh_token",
+            client_id: clients[0].client_id,
+            refresh_token: randomBytes(32).toString("base64url"),
+          }),
+          headers: {
+            authorization:
+              "Basic " +
+              Buffer.from(
+                `${clients[0].client_id}:${clients[0].client_secret}`,
+              ).toString("base64"),
+          },
+        });
+        assert.notEqual(refresh.status, 200);
+      },
+    );
+
+    await t.test(
       "RP-initiated logout clears the hinted session and delivers verifiable logout tokens to every affected RP",
       async () => {
         const tokens = [];
@@ -344,6 +395,8 @@ test(
             audience: clients[0].client_id,
           })
         ).payload.sid;
+        for (const token of tokens)
+          assert.equal((await accessUserInfo(token.access_token)).status, 200);
         const deliveries = [];
         const originalFetchAfterDeliveryFailure = globalThis.fetch;
         globalThis.fetch = async (url, init) => {
@@ -410,6 +463,8 @@ test(
           ),
           0,
         );
+        for (const token of tokens)
+          assert.equal((await accessUserInfo(token.access_token)).status, 401);
         let login = await request("/sign-in/email", {
           body: { email, password },
         });
@@ -423,6 +478,10 @@ test(
             { issuer, audience: clients[0].client_id },
           )
         ).payload;
+        assert.equal(
+          (await accessUserInfo(failureTokens.access_token)).status,
+          200,
+        );
         const originalFetch = globalThis.fetch;
         globalThis.fetch = async (url) =>
           String(url) === `${issuer}/jwks`
@@ -460,6 +519,10 @@ test(
             })
           ).active,
           false,
+        );
+        assert.equal(
+          (await accessUserInfo(failureTokens.access_token)).status,
+          401,
         );
         login = await request("/sign-in/email", {
           body: { email, password },
@@ -597,6 +660,16 @@ test(
           await authorize(tx, staleBCookie)
         ).searchParams.get("code");
         assert.ok(preResetCode);
+        const preResetTokens = await issuedTokens(clients[0], staleBCookie);
+        const operatorTokens = await issuedTokens(clients[0], operatorCookie);
+        assert.equal(
+          (await accessUserInfo(preResetTokens.access_token)).status,
+          200,
+        );
+        assert.equal(
+          (await accessUserInfo(operatorTokens.access_token)).status,
+          200,
+        );
         const forgot = await request("/request-password-reset", {
           body: {
             email,
@@ -642,6 +715,14 @@ test(
             ).rows[0].count,
           ),
           1,
+        );
+        assert.equal(
+          (await accessUserInfo(preResetTokens.access_token)).status,
+          401,
+        );
+        assert.equal(
+          (await accessUserInfo(operatorTokens.access_token)).status,
+          200,
         );
         // Requests deliberately contain only the pre-reset IdP cookie. There is
         // no local application cookie or remembered cutoff in any of these calls.

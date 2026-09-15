@@ -4,6 +4,8 @@ This is a two-phase, private rehearsal in the pinned Aegyo Railway project and e
 
 ## Reviewed source bundle
 
+The current builder pins the reviewed Aegyo operator files at `f27b14f0c35fd710726cb5e1394d17c99d4ec348`. A semantic probe refuses a bundled reconciler that ignores linked-row or anonymous-poll content digests.
+
 Build with `node services/accounts/scripts/build-real-import-rehearsal-bundle.mjs /Users/mateodazab/Documents/myosin/kpop-lyrics-shared-auth services/accounts/.proof/real-import-bundle <reviewed-accounts-commit>`. The builder reads allowlisted files with `git show`: no working tree, `.env`, proof directory, credential, or repository metadata enters the bundle. The image pins Node 24.21.0, PostgreSQL client 18 and the minimal locked Prisma 5.22 dependency closure.
 
 All URLs, CA certificates, certificate pins, role passwords, provider secret, legacy pepper, and canary credential remain secret Railway variables. The actual population count is reviewed at snapshot time; it is currently expected to be 54, including the naturally unverified team canary created via the real legacy signup route with `subscribe:false` and verified via real legacy sign-in.
@@ -11,6 +13,8 @@ All URLs, CA certificates, certificate pins, role passwords, provider secret, le
 ## Phase 1: inspect
 
 Set `ACCOUNTS_REAL_IMPORT_REHEARSAL_PHASE=inspect` and confirmation `restored-data-accounts-import-reconciliation-inspect`. Supply the production read-only source URL and the new empty clone owner URL. The pinned restore operator requires durable source read-only role attributes, exports one repeatable-read snapshot, computes every source-table row fingerprint, and uses that same snapshot for `pg_dump`. It restores atomically into the empty clone and compares all fingerprints.
+
+Set the explicit source schema status: `legacy` requires the original 48 public tables; `additive-v1` requires 51, including the already-installed auth schema and its operator journal. Use fresh empty databases for both targets. Never reuse an activated clone or imported target to replace missing historical evidence.
 
 The operator then runs the actual Accounts importer snapshot against the clone and emits only `{count,snapshotDigest}` plus aggregate success flags. The clone becomes the immutable reviewed import source. Production writes may continue: the exported snapshot provides consistency during cloning, and no production writer freeze is required for this isolated rehearsal.
 
@@ -20,7 +24,11 @@ Review the count/digest. Provision a durable read-only role on the clone and ret
 
 Set `ACCOUNTS_REAL_IMPORT_REHEARSAL_PHASE=apply`, confirmation `restored-data-accounts-import-reconciliation-apply`, the approved digest, the clone reader URL, clone owner URL and empty Accounts target URL. Apply refuses any production source connection. The importer re-snapshots the immutable clone and requires the reviewed digest, then migrates Accounts schema v1, installs its operator-only journal and applies atomically. Its existing `source-writers-and-target-traffic-frozen` confirmation describes the immutable clone plus disabled Accounts traffic; it does not require freezing production.
 
-The operator captures Aegyo ownership for every present supported table (`Session`, `Favorite`, `Comment`, `SuggestedEdit`, `SlangVote`, `PollVote`, and both `Follow` directions), including exact linked record IDs. It installs only the pinned additive shared-auth schema, runs the pinned reconcile/install/activate/status CLIs, captures ownership again, and requires an identical manifest and complete mapping count.
+Before import or mapping writes, the operator captures ownership in one repeatable-read, read-only transaction. It requires the exact CamelCase tables and actual ownership columns: `Session`, `Favorite`, `Comment`, `SuggestedEdit`, and `SlangVote` use `userId`; `Follow` uses `followerId` and preserves `targetSlug` through its full-row digest; profile `PollVote` rows use `voterRef`. Unknown vote types, orphan owners, partial auth schema, and missing required tables fail closed.
+
+Evidence includes exact linked-record IDs and canonical row-content digests. Anonymous device votes are separate and always included without exporting their device references or contents. The five new Session metadata columns are the sole canonicalization exception across legacy/additive schema: they must remain null for every retained legacy session. All other original Session fields are covered. The isolated clone must have no external writers.
+
+For `legacy`, the operator installs the pinned additive schema. For `additive-v1`, it skips repeated DDL only after the before-snapshot confirms the complete additive shape with zero mappings and zero latches. It then runs the pinned reconcile/install/activate/status CLIs, captures ownership again, and requires an identical manifest, complete mappings and one activation latch.
 
 The canary check constructs a private query-free URL for the restricted Accounts application role, verifies `current_user`, and then signs in through maintained Better Auth with the old password. It therefore tests runtime grants rather than migration-owner privileges.
 
@@ -30,7 +38,9 @@ Libpq connects to the resolved private address while setting TLS hostname `local
 
 Child output and private artifacts remain in a mode-0700 phase directory. Public failures contain only allowlisted phase codes. Failed databases/artifacts require inspection; never infer rollback, delete imported identities, or repoint this operator at production. Accounts traffic and signup remain disabled, and no external mail is sent.
 
-## Completed real-data rehearsal — 2026-09-15
+## Initial real-data rehearsal — 2026-09-15
+
+**Evidence correction:** the initial ownership collector skipped CamelCase tables, so its linked-record comparison was empty and cannot prove their preservation. Full restore fingerprints, exact account mappings and the legacy-password canary below remain valid observations. A fresh isolated rehearsal with the corrected collector is required; the activated old clone cannot recreate its missing before-snapshot.
 
 The pinned operator restored a consistent production snapshot into `aegyo_auth_rehearsal_20260915_cutover` and verified complete row fingerprints for all 48 source tables. The first importer snapshot attempt stopped after that verified restore because the configured target pin described the CA certificate rather than the live PostgreSQL leaf. No import journal or Accounts mutation existed at that point. A clone-only `resume-inspect` run used the CA-validated live leaf pin, refused a production source URL, verified 54 users, 26 sessions, 48 tables and the absence of `SharedAuthIdentity`, then produced the reviewed snapshot digest. The original short-lived production reader was removed before apply.
 

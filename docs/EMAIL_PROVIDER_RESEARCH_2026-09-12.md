@@ -34,12 +34,12 @@ required after DNS for this account.
 
 ## Practical alternatives
 
-| Provider | Published sending allowance | Implication here |
-| --- | --- | --- |
-| Mailjet Free | 6,000/month; 200/day | Larger free allowance, unresolved suspension. [Limits](https://documentation.mailjet.com/hc/en-us/articles/360043048393-What-is-this-200-emails-per-day-limit-on-free-accounts) |
-| Resend Free | 3,000/month; 100/day | Suitable for initial controlled testing; a creator campaign could exceed the daily cap. [Pricing](https://resend.com/pricing) |
-| Resend Pro | $20/month; 50,000/month; no daily cap | More campaign headroom; spending still needs authorization. [Pricing](https://resend.com/pricing) |
-| Amazon SES | Base outbound price $0.10/1,000, plus applicable data/features | Low sending cost, but adds AWS setup and a production-access review. [Pricing](https://aws.amazon.com/ses/pricing/), [sandbox](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html) |
+| Provider     | Published sending allowance                                    | Implication here                                                                                                                                                                                         |
+| ------------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mailjet Free | 6,000/month; 200/day                                           | Larger free allowance, unresolved suspension. [Limits](https://documentation.mailjet.com/hc/en-us/articles/360043048393-What-is-this-200-emails-per-day-limit-on-free-accounts)                          |
+| Resend Free  | 3,000/month; 100/day                                           | Suitable for initial controlled testing; a creator campaign could exceed the daily cap. [Pricing](https://resend.com/pricing)                                                                            |
+| Resend Pro   | $20/month; 50,000/month; no daily cap                          | More campaign headroom; spending still needs authorization. [Pricing](https://resend.com/pricing)                                                                                                        |
+| Amazon SES   | Base outbound price $0.10/1,000, plus applicable data/features | Low sending cost, but adds AWS setup and a production-access review. [Pricing](https://aws.amazon.com/ses/pricing/), [sandbox](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html) |
 
 Supabase's built-in sender is intended for testing, restricted to team addresses
 and currently two messages/hour. Production Supabase Auth still needs a custom

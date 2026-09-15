@@ -400,8 +400,7 @@ test(
         const deliveries = [];
         const originalFetchAfterDeliveryFailure = globalThis.fetch;
         globalThis.fetch = async (url, init) => {
-          if (String(url) === `${issuer}/jwks`)
-            return Response.json(jwks);
+          if (String(url) === `${issuer}/jwks`) return Response.json(jwks);
           deliveries.push({ url: String(url), init });
           return new Response(null, { status: 204 });
         };
@@ -432,12 +431,13 @@ test(
         assert.equal(deliveries.length, clients.length);
         for (const delivery of deliveries) {
           const product = new URL(delivery.url).hostname.split(".")[0];
-          const client = clients[["aegyo", "arcade", "daebak"].indexOf(product)];
+          const client =
+            clients[["aegyo", "arcade", "daebak"].indexOf(product)];
           assert.ok(client);
           assert.equal(delivery.init.method, "POST");
-          const logoutToken = new URLSearchParams(
-            delivery.init.body,
-          ).get("logout_token");
+          const logoutToken = new URLSearchParams(delivery.init.body).get(
+            "logout_token",
+          );
           assert.equal(decodeProtectedHeader(logoutToken).typ, "logout+jwt");
           const { payload } = await jwtVerify(
             logoutToken,
@@ -472,11 +472,10 @@ test(
         providerCookie = cookies(login);
         const failureTokens = await issuedTokens(clients[0]);
         const failureClaims = (
-          await jwtVerify(
-            failureTokens.id_token,
-            createLocalJWKSet(jwks),
-            { issuer, audience: clients[0].client_id },
-          )
+          await jwtVerify(failureTokens.id_token, createLocalJWKSet(jwks), {
+            issuer,
+            audience: clients[0].client_id,
+          })
         ).payload;
         assert.equal(
           (await accessUserInfo(failureTokens.access_token)).status,

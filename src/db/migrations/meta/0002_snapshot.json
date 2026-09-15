@@ -194,12 +194,8 @@
           "name": "account_sessions_member_id_account_members_id_fk",
           "tableFrom": "account_sessions",
           "tableTo": "account_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -452,12 +448,8 @@
           "name": "claw_plays_promotion_id_promotions_id_fk",
           "tableFrom": "claw_plays",
           "tableTo": "promotions",
-          "columnsFrom": [
-            "promotion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["promotion_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -465,12 +457,8 @@
           "name": "claw_plays_device_id_devices_id_fk",
           "tableFrom": "claw_plays",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -480,9 +468,7 @@
         "claw_plays_attempt_id_unique": {
           "name": "claw_plays_attempt_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "attempt_id"
-          ]
+          "columns": ["attempt_id"]
         }
       },
       "policies": {},
@@ -594,12 +580,8 @@
           "name": "daily_slots_device_id_devices_id_fk",
           "tableFrom": "daily_slots",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -607,12 +589,8 @@
           "name": "daily_slots_completed_run_id_run_attempts_id_fk",
           "tableFrom": "daily_slots",
           "tableTo": "run_attempts",
-          "columnsFrom": [
-            "completed_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["completed_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -670,12 +648,8 @@
           "name": "device_sessions_device_id_devices_id_fk",
           "tableFrom": "device_sessions",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -875,12 +849,8 @@
           "name": "leaderboard_scores_run_id_run_attempts_id_fk",
           "tableFrom": "leaderboard_scores",
           "tableTo": "run_attempts",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -888,12 +858,8 @@
           "name": "leaderboard_scores_device_id_devices_id_fk",
           "tableFrom": "leaderboard_scores",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1034,12 +1000,8 @@
           "name": "prize_claims_play_id_claw_plays_id_fk",
           "tableFrom": "prize_claims",
           "tableTo": "claw_plays",
-          "columnsFrom": [
-            "play_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["play_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1049,16 +1011,12 @@
         "prize_claims_play_id_unique": {
           "name": "prize_claims_play_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "play_id"
-          ]
+          "columns": ["play_id"]
         },
         "prize_claims_token_hash_unique": {
           "name": "prize_claims_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -1113,12 +1071,8 @@
           "name": "prize_inventory_promotion_id_promotions_id_fk",
           "tableFrom": "prize_inventory",
           "tableTo": "promotions",
-          "columnsFrom": [
-            "promotion_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["promotion_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1126,10 +1080,7 @@
       "compositePrimaryKeys": {
         "prize_inventory_promotion_id_sku_pk": {
           "name": "prize_inventory_promotion_id_sku_pk",
-          "columns": [
-            "promotion_id",
-            "sku"
-          ]
+          "columns": ["promotion_id", "sku"]
         }
       },
       "uniqueConstraints": {},
@@ -1423,12 +1374,8 @@
           "name": "run_attempts_slot_id_daily_slots_id_fk",
           "tableFrom": "run_attempts",
           "tableTo": "daily_slots",
-          "columnsFrom": [
-            "slot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["slot_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1436,12 +1383,8 @@
           "name": "run_attempts_device_id_devices_id_fk",
           "tableFrom": "run_attempts",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1513,12 +1456,8 @@
           "name": "streaks_device_id_devices_id_fk",
           "tableFrom": "streaks",
           "tableTo": "devices",
-          "columnsFrom": [
-            "device_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["device_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1756,12 +1695,8 @@
           "name": "competition_attempts_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_attempts",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1769,12 +1704,8 @@
           "name": "competition_attempts_member_id_account_members_id_fk",
           "tableFrom": "competition_attempts",
           "tableTo": "account_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1960,12 +1891,8 @@
           "name": "competition_award_claims_final_result_id_competition_final_results_id_fk",
           "tableFrom": "competition_award_claims",
           "tableTo": "competition_final_results",
-          "columnsFrom": [
-            "final_result_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["final_result_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1973,12 +1900,8 @@
           "name": "competition_award_claims_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_award_claims",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1986,12 +1909,8 @@
           "name": "competition_award_claims_member_id_account_members_id_fk",
           "tableFrom": "competition_award_claims",
           "tableTo": "account_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2001,9 +1920,7 @@
         "competition_award_claims_fulfillment_key_unique": {
           "name": "competition_award_claims_fulfillment_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "fulfillment_key"
-          ]
+          "columns": ["fulfillment_key"]
         }
       },
       "policies": {},
@@ -2075,12 +1992,8 @@
           "name": "competition_candidate_snapshots_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_candidate_snapshots",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2090,9 +2003,7 @@
         "competition_candidate_snapshots_round_id_unique": {
           "name": "competition_candidate_snapshots_round_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "round_id"
-          ]
+          "columns": ["round_id"]
         }
       },
       "policies": {},
@@ -2134,12 +2045,8 @@
           "name": "competition_challenges_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_challenges",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2147,11 +2054,7 @@
       "compositePrimaryKeys": {
         "competition_challenges_round_id_game_id_day_key_pk": {
           "name": "competition_challenges_round_id_game_id_day_key_pk",
-          "columns": [
-            "round_id",
-            "game_id",
-            "day_key"
-          ]
+          "columns": ["round_id", "game_id", "day_key"]
         }
       },
       "uniqueConstraints": {},
@@ -2212,12 +2115,8 @@
           "name": "competition_daily_best_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_daily_best",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2225,12 +2124,8 @@
           "name": "competition_daily_best_member_id_account_members_id_fk",
           "tableFrom": "competition_daily_best",
           "tableTo": "account_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2238,12 +2133,8 @@
           "name": "competition_daily_best_attempt_id_competition_attempts_id_fk",
           "tableFrom": "competition_daily_best",
           "tableTo": "competition_attempts",
-          "columnsFrom": [
-            "attempt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["attempt_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2251,12 +2142,7 @@
       "compositePrimaryKeys": {
         "competition_daily_best_round_id_member_id_game_id_day_key_pk": {
           "name": "competition_daily_best_round_id_member_id_game_id_day_key_pk",
-          "columns": [
-            "round_id",
-            "member_id",
-            "game_id",
-            "day_key"
-          ]
+          "columns": ["round_id", "member_id", "game_id", "day_key"]
         }
       },
       "uniqueConstraints": {},
@@ -2305,12 +2191,8 @@
           "name": "competition_enrollments_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_enrollments",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2318,12 +2200,8 @@
           "name": "competition_enrollments_member_id_account_members_id_fk",
           "tableFrom": "competition_enrollments",
           "tableTo": "account_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2331,10 +2209,7 @@
       "compositePrimaryKeys": {
         "competition_enrollments_round_id_member_id_pk": {
           "name": "competition_enrollments_round_id_member_id_pk",
-          "columns": [
-            "round_id",
-            "member_id"
-          ]
+          "columns": ["round_id", "member_id"]
         }
       },
       "uniqueConstraints": {},
@@ -2401,12 +2276,8 @@
           "name": "competition_final_results_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_final_results",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2414,12 +2285,8 @@
           "name": "competition_final_results_candidate_snapshot_id_competition_candidate_snapshots_id_fk",
           "tableFrom": "competition_final_results",
           "tableTo": "competition_candidate_snapshots",
-          "columnsFrom": [
-            "candidate_snapshot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["candidate_snapshot_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2429,16 +2296,12 @@
         "competition_final_results_round_id_unique": {
           "name": "competition_final_results_round_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "round_id"
-          ]
+          "columns": ["round_id"]
         },
         "competition_final_results_candidate_snapshot_id_unique": {
           "name": "competition_final_results_candidate_snapshot_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "candidate_snapshot_id"
-          ]
+          "columns": ["candidate_snapshot_id"]
         }
       },
       "policies": {},
@@ -2512,12 +2375,8 @@
           "name": "competition_ledger_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_ledger",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2525,12 +2384,8 @@
           "name": "competition_ledger_member_id_account_members_id_fk",
           "tableFrom": "competition_ledger",
           "tableTo": "account_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -2538,12 +2393,8 @@
           "name": "competition_ledger_attempt_id_competition_attempts_id_fk",
           "tableFrom": "competition_ledger",
           "tableTo": "competition_attempts",
-          "columnsFrom": [
-            "attempt_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["attempt_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2642,12 +2493,8 @@
           "name": "competition_operation_audit_round_id_competition_rounds_id_fk",
           "tableFrom": "competition_operation_audit",
           "tableTo": "competition_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2695,12 +2542,8 @@
           "name": "competition_profiles_member_id_account_members_id_fk",
           "tableFrom": "competition_profiles",
           "tableTo": "account_members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2710,9 +2553,7 @@
         "competition_profiles_username_unique": {
           "name": "competition_profiles_username_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
+          "columns": ["username"]
         }
       },
       "policies": {},
@@ -2781,9 +2622,7 @@
         "competition_rounds_slug_unique": {
           "name": "competition_rounds_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},

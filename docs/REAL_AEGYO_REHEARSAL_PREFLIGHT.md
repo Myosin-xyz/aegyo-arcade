@@ -4,11 +4,11 @@ On 2026-09-12, a read-only preflight ran against the isolated restored Aegyo clo
 
 The verification used `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY` and the temporary `aegyo_rehearsal_reader` role. The role had login access and durable `default_transaction_read_only=on`; it had no superuser, database-creation, role-creation, replication, or row-security-bypass privileges. The active transaction also reported read-only mode.
 
-| Check | Independently verified value |
-| --- | ---: |
-| Application tables | 48 |
-| Users | 52 |
-| Sessions | 25 |
+| Check                                 |                                       Independently verified value |
+| ------------------------------------- | -----------------------------------------------------------------: |
+| Application tables                    |                                                                 48 |
+| Users                                 |                                                                 52 |
+| Sessions                              |                                                                 25 |
 | Canonical normalized snapshot SHA-256 | `dcaccf592d0a5009a832fc865a4f9aebc19caadaf0a1bbec1d7ac6174537e238` |
 
 The canonical snapshot was assembled and hashed inside the read-only connection. No user row, email, password hash, password, session value, or snapshot body was exported or printed. Aggregate database activity showed no remaining preflight connection after the one-shot deployment stopped.

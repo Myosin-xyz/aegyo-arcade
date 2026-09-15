@@ -18,8 +18,15 @@ if (!/^[a-z_][a-z0-9_]{0,62}$/.test(expectedDatabase ?? ""))
 const source = async (name) =>
   readFile(new URL(`../src/${name}`, import.meta.url), "utf8");
 const bodies = (sql) =>
-  [...sql.matchAll(/CREATE OR REPLACE FUNCTION\s+public\.([a-z_]+).*?AS \$\$(.*?)\$\$;/gs)]
-    .map(([, name, body]) => [name, createHash("sha256").update(body).digest("hex")])
+  [
+    ...sql.matchAll(
+      /CREATE OR REPLACE FUNCTION\s+public\.([a-z_]+).*?AS \$\$(.*?)\$\$;/gs,
+    ),
+  ]
+    .map(([, name, body]) => [
+      name,
+      createHash("sha256").update(body).digest("hex"),
+    ])
     .sort(([a], [b]) => a.localeCompare(b));
 const previous = bodies(await source("credential-guards-v1.sql"));
 const replacement = await source("credential-guards.sql");
@@ -50,7 +57,7 @@ try {
   )
     fail("accounts_database_identity_mismatch");
   const marker = await database.query(
-    'SELECT version,tables FROM public.aegyo_schema_version',
+    "SELECT version,tables FROM public.aegyo_schema_version",
   );
   if (marker.rowCount !== 1 || marker.rows[0].version !== 1)
     fail("accounts_schema_marker_unsupported");
@@ -71,7 +78,7 @@ try {
     fail("installed_guard_definition_unrecognized");
   await database.query(replacement);
   await database.query(
-    'ALTER TABLE public.aegyo_schema_version ADD COLUMN guard_revision integer NOT NULL DEFAULT 2 CHECK (guard_revision=2)',
+    "ALTER TABLE public.aegyo_schema_version ADD COLUMN guard_revision integer NOT NULL DEFAULT 2 CHECK (guard_revision=2)",
   );
   await database.query("COMMIT");
   console.log("Credential guards upgraded to revision 2");

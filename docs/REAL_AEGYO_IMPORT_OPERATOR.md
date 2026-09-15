@@ -29,3 +29,16 @@ The canary check constructs a private query-free URL for the restricted Accounts
 Libpq connects to the resolved private address while setting TLS hostname `localhost` (`host=localhost&hostaddr=...`) to match the Railway database certificate. Node `pg` validates the supplied CA and reviewed leaf SHA-256 pin. Prisma connects to `localhost` through a raw loopback-only TCP relay. TLS is not terminated by the relay: certificate verification and PostgreSQL 18 SCRAM channel binding remain end to end. Prisma requires `sslmode=require`, `sslaccept=strict`, and the private CA path. The operator separately checks the same leaf certificate CA and SHA-256 pin before starting the relay.
 
 Child output and private artifacts remain in a mode-0700 phase directory. Public failures contain only allowlisted phase codes. Failed databases/artifacts require inspection; never infer rollback, delete imported identities, or repoint this operator at production. Accounts traffic and signup remain disabled, and no external mail is sent.
+
+## Completed real-data rehearsal — 2026-09-15
+
+The pinned operator restored a consistent production snapshot into `aegyo_auth_rehearsal_20260915_cutover` and verified complete row fingerprints for all 48 source tables. The first importer snapshot attempt stopped after that verified restore because the configured target pin described the CA certificate rather than the live PostgreSQL leaf. No import journal or Accounts mutation existed at that point. A clone-only `resume-inspect` run used the CA-validated live leaf pin, refused a production source URL, verified 54 users, 26 sessions, 48 tables and the absence of `SharedAuthIdentity`, then produced the reviewed snapshot digest. The original short-lived production reader was removed before apply.
+
+Deployment `be03f22f-0a3f-43e2-8242-bd69b9ab11ba` applied that reviewed immutable snapshot to `accounts_rehearsal_20260915_cutover`. The operator reported complete restore fingerprint evidence, mapping coverage, rehearsal activation and imported-canary sign-in. Independent read-only checks found:
+
+- 54 Accounts users, 54 credential accounts and 54 import identities;
+- one committed import journal batch and Accounts schema marker version 1;
+- 54 `SharedAuthIdentity` mappings and one activation latch in the restored Aegyo clone; and
+- the designated canary mapped exactly, remained unverified with role `user`, and authenticated through maintained Better Auth with its original legacy password using the restricted Accounts application role.
+
+Production was not connected during apply. The source snapshot came exclusively from the immutable clone, and production did not require a writer freeze. Accounts traffic and signup remained disabled. After evidence capture, all operator URLs, passwords, provider secret, legacy pepper and canary variables were removed without a redeploy. The one-shot deployment is complete with restart policy `NEVER`; its stopped ephemeral filesystem may contain private artifacts and is not a reusable source of truth. The two rehearsal databases remain preserved for review, and their temporary target roles expire on 2026-09-16 at 02:00 UTC.

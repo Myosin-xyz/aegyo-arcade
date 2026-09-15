@@ -14,7 +14,12 @@ export function validateMailFixtureConfig(env) {
     "https://aegyo-accounts-accounts-staging.up.railway.app"
   )
     refuse("mail_fixture_origin_mismatch");
-  if (env.ACCOUNTS_MAIL_FIXTURE_EMAIL !== "mateo@myosin.xyz")
+  if (
+    ![
+      "mateo@myosin.xyz",
+      "mateo+accounts-staging-20260915@myosin.xyz",
+    ].includes(env.ACCOUNTS_MAIL_FIXTURE_EMAIL)
+  )
     refuse("mail_fixture_recipient_mismatch");
   const localProof =
     env.ACCOUNTS_MAIL_FIXTURE_LOCAL_PROOF === "disposable-unix-socket";

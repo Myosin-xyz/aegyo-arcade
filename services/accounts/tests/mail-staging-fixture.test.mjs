@@ -16,15 +16,23 @@ const valid = {
   ACCOUNTS_MIGRATION_DATABASE_NAME: "accounts_staging",
   ACCOUNTS_MAIL_FIXTURE_LOCAL_PROOF: "disposable-unix-socket",
 };
-test("mail fixture is bound to the isolated stage and sole authorized recipient", () => {
+test("mail fixture is bound to the isolated stage and explicit owner mailboxes", () => {
   assert.deepEqual(validateMailFixtureConfig(valid), {
     baseURL: valid.ACCOUNTS_BASE_URL,
     email: "mateo@myosin.xyz",
     databaseName: "accounts_staging",
   });
+  assert.equal(
+    validateMailFixtureConfig({
+      ...valid,
+      ACCOUNTS_MAIL_FIXTURE_EMAIL: "mateo+accounts-staging-20260915@myosin.xyz",
+    }).email,
+    "mateo+accounts-staging-20260915@myosin.xyz",
+  );
   for (const changed of [
     { DATABASE_URL: "postgresql://ordinary" },
     { ACCOUNTS_MAIL_FIXTURE_EMAIL: "other@example.invalid" },
+    { ACCOUNTS_MAIL_FIXTURE_EMAIL: "mateo+unapproved@myosin.xyz" },
     { ACCOUNTS_ENVIRONMENT: "production" },
     { ACCOUNTS_BASE_URL: "https://account.aegyoarena.com" },
   ])

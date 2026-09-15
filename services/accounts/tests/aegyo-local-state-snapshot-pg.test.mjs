@@ -107,6 +107,35 @@ test(
       "reviewed nullable auth columns must not change the legacy Session digest",
     );
     await database.query(
+      `UPDATE "Session" SET "providerSessionId"='unexpected-provider-session' WHERE id='session-a'`,
+    );
+    const metadataRefusal = spawnSync(
+      process.execPath,
+      ["scripts/snapshot-aegyo-local-state.mjs"],
+      {
+        cwd: new URL("..", import.meta.url),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          ACCOUNTS_PROOF_PG_SOCKET: socket,
+          REHEARSAL_LEGACY_OWNER_DATABASE_URL: `postgresql://${userInfo().username}@localhost/${databaseName}?host=${encodeURIComponent(socket)}`,
+          REHEARSAL_LEGACY_DATABASE_NAME: databaseName,
+          ACCOUNTS_REAL_LOCAL_STATE_OUTPUT: join(
+            directory,
+            "metadata-refused.json",
+          ),
+        },
+      },
+    );
+    assert.equal(metadataRefusal.status, 1);
+    assert.match(
+      metadataRefusal.stderr,
+      /shared_auth_session_metadata_not_empty/,
+    );
+    await database.query(
+      `UPDATE "Session" SET "providerSessionId"=NULL WHERE id='session-a'`,
+    );
+    await database.query(
       `UPDATE "Follow" SET "targetSlug"='changed-profile' WHERE id='follow-a'`,
     );
     const after = await snapshot("after");

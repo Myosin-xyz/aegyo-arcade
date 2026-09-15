@@ -118,6 +118,18 @@ try {
   let sharedAuthMappings = 0;
   let cutoverLatches = 0;
   if (additiveSchema) {
+    const populatedSessionMetadata = Number(
+      (
+        await client.query(
+          `select count(*) count from "Session" where
+             "providerSessionId" is not null or "authenticatedAt" is not null or
+             "providerCheckedAt" is not null or "securityVersion" is not null or
+             "passwordResetAt" is not null`,
+        )
+      ).rows[0].count,
+    );
+    if (populatedSessionMetadata !== 0)
+      fail("shared_auth_session_metadata_not_empty");
     sharedAuthMappings = Number(
       (await client.query('select count(*) count from "SharedAuthIdentity"'))
         .rows[0].count,

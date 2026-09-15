@@ -35,6 +35,8 @@ The accepted database counts were:
 
 The three client definitions, provider secret, per-application reader keys, and saved Resend configuration were copied exactly from the previous empty production service without printing or regenerating them. `ACCOUNTS_TRAFFIC_ENABLED=false` and `ACCOUNTS_SIGNUP_ENABLED=false` remain set. The generated Railway domain returned HTTP 200 from `/healthz`; `/readyz` returned HTTP 503 as expected for a dormant, traffic-disabled service.
 
+A post-relocation activation audit found and filled three dormant configuration gaps without deploying or opening traffic: `ACCOUNTS_CLIENT_IP_MODE=railway-x-real-ip`, `ACCOUNTS_RAILWAY_IP_VERIFIED=true`, and the legacy password pepper recovered from the exact deployed Aegyo source fallback. The IP trust setting is supported by the earlier four-case authenticated Railway edge test, which included spoofed forwarding headers; the new hostname uses the same Railway proxy path and DNS-only routing. A local, network-free configuration check then exercised the active production branch with the saved values and confirmed production mode, verified Railway IP handling, pinned TLS options, Resend, three distinct state readers, and signup disabled. An origin-specific observation can still be repeated after DNS and certificate issuance as additional evidence, but it is not required to establish the provider-edge overwrite behavior already tested. Traffic remains explicitly disabled.
+
 ## Domain and rollback state
 
 Immediately before reassociation, public DNS for `account.aegyoarena.com` was still absent. The pending custom domain was then moved to the accepted destination application. Railway now requires:

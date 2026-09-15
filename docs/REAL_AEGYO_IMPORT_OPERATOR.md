@@ -40,7 +40,7 @@ Child output and private artifacts remain in a mode-0700 phase directory. Public
 
 ## Initial real-data rehearsal — 2026-09-15
 
-**Evidence correction:** the initial ownership collector skipped CamelCase tables, so its linked-record comparison was empty and cannot prove their preservation. Full restore fingerprints, exact account mappings and the legacy-password canary below remain valid observations. A fresh isolated rehearsal with the corrected collector is required; the activated old clone cannot recreate its missing before-snapshot.
+**Evidence correction:** the initial ownership collector skipped CamelCase tables, so its linked-record comparison was empty and cannot prove their preservation. Full restore fingerprints, exact account mappings and the legacy-password canary below remain valid observations. A fresh isolated rehearsal with the corrected collector was required and is recorded below; the activated old clone could not recreate its missing before-snapshot.
 
 The pinned operator restored a consistent production snapshot into `aegyo_auth_rehearsal_20260915_cutover` and verified complete row fingerprints for all 48 source tables. The first importer snapshot attempt stopped after that verified restore because the configured target pin described the CA certificate rather than the live PostgreSQL leaf. No import journal or Accounts mutation existed at that point. A clone-only `resume-inspect` run used the CA-validated live leaf pin, refused a production source URL, verified 54 users, 26 sessions, 48 tables and the absence of `SharedAuthIdentity`, then produced the reviewed snapshot digest. The original short-lived production reader was removed before apply.
 
@@ -52,3 +52,22 @@ Deployment `be03f22f-0a3f-43e2-8242-bd69b9ab11ba` applied that reviewed immutabl
 - the designated canary mapped exactly, remained unverified with role `user`, and authenticated through maintained Better Auth with its original legacy password using the restricted Accounts application role.
 
 Production was not connected during apply. The source snapshot came exclusively from the immutable clone, and production did not require a writer freeze. Accounts traffic and signup remained disabled. After evidence capture, all operator URLs, passwords, provider secret, legacy pepper and canary variables were removed without a redeploy. The one-shot deployment is complete with restart policy `NEVER`; its stopped ephemeral filesystem may contain private artifacts and is not a reusable source of truth. The two rehearsal databases remain preserved for review, and their temporary target roles expire on 2026-09-16 at 02:00 UTC.
+
+## Corrected fresh rehearsal — 2026-09-15
+
+The corrected bundle was built from Accounts `56e6740fcefa0e5645c3ec5859f5ac9c082db890` and the reviewed Aegyo operator files at `f27b14f0c35fd710726cb5e1394d17c99d4ec348`. Its 27-file manifest digest was `564db4e482caa82cb8ec055187b435bf4be8cbaeb4a8847a6ee025a0678eff73`. Fresh empty targets `aegyo_auth_rehearsal_20260915_ownv2a` and `accounts_rehearsal_20260915_ownv2a` preserved both earlier clones.
+
+Inspect deployment `678f2d11-c440-49ea-b80f-d0380a15ae1c` succeeded in `additive-v1` mode. All 51 original table fingerprints matched after restore. The reviewed 54-user **import snapshot** digest was `8a001fd3eb9b2824d55b69d091fd1a5511a0be7f7f7ae162846ab42049d9e48c`; this is distinct from the linked-record reconciliation digest. The short-lived production reader was revoked and dropped, and source connection variables were scrubbed before apply.
+
+Clone-only apply deployment `21575df6-0520-4d5d-a102-b8c5d91131d2` succeeded once. The reviewed operator captured the corrected ownership snapshot before import, skipped repeated additive DDL only after validating the installed empty auth schema, installed exact mappings and the clone latch, then required identical normalized before/after ownership manifests. The existing-password canary also passed through the restricted Accounts application role with its unverified state and ordinary role retained.
+
+Independent post-run queries found:
+
+- Aegyo clone: 51 tables, 54 users, 26 sessions, 54 mappings, one latch and zero populated shared-session metadata fields.
+- Covered records: 26 sessions, two favorites, 90 comments, 275 suggested edits, zero slang votes, two follows, zero profile poll votes and five anonymous device poll votes.
+- Accounts clone: 54 users, 54 credential accounts, 54 import identities, one import batch, schema version 1 and guard revision 2.
+- Persisted immutable mapping digest: `e7ea11150e37feb9a9d0752c3ef2b389a222a9e5b3c261420fd349339db16f06`.
+
+The before/after ownership comparison is execution evidence from the pinned operator reaching success after its exact comparison; the post-run counts and persisted mapping digest were verified separately. The ownership `localSnapshotDigest` value was not exported and must not be confused with the import snapshot digest above. No completed job was restarted to recover ephemeral files.
+
+The operator stopped and its variables were replaced with only the `apply-complete` marker. Four isolated review roles remain restricted and time-expiring; the clones remain private for review. This closes the corrected restored-data rehearsal gate. It does not migrate production users, prove the human Daebak link, activate shared login, or approve a prize contest.

@@ -50,6 +50,7 @@ try {
       "tests/legacy-import.test.mjs",
       "tests/production-client-provisioner-pg.test.mjs",
       "tests/mail-staging-fixture.test.mjs",
+      "tests/aegyo-local-state-snapshot-pg.test.mjs",
     ],
     {
       cwd: root,

@@ -1,0 +1,27 @@
+{
+  "serviceId": "4f32c9f4-4ff6-4e81-8bda-f93f71e5011b",
+  "deploymentId": "10679cb6-9534-4d15-81da-8ed11ab986d3",
+  "imageDigest": "sha256:324869c98dd05b91be542bebd94896303b0586ec76808df92c9bd1b7294bfc8a",
+  "matchingRepositoryCommit": "ed4f50419293192e0ce5256c16f0498e96982be8",
+  "nodeVersion": "v24.21.0",
+  "dockerfileSha256AtMatchingCommit": "80a10f27ba7dae6af642ca433b3d82f8bdcc708a109f780287b79d800d6d3095",
+  "files": {
+    "services/accounts/package.json": "a9e58a3e404643f169dd10f5f82ff99197155bfb683b78663c911ca5e1177c1c",
+    "services/accounts/package-lock.json": "fd706fe927dd999f63a5072d9893477d93a455aa8f5ac768d913a914dac2db12",
+    "services/accounts/scripts/check-runtime.mjs": "be0de2356204f18f975a437e734cef042e4835b45cfe138b11e9ba3ecaa370fe",
+    "services/accounts/src/config.mjs": "28b37ebe28f8e026fd332b2d4624d166683b03d498988e1d1c0c4d8946e361d7",
+    "services/accounts/src/credential-guards.mjs": "00d3d9644639ea9d50b2ca058b8f4f0492a8d4b301695393c4639606ff11957b",
+    "services/accounts/src/credential-guards.sql": "3d5e514aa16afd464502e710b15d076fd4d639e6bb29d3e3517ca22dd6569140",
+    "services/accounts/src/database-options.mjs": "925348d851e4442adb97455296d912316ddf348f762cb63d7dda645de6c291dd",
+    "services/accounts/src/http-server.mjs": "262e4aeabc1f5047aabcbaa4ee87dca781b7bb9a15f2b14e56f0a3136f506a98",
+    "services/accounts/src/mail.mjs": "48720207e04145b3257b76e9b5fc58e011a15835c121db94dc202a7b275645c9",
+    "services/accounts/src/passwords.mjs": "b34a17859d9b2f679baf594a511ac9f1e3e970608ed198cb9d35900ae62f82b8",
+    "services/accounts/src/provider-core.mjs": "cac07dd7771fc200fb83bb281ea65fd28392652c1a696a7d5a1582298c4cdd25",
+    "services/accounts/src/runtime.mjs": "76c873571d59dcab0519455296905264fb92c576866815ab80f2411276fa036a",
+    "services/accounts/src/security-state.mjs": "9b1a210db613cfb04bd8e00f2fff70de2a0105f97a5928cc0186058edb3e7e71",
+    "services/accounts/src/server.mjs": "20d3b73f93410b38bfc6eb2cbf1f6c2a18dfcc5158ec5046b213c8c1863bb7fe",
+    "services/accounts/ui/accounts.css": "b3bdc2251971d9ed062a7747c5e5bc7a1496bbf2b7807e4f84688b82632b0b2c",
+    "services/accounts/ui/accounts.js": "a43a7b60921ca940eb900ff6b8dc9c4285c56ad16d92c13a3a80c4e872608f5d",
+    "services/accounts/ui/pages.mjs": "64527541fa34a234d8db67dc4ecf85b73043280042aaebaa543a0ae6bcde00a1"
+  }
+}

@@ -14,7 +14,7 @@ The dormant Accounts production stack was relocated into the existing Aegyo Rail
 - Database deployment: `a0a94598-e112-4fc4-aa1f-4c1fb4b66c4b`, `SUCCESS`
 - Database image digest: `sha256:3b8bc16ccb823c9a293b09d20d4180049502ee2b243b5989d59e258450044e22`
 
-The application was uploaded from a tracked `services/accounts` source allowlist. Railway therefore records an image digest rather than a Git commit for this deployment. The deployed bundle preceded repository commit `56e6740fcefa0e5645c3ec5859f5ac9c082db890`; later rehearsal snapshot changes in that commit do not affect this runtime.
+The application was uploaded from a tracked `services/accounts` source allowlist, so Railway records an image digest rather than a Git commit for this deployment. A read-only container inspection subsequently hashed the package manifests and every loaded runtime source file. All 17 hashes match repository commit `ed4f50419293192e0ce5256c16f0498e96982be8` byte for byte, and the container reports Node `v24.21.0`. The exact reproducibility record is in [the runtime manifest](ACCOUNTS_PRODUCTION_RUNTIME_MANIFEST_2026-09-15.json).
 
 ## Acceptance evidence
 

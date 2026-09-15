@@ -1,6 +1,6 @@
 # DNS handoff for Simon
 
-Verified against the signed-in Resend domain setup on September 12, 2026. Apply in Cloudflare's `aegyoarena.com` zone.
+Updated September 15, 2026. **Only the Accounts CNAME remains to be added:** `account` → `d5d1smmz.up.railway.app`, DNS-only, TTL Auto, in Cloudflare’s `aegyoarena.com` zone. The Resend records below are already verified and are retained here for reference; do not recreate or change them.
 
 | Type  | Name                | Content                                                                                                                                                                                                                      | Priority | TTL  |
 | ----- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---- |

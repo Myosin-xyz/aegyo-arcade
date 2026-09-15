@@ -28,7 +28,7 @@ const accountFiles = git(accounts, ["ls-tree", "-r", "--name-only", accountCommi
   .split("\n").filter((path) =>
     path === "services/accounts/package.json" || path === "services/accounts/package-lock.json" ||
     ["credential-guards.sql", "database-options.mjs", "legacy-import.mjs", "passwords.mjs", "provider-core.mjs"].some((name) => path === `services/accounts/src/${name}`) ||
-    ["check-runtime.mjs", "import-legacy.mjs", "migrate.mjs", "private-tcp-relay.mjs", "real-import-rehearsal-lib.mjs", "snapshot-aegyo-local-state.mjs", "validate-real-import-rehearsal.mjs", "verify-real-canary-signin.mjs"].some((name) => path === `services/accounts/scripts/${name}`));
+    ["check-runtime.mjs", "import-legacy.mjs", "migrate.mjs", "private-tcp-relay.mjs", "real-import-rehearsal-lib.mjs", "snapshot-aegyo-local-state.mjs", "validate-real-import-rehearsal.mjs", "verify-real-canary-signin.mjs", "verify-resume-clone.mjs"].some((name) => path === `services/accounts/scripts/${name}`));
 for (const path of accountFiles) await copyTracked(accounts, accountCommit, path, path.replace("services/accounts/", "accounts/"));
 const aegyoFiles = [
   "prisma/schema.prisma",

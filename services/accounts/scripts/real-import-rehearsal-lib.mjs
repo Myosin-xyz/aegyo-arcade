@@ -18,7 +18,7 @@ export const EXPECTED = Object.freeze({
 });
 
 export function validateRealImportRehearsal(input) {
-  if (!['inspect', 'apply'].includes(input.phase)) refuse('invalid_phase');
+  if (!['inspect', 'resume-inspect', 'apply'].includes(input.phase)) refuse('invalid_phase');
   if (input.confirm !== `restored-data-accounts-import-reconciliation-${input.phase}`)
     refuse('confirmation_missing');
   for (const key of ['projectId', 'environmentId', 'restoredPostgresServiceId', 'operatorServiceId', 'sourceServiceId', 'aegyoCommit'])
@@ -38,7 +38,7 @@ export function validateRealImportRehearsal(input) {
   if (!/^accounts_rehearsal_[0-9]{8}_[a-z0-9]{6,16}$/.test(input.accountsDatabase)) refuse('accounts_database_not_new_rehearsal_target');
   if (input.legacyDatabase === input.accountsDatabase) refuse('database_names_must_differ');
   if (!Number.isSafeInteger(input.expectedUsers) || input.expectedUsers < 1) refuse('invalid_expected_users');
-  const requiredUrls = input.phase === 'inspect' ? ['source', 'legacyOwner'] : ['legacyReader', 'legacyOwner', 'accounts'];
+  const requiredUrls = input.phase === 'inspect' ? ['source', 'legacyOwner'] : input.phase === 'resume-inspect' ? ['legacyOwner'] : ['legacyReader', 'legacyOwner', 'accounts'];
   const presentUrls = Object.keys(input.urls ?? {}).filter((key) => input.urls[key]);
   if (presentUrls.length !== requiredUrls.length || requiredUrls.some((key) => !presentUrls.includes(key))) refuse('unexpected_phase_database_connections');
   if (input.phase === 'apply') {

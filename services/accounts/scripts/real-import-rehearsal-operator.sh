@@ -12,6 +12,7 @@ for n in ACCOUNTS_REAL_IMPORT_REHEARSAL_PHASE SOURCE_DATABASE_NAME SOURCE_READ_O
 phase="$ACCOUNTS_REAL_IMPORT_REHEARSAL_PHASE"
 case "$phase" in
  inspect) for n in SOURCE_DATABASE_URL REHEARSAL_LEGACY_OWNER_DATABASE_URL SOURCE_DATABASE_CA_CERT REHEARSAL_DATABASE_CA_CERT REHEARSAL_DATABASE_SERVER_SHA256; do required "$n"; done ;;
+ resume-inspect) for n in REHEARSAL_LEGACY_OWNER_DATABASE_URL REHEARSAL_DATABASE_CA_CERT REHEARSAL_DATABASE_SERVER_SHA256; do required "$n"; done ;;
  apply) for n in REHEARSAL_LEGACY_OWNER_DATABASE_URL REHEARSAL_LEGACY_READER_DATABASE_URL ACCOUNTS_IMPORT_TARGET_DATABASE_URL REHEARSAL_DATABASE_CA_CERT ACCOUNTS_IMPORT_TARGET_DATABASE_CA_CERT REHEARSAL_DATABASE_SERVER_SHA256 ACCOUNTS_IMPORT_TARGET_DATABASE_SERVER_SHA256 ACCOUNTS_IMPORT_APPROVED_DIGEST ACCOUNTS_REAL_DEPLOYED_PEPPER_DIGEST ACCOUNTS_LEGACY_PEPPER ACCOUNTS_REAL_CANARY_PASSWORD ACCOUNTS_REAL_CANARY_EMAIL ACCOUNTS_REAL_CANARY_SOURCE_USER_ID ACCOUNTS_DATABASE_ROLE_PASSWORD BETTER_AUTH_SECRET; do required "$n"; done ;;
  *) fail invalid_phase 2 ;;
 esac
@@ -21,6 +22,7 @@ mkdir -m 700 "$work"
 trap 'code=$?; [ "$code" = 0 ] || echo operator_error=real_import_rehearsal_failed >&2' EXIT HUP INT TERM
 node /operator/accounts/scripts/validate-real-import-rehearsal.mjs >"$work/validate.log" 2>&1 || fail configuration_refused 2
 
+if [ "$phase" = inspect ] || [ "$phase" = resume-inspect ]; then
 if [ "$phase" = inspect ]; then
 # The proven Aegyo restore operator compares every original table row under one
 # exported snapshot before this process touches either rehearsal database.
@@ -34,6 +36,10 @@ AEGYO_REAL_RESTORE_CONFIRM=private-read-only-source-to-empty-clone \
 bash /operator/aegyo/scripts/shared-auth/real-restore-operator.sh >"$work/restore.log" 2>&1 || fail restore_or_fingerprint_failed
 grep -qx 'full_row_fingerprints_match=true' "$work/restore.log" || fail restore_fingerprint_missing
 grep -qx "verified_table_count=$ACCOUNTS_REAL_EXPECTED_TABLES" "$work/restore.log" || fail restored_table_count_mismatch
+else
+  [ -z "${SOURCE_DATABASE_URL-}" ] || fail production_source_forbidden_on_resume 2
+  node /operator/accounts/scripts/verify-resume-clone.mjs >"$work/resume-clone.log" 2>&1 || fail preserved_clone_validation_failed
+fi
 
 export ACCOUNTS_IMPORT_SOURCE_DATABASE_URL="$REHEARSAL_LEGACY_OWNER_DATABASE_URL"
 export ACCOUNTS_IMPORT_SOURCE_DATABASE_NAME="$REHEARSAL_LEGACY_DATABASE_NAME"

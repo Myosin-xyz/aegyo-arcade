@@ -43,7 +43,7 @@ export ACCOUNTS_IMPORT_ISSUER="$ACCOUNTS_BASE_URL/api/auth"
 export ACCOUNTS_IMPORT_OUTPUT="$work/snapshot.json"
 export ACCOUNTS_IMPORT_CONFIRM=read-only-private-source-snapshot
 snapshot_result="$(node /operator/accounts/scripts/import-legacy.mjs snapshot 2>"$work/snapshot.err")" || fail source_snapshot_failed
-printf '%s' "$snapshot_result" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);console.log(JSON.stringify({count:x.count,snapshotDigest:x.snapshotDigest}))})' || fail snapshot_result_invalid
+printf '%s' "$snapshot_result" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s.trim().split(/\n/).at(-1));console.log(JSON.stringify({count:x.count,snapshotDigest:x.snapshotDigest}))})' || fail snapshot_result_invalid
 echo 'immutable_clone_ready=true'
 echo 'operator_complete=true'
 exit 0
@@ -66,7 +66,7 @@ export ACCOUNTS_IMPORT_TARGET_DATABASE_NAME="$REHEARSAL_ACCOUNTS_DATABASE_NAME"
 export ACCOUNTS_IMPORT_OUTPUT="$work/snapshot.json"
 export ACCOUNTS_IMPORT_CONFIRM=read-only-private-source-snapshot
 snapshot_result="$(node /operator/accounts/scripts/import-legacy.mjs snapshot 2>"$work/snapshot.err")" || fail source_snapshot_failed
-actual_digest="$(printf '%s' "$snapshot_result" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).snapshotDigest)}catch{process.exit(2)}})')" || fail snapshot_result_invalid
+actual_digest="$(printf '%s' "$snapshot_result" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s.trim().split(/\n/).at(-1)).snapshotDigest)}catch{process.exit(2)}})')" || fail snapshot_result_invalid
 [ "$actual_digest" = "$ACCOUNTS_IMPORT_APPROVED_DIGEST" ] || fail reviewed_snapshot_digest_mismatch
 
 node -e 'const fs=require("fs");fs.writeFileSync(process.argv[1],JSON.stringify({sourceUserId:process.env.ACCOUNTS_REAL_CANARY_SOURCE_USER_ID,password:process.env.ACCOUNTS_REAL_CANARY_PASSWORD,deployedPepperDigest:process.env.ACCOUNTS_REAL_DEPLOYED_PEPPER_DIGEST})+"\n",{mode:0o600,flag:"wx"})' "$work/credential.json"

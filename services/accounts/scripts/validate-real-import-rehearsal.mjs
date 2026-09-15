@@ -20,6 +20,7 @@ try {
     ordinaryDatabaseUrl: process.env.DATABASE_URL,
     sourceDatabase: required("SOURCE_DATABASE_NAME"),
     expectedTables: Number(required("ACCOUNTS_REAL_EXPECTED_TABLES")),
+    sourceSchemaStatus: required("AEGYO_REHEARSAL_SCHEMA_STATUS"),
     sourceNamespace: required("ACCOUNTS_IMPORT_SOURCE_NAMESPACE"),
     accountsBaseURL: required("ACCOUNTS_BASE_URL"),
     aegyoBaseURL: required("AEGYO_AUTH_BASE_URL"),

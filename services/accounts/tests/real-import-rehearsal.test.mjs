@@ -14,6 +14,7 @@ const base = (phase) => ({
   signupEnabled: "false",
   sourceDatabase: "kpopdb",
   expectedTables: 48,
+  sourceSchemaStatus: "legacy",
   sourceNamespace: `railway:${EXPECTED.projectId}/${EXPECTED.environmentId}/${EXPECTED.sourceServiceId}`,
   accountsBaseURL: "https://account.aegyoarena.com",
   aegyoBaseURL: "https://account.aegyoarena.com",
@@ -78,6 +79,17 @@ test("inspect does not require a reviewed digest before emitting it", () => {
   const x = base("inspect");
   delete x.approvedSnapshotDigest;
   assert.equal(validateRealImportRehearsal(x), true);
+});
+test("accepts only the reviewed table count for an additive source", () => {
+  const x = base("inspect");
+  x.sourceSchemaStatus = "additive-v1";
+  x.expectedTables = 51;
+  assert.equal(validateRealImportRehearsal(x), true);
+  x.expectedTables = 48;
+  assert.throws(
+    () => validateRealImportRehearsal(x),
+    RealImportRehearsalRefusal,
+  );
 });
 for (const mutate of [
   (x) => (x.projectId = "bad"),

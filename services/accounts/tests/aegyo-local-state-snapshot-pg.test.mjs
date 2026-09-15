@@ -98,6 +98,8 @@ test(
     `);
     const additive = await snapshot("additive");
     assert.equal(additive.schemaStatus, "additive-v1");
+    assert.equal(additive.sharedAuthMappings, 0);
+    assert.equal(additive.cutoverLatches, 0);
     assert.equal(
       additive.users.find((user) => user.id === "member-a").linkedRecordDigests
         .Session,

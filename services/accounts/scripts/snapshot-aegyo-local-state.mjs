@@ -115,6 +115,18 @@ try {
       `shared_auth_schema_partial_i${Number(schemaProbe.identity_table)}_l${Number(schemaProbe.latch_table)}_c${installedColumnCount}`,
     );
   const schemaStatus = legacySchema ? "legacy" : "additive-v1";
+  let sharedAuthMappings = 0;
+  let cutoverLatches = 0;
+  if (additiveSchema) {
+    sharedAuthMappings = Number(
+      (await client.query('select count(*) count from "SharedAuthIdentity"'))
+        .rows[0].count,
+    );
+    cutoverLatches = Number(
+      (await client.query('select count(*) count from "AuthCutoverLatch"'))
+        .rows[0].count,
+    );
+  }
   for (const { table, owner, label } of links) {
     await assertTable(client, table, ["id", owner]);
     const rowJson =
@@ -191,6 +203,8 @@ try {
         version: 1,
         evidenceVersion: 2,
         schemaStatus,
+        sharedAuthMappings,
+        cutoverLatches,
         users,
         anonymousPollVotes,
       }) + "\n",

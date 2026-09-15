@@ -38,7 +38,11 @@ export function validateRealImportRehearsal(input) {
     refuse("rehearsal_traffic_and_signup_must_be_off");
   if (input.ordinaryDatabaseUrl) refuse("ordinary_DATABASE_URL_forbidden");
   if (input.sourceDatabase !== "kpopdb") refuse("unexpected_source_database");
-  if (input.expectedTables !== 48) refuse("unexpected_source_table_count");
+  const expectedTables = { legacy: 48, "additive-v1": 51 };
+  if (!(input.sourceSchemaStatus in expectedTables))
+    refuse("unexpected_source_schema_status");
+  if (input.expectedTables !== expectedTables[input.sourceSchemaStatus])
+    refuse("unexpected_source_table_count");
   if (
     input.sourceNamespace !==
     `railway:${EXPECTED.projectId}/${EXPECTED.environmentId}/${EXPECTED.sourceServiceId}`

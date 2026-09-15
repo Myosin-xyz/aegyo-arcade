@@ -17,7 +17,7 @@ try {
   });
   const x = (
     await pool.query(
-      `select current_database() db,current_user role,(select count(*)::int from public."User") users,(select count(*)::int from public."Session") sessions,(select count(*)::int from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p')) tables,to_regclass('public."SharedAuthIdentity"') is null identity_absent`,
+      `select current_database() db,current_user role,(select count(*)::int from public."User") users,(select count(*)::int from public."Session") sessions,(select count(*)::int from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p')) tables,to_regclass('public."SharedAuthIdentity"') is not null identity_present`,
     )
   ).rows[0];
   if (
@@ -26,9 +26,19 @@ try {
     x.users !== Number(req("ACCOUNTS_IMPORT_EXPECTED_COUNT")) ||
     x.sessions !== Number(req("ACCOUNTS_REAL_EXPECTED_SESSIONS")) ||
     x.tables !== Number(req("ACCOUNTS_REAL_EXPECTED_TABLES")) ||
-    !x.identity_absent
+    x.identity_present !==
+      (req("AEGYO_REHEARSAL_SCHEMA_STATUS") === "additive-v1")
   )
     fail("preserved_clone_shape_mismatch");
+  if (x.identity_present) {
+    const state = (
+      await pool.query(
+        'select (select count(*)::int from "SharedAuthIdentity") mappings,(select count(*)::int from "AuthCutoverLatch") latches',
+      )
+    ).rows[0];
+    if (state.mappings !== 0 || state.latches !== 0)
+      fail("preserved_clone_shared_auth_not_empty");
+  }
   console.info("preserved_clone_shape_valid=true");
 } catch (e) {
   console.error(

@@ -12,13 +12,18 @@ try {
   if (required("ACCOUNTS_REAL_CANARY_CONFIRM") !== "verify-imported-team-canary") fail("canary_confirmation_missing");
   const expectedDatabase = required("ACCOUNTS_IMPORT_TARGET_DATABASE_NAME");
   if (!/^accounts_rehearsal_[0-9]{8}_[a-z0-9]{6,16}$/.test(expectedDatabase)) fail("production_target_forbidden");
+  const runtimeURL = new URL(required("ACCOUNTS_IMPORT_TARGET_DATABASE_URL"));
+  runtimeURL.username = required("ACCOUNTS_DATABASE_ROLE");
+  runtimeURL.password = required("ACCOUNTS_DATABASE_ROLE_PASSWORD");
   database = new pg.Pool({
-    ...databaseOptions(required("ACCOUNTS_IMPORT_TARGET_DATABASE_URL"), {
+    ...databaseOptions(runtimeURL.toString(), {
       caCertificate: required("ACCOUNTS_IMPORT_TARGET_DATABASE_CA_CERT"),
       serverSHA256: required("ACCOUNTS_IMPORT_TARGET_DATABASE_SERVER_SHA256"),
     }), max: 1,
   });
-  if ((await database.query("SELECT current_database() name")).rows[0]?.name !== expectedDatabase) fail("database_name_mismatch");
+  const identity = (await database.query("SELECT current_database() name, current_user role")).rows[0];
+  if (identity?.name !== expectedDatabase) fail("database_name_mismatch");
+  if (identity?.role !== required("ACCOUNTS_DATABASE_ROLE")) fail("runtime_role_mismatch");
   const mapping = (await database.query(
     `SELECT i.subject, u."emailVerified", u.role FROM aegyo_import.identities i
      JOIN public."user" u ON u.id=i.subject

@@ -1,40 +1,31 @@
 # Real restored-data Accounts rehearsal operator
 
-This operator is a reviewed rehearsal path for the existing Aegyo Railway project. It cannot target the production database names, another project, another environment, another PostgreSQL service, another operator service, an unpinned Aegyo source revision, a public database host, or an Accounts service with traffic or signup enabled.
+This is a two-phase, private rehearsal in the pinned Aegyo Railway project and environment. It targets two new databases on the existing restored PostgreSQL service. It refuses production database names, public hosts, normal `DATABASE_URL`, open traffic/signup, changed service identities, or an unpinned Aegyo revision.
 
-It performs one bounded sequence after an operator has created two new empty databases on the existing private restored PostgreSQL service: a fresh Aegyo restore target and a dedicated Accounts target. It does not create Railway services, domains, TCP proxies or accounts.
+## Reviewed source bundle
 
-## Source bundle
+Build with `node services/accounts/scripts/build-real-import-rehearsal-bundle.mjs /Users/mateodazab/Documents/myosin/kpop-lyrics-shared-auth services/accounts/.proof/real-import-bundle <reviewed-accounts-commit>`. The builder reads allowlisted files with `git show`: no working tree, `.env`, proof directory, credential, or repository metadata enters the bundle. The image pins Node 24.21.0, PostgreSQL client 18 and the minimal locked Prisma 5.22 dependency closure.
 
-Run `node services/accounts/scripts/build-real-import-rehearsal-bundle.mjs /Users/mateodazab/Documents/myosin/kpop-lyrics-shared-auth services/accounts/.proof/real-import-bundle <reviewed-accounts-commit>` from this repository. The builder requires the Aegyo checkout HEAD at commit `e9e0468fe7dc477e3188d18d0ab769d5bddb990e` and writes a new private directory. It reads every file from that commit with `git show`; working-tree changes, untracked files, environment files, proof artifacts and repository metadata cannot enter the bundle.
+All URLs, CA certificates, certificate pins, role passwords, provider secret, legacy pepper, and canary credential remain secret Railway variables. The actual population count is reviewed at snapshot time; it is currently expected to be 54, including the naturally unverified team canary created via the real legacy signup route with `subscribe:false` and verified via real legacy sign-in.
 
-The generated Docker build has separate locked dependency installations for Accounts and the minimal Aegyo operator (`@prisma/client` and Prisma 5.22.0 only). The pinned Aegyo commit intentionally does not track its ignored local package lock, so the recipe never copies that untracked file. It pins Node 24.21.0 and installs PostgreSQL 18 client tools, OpenSSL and stunnel. Review the reported commits and file count before uploading only that generated directory to the existing stopped operator shell.
+## Phase 1: inspect
 
-## Required private inputs
+Set `ACCOUNTS_REAL_IMPORT_REHEARSAL_PHASE=inspect` and confirmation `restored-data-accounts-import-reconciliation-inspect`. Supply the production read-only source URL and the new empty clone owner URL. The pinned restore operator requires durable source read-only role attributes, exports one repeatable-read snapshot, computes every source-table row fingerprint, and uses that same snapshot for `pg_dump`. It restores atomically into the empty clone and compares all fingerprints.
 
-Supply all connection URLs, CA certificates, server pins, role passwords, provider secret, legacy pepper, canary email/password/source ID and the approved source snapshot digest as secret operator variables. Do not put them in the source bundle, command arguments, logs or chat. The actual population count must be read and reviewed after the fresh canary exists; never assume 53.
+The operator then runs the actual Accounts importer snapshot against the clone and emits only `{count,snapshotDigest}` plus aggregate success flags. The clone becomes the immutable reviewed import source. Production writes may continue: the exported snapshot provides consistency during cloning, and no production writer freeze is required for this isolated rehearsal.
 
-The canary was created through the actual legacy signup route with `subscribe:false`, signed in through the actual legacy login route as the same source ID, and signed out. It is naturally unverified and must stay that way through restore and import. This proves a new credential emitted by the actual legacy writer. It does not replace full-row preservation evidence for the older users.
+Review the count/digest. Provision a durable read-only role on the clone and retain the owner only for the additive Aegyo rehearsal changes. Do not change clone user/credential rows between phases.
 
-The source database role must be a short-lived durable read-only role. The two destination database names must match `aegyo_auth_rehearsal_YYYYMMDD_SUFFIX` and `accounts_rehearsal_YYYYMMDD_SUFFIX`; both must be new and empty. Revoke `CONNECT` from `PUBLIC`, grant each role only its database, and keep the two destinations on the existing private restored PostgreSQL service. This shares a PostgreSQL instance and volume, so it is rehearsal isolation rather than production-topology independence.
+## Phase 2: apply
 
-## One-shot behavior
+Set `ACCOUNTS_REAL_IMPORT_REHEARSAL_PHASE=apply`, confirmation `restored-data-accounts-import-reconciliation-apply`, the approved digest, the clone reader URL, clone owner URL and empty Accounts target URL. Apply refuses any production source connection. The importer re-snapshots the immutable clone and requires the reviewed digest, then migrates Accounts schema v1, installs its operator-only journal and applies atomically. Its existing `source-writers-and-target-traffic-frozen` confirmation describes the immutable clone plus disabled Accounts traffic; it does not require freezing production.
 
-`real-import-rehearsal-operator.sh`:
+The operator captures Aegyo ownership for every present supported table (`Session`, `Favorite`, `Comment`, `SuggestedEdit`, `SlangVote`, `PollVote`, and both `Follow` directions), including exact linked record IDs. It installs only the pinned additive shared-auth schema, runs the pinned reconcile/install/activate/status CLIs, captures ownership again, and requires an identical manifest and complete mapping count.
 
-1. validates the exact Railway and git identities, private URLs, new database names, closed traffic, closed signup, reviewed count and digests;
-2. runs Aegyo's pinned restore operator, using one exported repeatable-read source snapshot for `pg_dump` and complete per-table row fingerprints, and requires exact restored fingerprints;
-3. installs Accounts schema version 1 in the empty target and its restricted runtime role;
-4. snapshots the restored source with the actual Accounts importer and requires the resulting digest to equal the separately approved digest;
-5. installs the operator-only import journal and performs the guarded atomic import while the externally established source-writer freeze remains active;
-6. builds the private Aegyo reconciliation inputs, installs only the additive shared-auth migration, invokes the pinned reconciliation and mapping CLIs, and activates only the database whose name is constrained to the rehearsal pattern;
-7. reruns reconciliation after mapping, requires an identical manifest, checks complete mapping status, and signs the canary into the maintained Accounts provider with its old password and exact mapped subject; and
-8. removes the short-lived credential proof and prints only boolean aggregate success lines.
+The canary check constructs a private query-free URL for the restricted Accounts application role, verifies `current_user`, and then signs in through maintained Better Auth with the old password. It therefore tests runtime grants rather than migration-owner privileges.
 
-The Aegyo Prisma CLI has no CA/pin parameters. The operator therefore checks the restored server certificate against the supplied CA, `localhost` certificate identity and SHA-256 pin, then exposes it only on container loopback through stunnel. Prisma uses plaintext only over that one-shot container's loopback; no public or private-network plaintext connection is created.
+## TLS and failures
 
-Any unexpected child output stays in the mode-0700 work directory. The public failure is an allowlisted phase code. A failed or interrupted run leaves both rehearsal databases and the private operator artifacts for inspection. Never infer rollback, rerun with different inputs, delete imported identities, or point the service at production. Use importer `status` with the original snapshot/digest to resolve an uncertain import commit.
+Libpq connects to the resolved private address while setting TLS hostname `localhost` (`host=localhost&hostaddr=...`) to match the Railway database certificate. Node `pg` validates the supplied CA and reviewed leaf SHA-256 pin. Prisma connects to `localhost` through a raw loopback-only TCP relay. TLS is not terminated by the relay: certificate verification and PostgreSQL 18 SCRAM channel binding remain end to end. Prisma requires `sslmode=require`, `sslaccept=strict`, and the private CA path. The operator separately checks the same leaf certificate CA and SHA-256 pin before starting the relay.
 
-## Remaining operational gates
-
-This code does not create the source-writer freeze. The parent operator must close and drain legacy signup, login password writes, recovery, email changes, deletion and administrator credential writers before the reviewed snapshot/apply interval. Accounts traffic and signup remain off throughout. No external mail is sent. Production activation remains prohibited regardless of rehearsal success.
+Child output and private artifacts remain in a mode-0700 phase directory. Public failures contain only allowlisted phase codes. Failed databases/artifacts require inspection; never infer rollback, delete imported identities, or repoint this operator at production. Accounts traffic and signup remain disabled, and no external mail is sent.

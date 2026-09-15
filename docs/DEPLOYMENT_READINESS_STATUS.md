@@ -1,5 +1,7 @@
 # Deployment readiness — September 12, 2026
 
+> Historical checkpoint. See the [September 15 release checkpoint](RELEASE_CHECKPOINT_2026-09-15.md) for verified branded email delivery, current repository access, the fresh canary/inventory/backup, and remaining launch gates.
+
 Baseline HTTP checks repeated at 2026-09-12T18:18:43.798Z; subsequent staging competition and dormant production checks are recorded below. This is an observed checkpoint, not continuous monitoring.
 
 ## Current production

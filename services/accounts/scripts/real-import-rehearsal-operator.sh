@@ -87,6 +87,11 @@ cp "$work/local-before.json" "$work/local-after.json"
 cp "$work/imported.json" "$work/transfer.json"
 node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1]));fs.writeFileSync(process.argv[2],JSON.stringify(x.accounts));fs.writeFileSync(process.argv[3],JSON.stringify(x.mapping))' "$work/transfer.json" "$work/accounts.json" "$work/mapping.json"
 node /operator/aegyo/scripts/shared-auth/reconcile.mjs "$work/local-before.json" "$work/accounts.json" "$work/mapping.json" "$work/local-after.json" "$work/manifest.json" >"$work/reconcile.log" 2>&1 || fail reconciliation_failed
+aegyo_work="/operator/aegyo/.proof/real-import-$phase"
+[ ! -e "$aegyo_work" ] || fail prior_aegyo_operator_artifacts_require_inspection 2
+mkdir -m 700 "$aegyo_work"
+cp "$work/manifest.json" "$aegyo_work/manifest.json"
+chmod 600 "$aegyo_work/manifest.json"
 
 # Apply the additive Aegyo schema through libpq TLS with certificate identity localhost.
 printf '%s\n' "$REHEARSAL_DATABASE_CA_CERT" >"$work/legacy-ca.pem"
@@ -105,7 +110,7 @@ trap 'kill ${bridge-} 2>/dev/null || true; code=$?; [ "$code" = 0 ] || echo oper
 sleep 1; kill -0 "$bridge" 2>/dev/null || fail verified_tcp_relay_failed
 export AEGYO_MAPPING_DATABASE_URL="$(node -e 'const u=new URL(process.env.REHEARSAL_LEGACY_OWNER_DATABASE_URL);u.hostname="localhost";u.port="6543";u.search="?sslmode=require&sslaccept=strict&sslcert="+encodeURIComponent(process.argv[1]);process.stdout.write(u.href)' "$work/legacy-ca.pem")"
 export AEGYO_MAPPING_DATABASE_NAME="$REHEARSAL_LEGACY_DATABASE_NAME" AEGYO_AUTH_BASE_URL
-export AEGYO_MAPPING_MANIFEST="$work/manifest.json"
+export AEGYO_MAPPING_MANIFEST="$aegyo_work/manifest.json"
 export AEGYO_MAPPING_APPROVED_DIGEST="$(node -e 'const x=require(process.argv[1]);process.stdout.write(x.mappingDigest)' "$work/manifest.json")"
 export AEGYO_MAPPING_CONFIRM=install-reviewed-mappings-without-latch
 (cd /operator/aegyo && node scripts/shared-auth/install-mappings.mjs apply) >"$work/mapping.log" 2>&1 || fail mapping_install_failed

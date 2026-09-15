@@ -6,12 +6,18 @@ import { databaseOptions } from "../src/database-options.mjs";
 
 const fail = (code) => { throw new Error(code); };
 const required = (name) => process.env[name] || fail(`missing_${name}`);
-let database;
+let database, operatorDatabase;
 try {
   if (process.env.DATABASE_URL) fail("ordinary_DATABASE_URL_forbidden");
   if (required("ACCOUNTS_REAL_CANARY_CONFIRM") !== "verify-imported-team-canary") fail("canary_confirmation_missing");
   const expectedDatabase = required("ACCOUNTS_IMPORT_TARGET_DATABASE_NAME");
   if (!/^accounts_rehearsal_[0-9]{8}_[a-z0-9]{6,16}$/.test(expectedDatabase)) fail("production_target_forbidden");
+  operatorDatabase = new pg.Pool({
+    ...databaseOptions(required("ACCOUNTS_IMPORT_TARGET_DATABASE_URL"), {
+      caCertificate: required("ACCOUNTS_IMPORT_TARGET_DATABASE_CA_CERT"),
+      serverSHA256: required("ACCOUNTS_IMPORT_TARGET_DATABASE_SERVER_SHA256"),
+    }), max: 1,
+  });
   const runtimeURL = new URL(required("ACCOUNTS_IMPORT_TARGET_DATABASE_URL"));
   runtimeURL.username = required("ACCOUNTS_DATABASE_ROLE");
   runtimeURL.password = required("ACCOUNTS_DATABASE_ROLE_PASSWORD");
@@ -24,7 +30,7 @@ try {
   const identity = (await database.query("SELECT current_database() name, current_user role")).rows[0];
   if (identity?.name !== expectedDatabase) fail("database_name_mismatch");
   if (identity?.role !== required("ACCOUNTS_DATABASE_ROLE")) fail("runtime_role_mismatch");
-  const mapping = (await database.query(
+  const mapping = (await operatorDatabase.query(
     `SELECT i.subject, u."emailVerified", u.role FROM aegyo_import.identities i
      JOIN public."user" u ON u.id=i.subject
      WHERE i.source_namespace=$1 AND i.local_user_id=$2`,
@@ -51,5 +57,5 @@ try {
   console.error(/^[_a-z]+$/.test(error?.message ?? "") ? error.message : "canary_signin_failed");
   process.exitCode = 1;
 } finally {
-  await database?.end();
+  await Promise.allSettled([database?.end(), operatorDatabase?.end()]);
 }

@@ -76,6 +76,12 @@ snapshot_result="$(node /operator/accounts/scripts/import-legacy.mjs snapshot 2>
 actual_digest="$(printf '%s' "$snapshot_result" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s.trim().split(/\n/).at(-1)).snapshotDigest)}catch{process.exit(2)}})')" || fail snapshot_result_invalid
 [ "$actual_digest" = "$ACCOUNTS_IMPORT_APPROVED_DIGEST" ] || fail reviewed_snapshot_digest_mismatch
 
+# Capture ownership before any import or schema/mapping mutation. The source is
+# the frozen clone; the collector itself runs REPEATABLE READ READ ONLY.
+export ACCOUNTS_REAL_LOCAL_STATE_OUTPUT="$work/local-before.json"
+node /operator/accounts/scripts/snapshot-aegyo-local-state.mjs >"$work/local-before.log" 2>"$work/aegyo.err" || fail local_snapshot_failed
+node -e 'const x=require(process.argv[1]);if(x.schemaStatus!==process.env.AEGYO_REHEARSAL_SCHEMA_STATUS||x.evidenceVersion!==2||x.sharedAuthMappings!==0||x.cutoverLatches!==0)process.exit(2)' "$work/local-before.json" || fail local_snapshot_schema_or_evidence_invalid
+
 node -e 'const fs=require("fs");fs.writeFileSync(process.argv[1],JSON.stringify({sourceUserId:process.env.ACCOUNTS_REAL_CANARY_SOURCE_USER_ID,password:process.env.ACCOUNTS_REAL_CANARY_PASSWORD,deployedPepperDigest:process.env.ACCOUNTS_REAL_DEPLOYED_PEPPER_DIGEST})+"\n",{mode:0o600,flag:"wx"})' "$work/credential.json"
 chmod 600 "$work/credential.json"
 export ACCOUNTS_IMPORT_CREDENTIAL_PROOF="$work/credential.json"
@@ -87,10 +93,7 @@ export ACCOUNTS_IMPORT_CONFIRM=source-writers-and-target-traffic-frozen
 node /operator/accounts/scripts/import-legacy.mjs apply >"$work/import.log" 2>&1 || fail import_failed_or_uncertain
 
 # Build the real Aegyo reconciliation inputs privately. Full-row preservation is
-# already established above; this snapshot adds exact ID/role coverage.
-export ACCOUNTS_REAL_LOCAL_STATE_OUTPUT="$work/local-before.json"
-node /operator/accounts/scripts/snapshot-aegyo-local-state.mjs >"$work/local-before.log" 2>"$work/aegyo.err" || fail local_snapshot_failed
-node -e 'const x=require(process.argv[1]);if(x.schemaStatus!==process.env.AEGYO_REHEARSAL_SCHEMA_STATUS||x.evidenceVersion!==2||x.sharedAuthMappings!==0||x.cutoverLatches!==0)process.exit(2)' "$work/local-before.json" || fail local_snapshot_schema_or_evidence_invalid
+# already established above; this snapshot adds exact ID/role/content coverage.
 cp "$work/local-before.json" "$work/local-after.json"
 cp "$work/imported.json" "$work/transfer.json"
 node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1]));fs.writeFileSync(process.argv[2],JSON.stringify(x.accounts));fs.writeFileSync(process.argv[3],JSON.stringify(x.mapping))' "$work/transfer.json" "$work/accounts.json" "$work/mapping.json"

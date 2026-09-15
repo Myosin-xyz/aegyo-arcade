@@ -14,7 +14,7 @@ export const EXPECTED = Object.freeze({
   restoredPostgresServiceId: "af639001-c6cd-417c-941b-c84c657c7c83",
   operatorServiceId: "57406cd0-f9ae-4000-b893-684aa2e0db16",
   sourceServiceId: "726d0c13-88e6-4167-b1ac-521b4a7b1216",
-  aegyoCommit: "e9e0468fe7dc477e3188d18d0ab769d5bddb990e",
+  aegyoCommit: "f27b14f0c35fd710726cb5e1394d17c99d4ec348",
 });
 
 export function validateRealImportRehearsal(input) {

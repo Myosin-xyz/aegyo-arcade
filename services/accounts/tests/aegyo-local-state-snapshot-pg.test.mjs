@@ -72,6 +72,8 @@ test(
       return JSON.parse(await readFile(output, "utf8"));
     };
     const before = await snapshot("before");
+    assert.equal(before.schemaStatus, "legacy");
+    assert.equal(before.evidenceVersion, 2);
     const memberA = before.users.find((user) => user.id === "member-a");
     assert.deepEqual(memberA.linkedRecords, {
       Session: ["session-a"],
@@ -84,6 +86,24 @@ test(
     });
     assert.deepEqual(before.anonymousPollVotes.ids, ["poll-device"]);
     assert.doesNotMatch(JSON.stringify(before), /opaque-device/);
+    await database.query(`
+      ALTER TABLE "Session"
+        ADD COLUMN "providerSessionId" text,
+        ADD COLUMN "authenticatedAt" timestamptz,
+        ADD COLUMN "providerCheckedAt" timestamptz,
+        ADD COLUMN "securityVersion" integer,
+        ADD COLUMN "passwordResetAt" timestamptz;
+      CREATE TABLE "SharedAuthIdentity" (id text PRIMARY KEY);
+      CREATE TABLE "AuthCutoverLatch" (id text PRIMARY KEY);
+    `);
+    const additive = await snapshot("additive");
+    assert.equal(additive.schemaStatus, "additive-v1");
+    assert.equal(
+      additive.users.find((user) => user.id === "member-a").linkedRecordDigests
+        .Session,
+      memberA.linkedRecordDigests.Session,
+      "reviewed nullable auth columns must not change the legacy Session digest",
+    );
     await database.query(
       `UPDATE "Follow" SET "targetSlug"='changed-profile' WHERE id='follow-a'`,
     );

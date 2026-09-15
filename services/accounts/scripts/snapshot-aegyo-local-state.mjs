@@ -16,6 +16,13 @@ const links = [
   { table: "SlangVote", owner: "userId", label: "SlangVote" },
   { table: "Follow", owner: "followerId", label: "Follow" },
 ];
+const additiveSessionColumns = [
+  "providerSessionId",
+  "authenticatedAt",
+  "providerCheckedAt",
+  "securityVersion",
+  "passwordResetAt",
+];
 const digest = (rows) =>
   createHash("sha256")
     .update(rows.map((row) => row.record_json).join("\n"))
@@ -42,6 +49,8 @@ const assertTable = async (pool, table, requiredColumns) => {
     fail("linked_table_shape_mismatch");
 };
 let pool;
+let client;
+let transactionOpen = false;
 try {
   const connectionString = req("REHEARSAL_LEGACY_OWNER_DATABASE_URL");
   const proofSocket = process.env.ACCOUNTS_PROOF_PG_SOCKET;
@@ -65,22 +74,56 @@ try {
     ),
     max: 1,
   });
-  const db = (await pool.query("select current_database() name")).rows[0]?.name;
+  client = await pool.connect();
+  await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+  transactionOpen = true;
+  const db = (await client.query("select current_database() name")).rows[0]
+    ?.name;
   if (db !== req("REHEARSAL_LEGACY_DATABASE_NAME"))
     fail("database_name_mismatch");
   const users = (
-    await pool.query('select id, role from "User" order by id')
+    await client.query('select id, role from "User" order by id')
   ).rows.map((x) => ({
     ...x,
     linkedRecords: {},
     linkedRecordDigests: {},
   }));
   const byId = new Map(users.map((x) => [x.id, x]));
+  const schemaProbe = (
+    await client.query(
+      `select
+        to_regclass('public."SharedAuthIdentity"') is not null identity_table,
+        to_regclass('public."AuthCutoverLatch"') is not null latch_table,
+        count(*) filter
+          (where column_name = any($1::text[]))::int session_column_count
+       from information_schema.columns
+       where table_schema='public' and table_name='Session'`,
+      [additiveSessionColumns],
+    )
+  ).rows[0];
+  const installedColumnCount = schemaProbe.session_column_count;
+  const legacySchema =
+    !schemaProbe.identity_table &&
+    !schemaProbe.latch_table &&
+    installedColumnCount === 0;
+  const additiveSchema =
+    schemaProbe.identity_table &&
+    schemaProbe.latch_table &&
+    installedColumnCount === additiveSessionColumns.length;
+  if (!legacySchema && !additiveSchema)
+    fail(
+      `shared_auth_schema_partial_i${Number(schemaProbe.identity_table)}_l${Number(schemaProbe.latch_table)}_c${installedColumnCount}`,
+    );
+  const schemaStatus = legacySchema ? "legacy" : "additive-v1";
   for (const { table, owner, label } of links) {
-    await assertTable(pool, table, ["id", owner]);
+    await assertTable(client, table, ["id", owner]);
+    const rowJson =
+      table === "Session"
+        ? `to_jsonb(t) - ARRAY['providerSessionId','authenticatedAt','providerCheckedAt','securityVersion','passwordResetAt']`
+        : "to_jsonb(t)";
     const rows = (
-      await pool.query(
-        `select id, "${owner}" user_id, to_jsonb(t)::text record_json from "${table}" t order by id`,
+      await client.query(
+        `select id, "${owner}" user_id, (${rowJson})::text record_json from "${table}" t order by id`,
       )
     ).rows;
     const ownedRows = new Map();
@@ -99,7 +142,7 @@ try {
       user.linkedRecordDigests[label] = digest(records);
     }
   }
-  await assertTable(pool, "PollVote", [
+  await assertTable(client, "PollVote", [
     "id",
     "voterRef",
     "voterType",
@@ -107,7 +150,7 @@ try {
     "option",
   ]);
   const pollRows = (
-    await pool.query(
+    await client.query(
       `select id, "voterRef" voter_ref, "voterType" voter_type,
               to_jsonb(t)::text record_json
        from "PollVote" t order by id`,
@@ -139,10 +182,18 @@ try {
     ids: anonymousPollRows.map((row) => row.id),
     recordsDigest: digest(anonymousPollRows),
   };
+  await client.query("ROLLBACK");
+  transactionOpen = false;
   const f = await open(req("ACCOUNTS_REAL_LOCAL_STATE_OUTPUT"), "wx", 0o600);
   try {
     await f.writeFile(
-      JSON.stringify({ version: 1, users, anonymousPollVotes }) + "\n",
+      JSON.stringify({
+        version: 1,
+        evidenceVersion: 2,
+        schemaStatus,
+        users,
+        anonymousPollVotes,
+      }) + "\n",
     );
   } finally {
     await f.close();
@@ -163,9 +214,11 @@ try {
   );
 } catch (e) {
   console.error(
-    /^[a-z_]+$/.test(e?.message ?? "") ? e.message : "local_state_failed",
+    /^[a-z0-9_]+$/.test(e?.message ?? "") ? e.message : "local_state_failed",
   );
   process.exitCode = 1;
 } finally {
+  if (transactionOpen) await client?.query("ROLLBACK").catch(() => {});
+  client?.release();
   await pool?.end();
 }

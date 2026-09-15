@@ -17,7 +17,7 @@ if (outputRelative.startsWith("..") || outputRelative.startsWith("/"))
   throw new Error("bundle_output_must_be_under_accounts_proof");
 const git = (cwd, args) =>
   execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
-const aegyoRef = "e9e0468fe7dc477e3188d18d0ab769d5bddb990e";
+const aegyoRef = "f27b14f0c35fd710726cb5e1394d17c99d4ec348";
 if (git(aegyo, ["rev-parse", `${aegyoRef}^{commit}`]) !== aegyoRef)
   throw new Error("missing_aegyo_commit");
 const accountCommit = git(accounts, ["rev-parse", accountsRef]);
@@ -86,6 +86,27 @@ const aegyoFiles = [
 ];
 for (const path of aegyoFiles)
   await copyTracked(aegyo, aegyoRef, path, `aegyo/${path}`);
+execFileSync(
+  process.execPath,
+  [
+    "--input-type=module",
+    "--eval",
+    `const {buildReconciliation}=await import(process.argv[1]);
+const hex=(c)=>c.repeat(64);
+const local={version:1,evidenceVersion:2,users:[{id:'u',role:'user',linkedRecords:{Follow:['f']},linkedRecordDigests:{Follow:hex('a')}}],anonymousPollVotes:{ids:['p'],recordsDigest:hex('b')}};
+const accounts={version:1,issuer:'https://accounts.example.test',subjects:['s']};
+const mapping={version:1,pairs:[{localUserId:'u',subject:'s'}]};
+const first=buildReconciliation(local,accounts,mapping).localSnapshotDigest;
+local.users[0].linkedRecordDigests.Follow=hex('c');
+if(buildReconciliation(local,accounts,mapping).localSnapshotDigest===first)throw new Error('bundled_reconciler_discards_row_evidence');
+local.users[0].linkedRecordDigests.Follow=hex('a');local.anonymousPollVotes.recordsDigest=hex('d');
+if(buildReconciliation(local,accounts,mapping).localSnapshotDigest===first)throw new Error('bundled_reconciler_discards_anonymous_poll_evidence');`,
+    new URL(
+      `file://${join(output, "aegyo/scripts/shared-auth/reconciliation-lib.mjs")}`,
+    ).href,
+  ],
+  { stdio: "pipe" },
+);
 await copyTracked(
   accounts,
   accountCommit,

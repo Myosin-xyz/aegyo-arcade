@@ -89,6 +89,7 @@ node /operator/accounts/scripts/import-legacy.mjs apply >"$work/import.log" 2>&1
 # already established above; this snapshot adds exact ID/role coverage.
 export ACCOUNTS_REAL_LOCAL_STATE_OUTPUT="$work/local-before.json"
 node /operator/accounts/scripts/snapshot-aegyo-local-state.mjs >"$work/local-before.log" 2>"$work/aegyo.err" || fail local_snapshot_failed
+node -e 'const x=require(process.argv[1]);if(x.schemaStatus!=="legacy"||x.evidenceVersion!==2)process.exit(2)' "$work/local-before.json" || fail local_snapshot_schema_or_evidence_invalid
 cp "$work/local-before.json" "$work/local-after.json"
 cp "$work/imported.json" "$work/transfer.json"
 node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1]));fs.writeFileSync(process.argv[2],JSON.stringify(x.accounts));fs.writeFileSync(process.argv[3],JSON.stringify(x.mapping))' "$work/transfer.json" "$work/accounts.json" "$work/mapping.json"
@@ -127,6 +128,7 @@ node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"ut
 
 export ACCOUNTS_REAL_LOCAL_STATE_OUTPUT="$work/local-after-actual.json"
 node /operator/accounts/scripts/snapshot-aegyo-local-state.mjs >"$work/local-after.log" 2>>"$work/aegyo.err" || fail post_mapping_snapshot_failed
+node -e 'const x=require(process.argv[1]);if(x.schemaStatus!=="additive-v1"||x.evidenceVersion!==2)process.exit(2)' "$work/local-after-actual.json" || fail post_mapping_snapshot_schema_or_evidence_invalid
 node /operator/aegyo/scripts/shared-auth/reconcile.mjs "$work/local-before.json" "$work/accounts.json" "$work/mapping.json" "$work/local-after-actual.json" "$work/manifest-after.json" >"$work/reconcile-after.log" 2>&1 || fail post_mapping_reconciliation_failed
 cmp -s "$work/manifest.json" "$work/manifest-after.json" || fail reconciliation_digest_changed
 

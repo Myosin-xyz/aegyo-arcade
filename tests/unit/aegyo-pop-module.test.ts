@@ -59,12 +59,13 @@ describe("Aegyo Pop shell module", () => {
     const scores: number[] = [];
     const ends: string[] = [];
     const host = document.createElement("div");
+    const canvas = document.createElement("canvas");
     document.body.appendChild(host);
     const ctx = {
       host,
       surface: {
         kind: "canvas",
-        canvas: document.createElement("canvas"),
+        canvas,
         context2d: {} as CanvasRenderingContext2D,
         designBox: { w: 390, h: 780 },
       },
@@ -92,6 +93,8 @@ describe("Aegyo Pop shell module", () => {
     return {
       game,
       state: () => (game as unknown as { state: AegyoPopState }).state,
+      host,
+      canvas,
       pointer: (value: NormalizedPointer) => pointer?.(value),
       key: (value: NormalizedKey) => key?.(value),
       scores,
@@ -106,8 +109,10 @@ describe("Aegyo Pop shell module", () => {
     if (mounted.game.loop !== "shell") throw new Error("expected shell loop");
     mounted.pointer({ action: "down", x: 195, y: 250, pointerId: 1 });
     expect(mounted.state().shots).toBe(0);
+    expect(mounted.canvas.dataset.shots).toBe("0");
     mounted.pointer({ action: "up", x: 195, y: 250, pointerId: 1 });
     expect(mounted.state().shots).toBe(1);
+    expect(mounted.canvas.dataset.shots).toBe("1");
     expect(mounted.state().flying).not.toBeNull();
     expect(mounted.state().loaded).toBeNull();
 
@@ -122,6 +127,8 @@ describe("Aegyo Pop shell module", () => {
     expect(mounted.state().flying).toBeNull();
     expect(mounted.state().loaded).not.toBeNull();
     expect(mounted.scores[0]).toBe(0);
+    mounted.game.destroy();
+    expect(mounted.canvas.dataset.shots).toBeUndefined();
   });
 
   it("uses one mobile gesture: drag and lift, never an empty tap or second finger", async () => {

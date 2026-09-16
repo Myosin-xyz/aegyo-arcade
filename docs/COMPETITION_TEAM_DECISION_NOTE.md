@@ -1,5 +1,11 @@
 # First competition: proposed defaults for team decision
 
+> September 16 update: Dai Dai's weekly tier proposal is reviewed in
+> [`DAI_DAI_WEEKLY_RULES_REVIEW.md`](DAI_DAI_WEEKLY_RULES_REVIEW.md). It
+> supersedes the scoring and schedule defaults below once the four listed team
+> decisions are approved. This older note remains as the record of the prior
+> monthly calibration proposal; it is not an instruction to open a round.
+
 **Decision meeting:** September 15, 2026
 
 **Status:** proposed defaults only; material competition remains disabled

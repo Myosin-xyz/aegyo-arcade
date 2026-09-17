@@ -170,7 +170,7 @@ function normalizedCheck(definition) {
     .replaceAll('"', "")
     .replace(/\bpublic\./g, "")
     .replace(/\bcompetition_period_(?:best|bonuses)\./g, "")
-    .replace(/[\s()]/g, "");
+    .replace(/\s/g, "");
 }
 
 function constraintMatches(definition, expectedDefinition) {

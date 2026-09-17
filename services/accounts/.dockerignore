@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.proof
+.auth-proof
+node_modules
+npm-debug.log*
+coverage
+*.pem
+*.key
+*.crt
+*secret*
+*credentials*
+secret-reports
+reports/secrets

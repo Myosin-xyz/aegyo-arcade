@@ -40,6 +40,8 @@ interface RunContextBase {
   random: () => number;
   /** Aborts when the run is being torn down mid-flight. */
   signal: AbortSignal;
+  /** Additive v1 evidence capture; omitted for existing runs. */
+  competition?: { captureTrace: true };
 }
 
 /**
@@ -54,6 +56,8 @@ export type RunContext =
 
 export interface GameEndResult {
   reason?: "completed" | "lost" | "quit";
+  /** Optional deterministic evidence for an explicitly captured run. */
+  competitionTrace?: import("@/competition/replay").CompetitionTraceV1;
 }
 
 export interface GameContext {

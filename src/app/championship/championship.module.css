@@ -1,0 +1,345 @@
+.page {
+  width: min(100%, 56rem);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(2rem, env(safe-area-inset-top)) 1.25rem
+    max(3rem, env(safe-area-inset-bottom));
+}
+.header {
+  display: grid;
+  justify-items: center;
+  margin: 1rem auto 1.75rem;
+  text-align: center;
+}
+.logo {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 0.75rem;
+  filter: drop-shadow(0 0 18px rgb(255 79 139 / 45%));
+}
+.eyebrow {
+  color: var(--brand);
+  font-family: var(--font-arcade), sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.header h1 {
+  margin-top: 0.35rem;
+  font-family: var(--font-arcade), sans-serif;
+  font-size: clamp(1.5rem, 7vw, 2.3rem);
+}
+.intro {
+  max-width: 32rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.notice,
+.card,
+.roundCard {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1.2rem;
+  background: linear-gradient(155deg, rgb(43 17 70 / 92%), rgb(30 16 56 / 96%));
+  box-shadow: 0 18px 60px rgb(5 1 15 / 25%);
+}
+.notice {
+  min-height: 12rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  color: var(--muted);
+  text-align: center;
+}
+.notice button,
+.actionBlock a,
+.enroll button {
+  min-height: 2.75rem;
+  padding: 0.7rem 1.1rem;
+}
+.roundCard,
+.card {
+  padding: clamp(1.2rem, 4vw, 1.7rem);
+}
+.roundHeading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+.roundHeading h2,
+.card h2 {
+  font-family: var(--font-arcade), sans-serif;
+  font-size: 1rem;
+  line-height: 1.4;
+  text-transform: capitalize;
+}
+.testBadge {
+  width: fit-content;
+  margin-bottom: 0.55rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgb(255 209 102 / 48%);
+  border-radius: 999px;
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+.date,
+.provisional,
+.empty {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.date {
+  max-width: 12rem;
+  text-align: right;
+}
+.provisional {
+  margin-top: 1rem;
+}
+.rounds {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.rounds > span {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.rounds div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.rounds a {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--foreground);
+  text-transform: capitalize;
+}
+.rounds a[aria-current="page"] {
+  border-color: var(--brand);
+  color: var(--brand-soft);
+}
+.actionBlock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.enroll,
+.member {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+.enroll h3,
+.member h3,
+.recent h3 {
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.checkbox {
+  display: flex;
+  align-items: start;
+  gap: 0.7rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.checkbox input {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+  margin-top: 0.1rem;
+  accent-color: var(--brand);
+}
+.enroll button {
+  justify-self: start;
+}
+.error {
+  color: #ffb2c7;
+  font-size: 0.78rem;
+}
+.enrolled {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+.stats div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgb(20 10 38 / 55%);
+}
+.stats span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+.stats strong {
+  color: var(--brand-soft);
+  font-family: var(--font-arcade), sans-serif;
+  font-size: 1.2rem;
+}
+.gameActions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+.gameActions a {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  text-align: center;
+}
+.recent {
+  margin-top: 0.5rem;
+}
+.awards {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.award {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgb(20 10 38 / 55%);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.award button {
+  width: fit-content;
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
+}
+.recent ul {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+.recent li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.75rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+.recent li span:nth-child(2) {
+  color: var(--muted);
+  text-align: right;
+}
+.recent small {
+  grid-column: 1 / -1;
+  color: var(--brand-soft);
+  text-transform: capitalize;
+}
+.rules {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0 1.25rem;
+  padding-left: 1.15rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  list-style: disc;
+}
+.calibrations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+.card caption {
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  color: var(--brand-soft);
+  font-family: var(--font-arcade), sans-serif;
+  text-align: left;
+}
+.card th,
+.card td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+.card th:first-child,
+.card td:first-child {
+  text-align: left;
+}
+.card thead {
+  color: var(--muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+.card tbody th {
+  color: var(--foreground);
+}
+.tableScroll {
+  margin-top: 0.9rem;
+  overflow-x: auto;
+}
+.home {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.9rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+@media (max-width: 34rem) {
+  .roundHeading {
+    display: grid;
+  }
+  .date {
+    text-align: left;
+  }
+  .calibrations,
+  .gameActions {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 48rem) {
+  .page {
+    padding-top: max(4rem, env(safe-area-inset-top));
+  }
+}

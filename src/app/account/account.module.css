@@ -1,0 +1,202 @@
+.page {
+  width: min(100%, 34rem);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(2rem, env(safe-area-inset-top)) 1.25rem
+    max(3rem, env(safe-area-inset-bottom));
+}
+
+.header {
+  display: grid;
+  justify-items: center;
+  margin: 1rem 0 1.5rem;
+  text-align: center;
+}
+
+.logo {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 0.75rem;
+  filter: drop-shadow(0 0 18px rgb(255 79 139 / 45%));
+}
+
+.eyebrow {
+  color: var(--brand);
+  font-family: var(--font-arcade), sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin-top: 0.35rem;
+  font-family: var(--font-arcade), sans-serif;
+  font-size: clamp(1.35rem, 6vw, 1.8rem);
+  line-height: 1.25;
+}
+
+.card {
+  min-height: 17rem;
+  padding: clamp(1.25rem, 5vw, 1.75rem);
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: linear-gradient(155deg, rgb(43 17 70 / 92%), rgb(30 16 56 / 96%));
+  box-shadow: 0 22px 70px rgb(5 1 15 / 38%);
+}
+
+.status,
+.centered {
+  min-height: 13.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.centered {
+  flex-direction: column;
+  gap: 1.25rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.centered a,
+.centered button,
+.form button {
+  min-height: 2.75rem;
+  padding: 0.7rem 1.15rem;
+}
+
+.account {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.verification {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  color: var(--gold);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.verification[data-verified="true"] {
+  color: var(--accent);
+}
+
+.verification span {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.refreshVerification {
+  width: fit-content;
+  margin-top: -0.8rem;
+  color: var(--brand-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-decoration: underline;
+  text-underline-offset: 0.22rem;
+}
+
+.account h2 {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.username {
+  margin-top: 0.65rem;
+  color: var(--brand-soft);
+  font-family: var(--font-arcade), sans-serif;
+  font-size: clamp(1.2rem, 6vw, 1.7rem);
+  overflow-wrap: anywhere;
+}
+
+.help,
+.optional,
+.form label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.help {
+  margin-top: 0.55rem;
+}
+
+.optional {
+  margin-top: 1rem;
+}
+
+.form {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.7rem;
+}
+
+.inputRow {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgb(20 10 38 / 70%);
+  color: var(--brand-soft);
+  font-family: var(--font-mono), monospace;
+}
+
+.inputRow:focus-within {
+  border-color: var(--accent);
+}
+
+.inputRow input {
+  min-width: 0;
+  flex: 1;
+  outline: none;
+  color: var(--foreground);
+}
+
+.inputRow input::placeholder {
+  color: rgb(244 236 255 / 34%);
+}
+
+.error {
+  color: #ffb2c7;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.signOut {
+  min-height: 2.75rem;
+  justify-self: start;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+
+.home {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.85rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+@media (min-width: 40rem) {
+  .page {
+    padding-top: max(4rem, env(safe-area-inset-top));
+  }
+}

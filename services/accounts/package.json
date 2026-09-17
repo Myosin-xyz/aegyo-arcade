@@ -1,0 +1,25 @@
+{
+  "name": "@aegyo/accounts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.21.0"
+  },
+  "scripts": {
+    "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs tests/runtime-unit.test.mjs tests/mailjet-preflight.test.mjs tests/mail.test.mjs ui/*.test.mjs",
+    "proof": "node scripts/prove.mjs",
+    "start": "node src/server.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "upgrade:guards": "node scripts/upgrade-credential-guards.mjs",
+    "seed:staging": "node scripts/seed-staging.mjs",
+    "mail:preflight": "node scripts/mailjet-preflight.mjs"
+  },
+  "dependencies": {
+    "@better-auth/oauth-provider": "1.7.4",
+    "better-auth": "1.7.4",
+    "jose": "6.2.2",
+    "kysely": "0.29.5",
+    "pg": "8.22.0"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "sha256-raw-file-v1",
+  "replayVersions": {
+    "1": {
+      "entrypoint": "src/competition/replay.ts",
+      "files": {
+        "src/competition/replay.ts": "6952310bc27c9e9ec68dd8570ef801599da9b939a5dd250a5223ee2862616ca3",
+        "src/games/flappy/logic.ts": "369f6e0aacb2d0faa39da15e8d90461d03d8f3ddc8e072e9c77d9e5896a9e0e3",
+        "src/games/snake/logic.ts": "b179eae8867ef4b1388a6bbf5dffedac691fdb93a0581b6c3db0b37a5351b6aa",
+        "src/shell/rng.ts": "61c5cec159a0da6cf81c2883b1736ceacc9a202c00586b41ac8e68347ee9483c"
+      }
+    }
+  }
+}

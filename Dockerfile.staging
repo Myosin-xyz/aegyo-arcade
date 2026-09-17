@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1
+
+# Node 24.21.0 official multi-platform image index, observed 2026-09-11.
+ARG NODE_IMAGE=node:24.21.0-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553
+
+FROM ${NODE_IMAGE} AS dependencies
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci && npm cache clean --force
+
+FROM ${NODE_IMAGE} AS build
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
+WORKDIR /app
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY package.json package-lock.json next.config.ts postcss.config.mjs tsconfig.json ./
+COPY public ./public
+COPY src ./src
+# Request-time flags and DATABASE_URL are deliberately absent from this build.
+RUN npm run build
+
+FROM ${NODE_IMAGE} AS runtime
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
+WORKDIR /app
+
+# Staging retains the exact installed dependency tree so the reviewed TS
+# competition operator remains available during an explicit Railway SSH run.
+COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/.next ./.next
+COPY --from=build --chown=node:node /app/public ./public
+COPY --chown=node:node package.json package-lock.json next.config.ts tsconfig.json ./
+COPY --chown=node:node src ./src
+COPY --chown=node:node scripts/competition/operator.ts ./scripts/competition/operator.ts
+
+RUN cat > /usr/local/bin/start-aegyo-arcade <<'EOF'
+#!/bin/sh
+set -eu
+umask 077
+if [ -n "${DATABASE_URL:-}" ]; then
+  case "$DATABASE_URL" in
+    *sslmode=verify-full*) ;;
+    *) echo "DATABASE_URL must require sslmode=verify-full" >&2; exit 1 ;;
+  esac
+  if [ -z "${AEGYO_DATABASE_CA_CERT:-}" ]; then
+    echo "AEGYO_DATABASE_CA_CERT is required with DATABASE_URL" >&2
+    exit 1
+  fi
+  printf '%s' "$AEGYO_DATABASE_CA_CERT" > /tmp/railway-ca.pem
+  chmod 600 /tmp/railway-ca.pem
+  export NODE_EXTRA_CA_CERTS=/tmp/railway-ca.pem
+fi
+exec npm run start -- --port "${PORT:-3000}"
+EOF
+RUN chmod 755 /usr/local/bin/start-aegyo-arcade
+
+USER node
+EXPOSE 3000
+CMD ["/usr/local/bin/start-aegyo-arcade"]

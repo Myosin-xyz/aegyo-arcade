@@ -145,6 +145,9 @@ class AegyoPopGame implements ShellLoopGame {
     this.endedReported = false;
     this.lastReportedScore = 0;
     this.activeAim = null;
+    if (this.ctx.surface.kind === "canvas") {
+      this.ctx.surface.canvas.dataset.shots = "0";
+    }
     this.ctx.report.score(0);
   }
 
@@ -193,6 +196,9 @@ class AegyoPopGame implements ShellLoopGame {
     this.particles = [];
     this.toast = null;
     this.activeAim = null;
+    if (this.ctx.surface.kind === "canvas") {
+      delete this.ctx.surface.canvas.dataset.shots;
+    }
   }
 
   private onPointer(pointer: NormalizedPointer): void {
@@ -250,6 +256,9 @@ class AegyoPopGame implements ShellLoopGame {
     const rng = this.rng;
     if (!state || !rng || this.paused || this.endedReported) return;
     this.processEvents(shootAegyoPop(state, rng));
+    if (this.ctx.surface.kind === "canvas") {
+      this.ctx.surface.canvas.dataset.shots = String(state.shots);
+    }
   }
 
   private continueLevel(): void {

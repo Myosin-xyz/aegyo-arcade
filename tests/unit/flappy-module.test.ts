@@ -15,6 +15,10 @@ import { LeakTracker } from "@/shell/conformance";
 import { flappyDefinition } from "@/games/flappy/module";
 import { leaveRect, quitConfirmRects } from "@/games/flappy/render";
 import * as flappyLogic from "@/games/flappy/logic";
+import {
+  verifyCompetitionTrace,
+  type CompetitionTraceV1,
+} from "@/competition/replay";
 
 vi.mock("@/games/flappy/logic", { spy: true });
 
@@ -73,6 +77,7 @@ function mount() {
   const audio = createRecordingAudio();
   const scores: number[] = [];
   const ends: string[] = [];
+  const traces: CompetitionTraceV1[] = [];
   const ctx: GameContext = {
     host,
     surface: {
@@ -86,7 +91,10 @@ function mount() {
     t: (key) => key,
     report: {
       score: (n) => scores.push(n),
-      end: (e) => ends.push(e?.reason ?? "<no-result>"),
+      end: (e) => {
+        ends.push(e?.reason ?? "<no-result>");
+        if (e?.competitionTrace) traces.push(e.competitionTrace);
+      },
     },
   };
   const game = flappyDefinition.create(ctx);
@@ -106,7 +114,7 @@ function mount() {
     audio.destroy();
     host.remove();
   };
-  return { game, audio, scores, ends, pointer, teardown };
+  return { game, audio, scores, ends, traces, pointer, teardown };
 }
 
 const center = (r: { x: number; y: number; w: number; h: number }) => ({
@@ -252,6 +260,67 @@ describe("bias flap module — feedback reset (audit P1)", () => {
 });
 
 describe("bias flap module — lifecycle", () => {
+  it("captures accepted live input, automatic retry, pause, and cash-out for replay", async () => {
+    const { game, traces, pointer, teardown } = mount();
+    await game.init(new AbortController().signal);
+    const run = {
+      ...makeRun("live-flappy-trace"),
+      competition: { captureTrace: true as const },
+    };
+    game.start(run);
+    if (game.loop !== "shell") throw new Error("expected shell loop");
+
+    pointer("pointerdown", 60, 400);
+    let sawCrash = false;
+    let sawRetry = false;
+    for (let i = 0; i < 2_000 && !sawRetry; i++) {
+      game.update(1000 / 60);
+      const status = (game as unknown as { state: { status: string } }).state
+        .status;
+      if (status === "crashed") sawCrash = true;
+      if (sawCrash && status === "waiting") sawRetry = true;
+    }
+    expect(sawRetry).toBe(true);
+    game.pause("system");
+    game.resume();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { code: "Escape", bubbles: true }),
+    );
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { code: "Enter", bubbles: true }),
+    );
+
+    expect(traces).toHaveLength(1);
+    expect(traces[0].events.map((event) => event.action)).toEqual(
+      expect.arrayContaining([
+        "flappy:flap",
+        "flappy:retry",
+        "pause",
+        "resume",
+        "flappy:open-quit",
+        "flappy:cash-out",
+      ]),
+    );
+    expect(verifyCompetitionTrace(traces[0])).toMatchObject({
+      ok: true,
+      gameId: "flappy",
+      seed: "live-flappy-trace",
+      reason: "quit",
+      status: "cashedOut",
+    });
+    const withoutRetry = {
+      ...traces[0],
+      events: traces[0].events
+        .filter((event) => event.action !== "flappy:retry")
+        .map((event, sequence) => ({ ...event, sequence })),
+    };
+    expect(verifyCompetitionTrace(withoutRetry)).toEqual({
+      ok: false,
+      code: "transition_not_recorded",
+    });
+    teardown();
+  });
+
   it("crash does NOT end the run; restart works; teardown is leak-free", async () => {
     const tracker = new LeakTracker();
     tracker.begin();

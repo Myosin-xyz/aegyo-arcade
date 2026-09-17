@@ -35,6 +35,11 @@ import { getRegistryEntry } from "@/games/registry";
 import { ChallengeShareButton } from "./challenge-share";
 import { BiasFlapVictory } from "./bias-flap-victory";
 import { createMusicController } from "./music";
+import {
+  ChampionshipControls,
+  type ChampionshipPhase,
+} from "./championship-controls";
+import type { CompetitionTraceV1 } from "@/competition/replay";
 
 /** Counted-run UI state (M2): issuance → active → submit → receipt. */
 type CountedPhase =
@@ -65,8 +70,23 @@ interface Mounted {
   endedThisRun: boolean;
 }
 
-export function GameHost({ gameId }: { gameId: string }) {
-  return <GameHostInner entry={getRegistryEntry(gameId)} gameId={gameId} />;
+export function GameHost({
+  gameId,
+  championshipEnabled = false,
+  requestedChampionshipRound = null,
+}: {
+  gameId: string;
+  championshipEnabled?: boolean;
+  requestedChampionshipRound?: string | null;
+}) {
+  return (
+    <GameHostInner
+      entry={getRegistryEntry(gameId)}
+      gameId={gameId}
+      championshipEnabled={championshipEnabled}
+      requestedChampionshipRound={requestedChampionshipRound}
+    />
+  );
 }
 
 /**
@@ -77,9 +97,13 @@ export function GameHost({ gameId }: { gameId: string }) {
 export function GameHostInner({
   entry,
   gameId,
+  championshipEnabled = false,
+  requestedChampionshipRound = null,
 }: {
   entry: RegistryEntry | undefined;
   gameId: string;
+  championshipEnabled?: boolean;
+  requestedChampionshipRound?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef<Mounted | null>(null);
@@ -96,6 +120,58 @@ export function GameHostInner({
     "completed" | "lost" | "quit" | null
   >(null);
   const [completionActive, setCompletionActive] = useState(false);
+  const championshipRound =
+    championshipEnabled && ["snake", "flappy"].includes(gameId)
+      ? requestedChampionshipRound
+      : null;
+  const [hasOfficialRetry, setHasOfficialRetry] = useState(false);
+  const [championshipPhase, setChampionshipPhase] =
+    useState<ChampionshipPhase>("idle");
+  const [championshipPoints, setChampionshipPoints] = useState<number | null>(
+    null,
+  );
+  const officialAttemptRef = useRef<string | null>(null);
+  const officialIssuingRef = useRef(false);
+  const officialKeyRef = useRef<string | null>(null);
+  const officialPayloadRef = useRef<{
+    attemptId: string;
+    trace: CompetitionTraceV1;
+  } | null>(null);
+  const submitOfficial = useCallback(async () => {
+    const payload = officialPayloadRef.current;
+    if (!payload) return;
+    setChampionshipPhase("submitting");
+    try {
+      const response = await fetch(
+        `/api/competition/attempts/${payload.attemptId}`,
+        {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ trace: payload.trace }),
+        },
+      );
+      if (!response.ok) {
+        setChampionshipPhase("error");
+        return;
+      }
+      const result = (await response.json()) as {
+        status?: string;
+        points?: number;
+      };
+      if (result.status === "verified") {
+        setChampionshipPoints(result.points ?? 0);
+        setChampionshipPhase("verified");
+        officialPayloadRef.current = null;
+        setHasOfficialRetry(false);
+      } else if (result.status === "rejected" || result.status === "void") {
+        setChampionshipPhase("rejected");
+        officialPayloadRef.current = null;
+        setHasOfficialRetry(false);
+      } else setChampionshipPhase("pending");
+    } catch {
+      setChampionshipPhase("error");
+    }
+  }, []);
   const countedAttemptRef = useRef<string | null>(null);
   const scoreRef = useRef(0);
   const runStartedAtRef = useRef(0);
@@ -315,6 +391,18 @@ export function GameHostInner({
             mounted.endedThisRun = true;
             mounted.loop?.stop();
             mounted.runAbort?.abort();
+            const officialId = officialAttemptRef.current;
+            if (officialId) {
+              officialAttemptRef.current = null;
+              if (result?.competitionTrace) {
+                setHasOfficialRetry(true);
+                officialPayloadRef.current = {
+                  attemptId: officialId,
+                  trace: result.competitionTrace,
+                };
+                void submitOfficial();
+              } else setChampionshipPhase("rejected");
+            }
             const reason = result?.reason ?? null;
             const hasCompletionPresentation =
               reason === "completed" &&
@@ -390,10 +478,12 @@ export function GameHostInner({
     teardown,
     transition,
     submitCountedIfNeeded,
+    submitOfficial,
     finishOwnedCounted,
   ]);
 
   const startRun = useCallback(() => {
+    if (officialIssuingRef.current) return;
     const mounted = mountedRef.current;
     // §6.3: start only from ready/ended — enforced HERE, in the production
     // host, not just the conformance driver (M0 review P1). The ref rejects
@@ -424,6 +514,7 @@ export function GameHostInner({
     setCompletionActive(false);
     scoreRef.current = 0;
     runStartedAtRef.current = performance.now();
+    officialAttemptRef.current = null;
     countedAttemptRef.current = null; // practice never submits
     setCounted((c) =>
       c.kind === "blocked" || (c.kind === "error" && c.retryable)
@@ -449,8 +540,88 @@ export function GameHostInner({
     transition("running");
   }, [teardown, transition]);
 
+  const startChampionshipRun = useCallback(async () => {
+    if (
+      !championshipRound ||
+      !canStart(lifecycleRef.current) ||
+      issuingRef.current ||
+      officialIssuingRef.current ||
+      officialPayloadRef.current
+    )
+      return;
+    officialIssuingRef.current = true;
+    setChampionshipPhase("issuing");
+    // Keep the key after an uncertain network result; a changed key would consume another attempt.
+    officialKeyRef.current ??= crypto.randomUUID();
+    try {
+      const response = await fetch("/api/competition/attempts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          roundId: championshipRound,
+          gameId,
+          idempotencyKey: officialKeyRef.current,
+        }),
+      });
+      if (!response.ok) {
+        if (response.status < 500) officialKeyRef.current = null;
+        setChampionshipPhase("error");
+        return;
+      }
+      const issued = (await response.json()) as {
+        attemptId: string;
+        seed: string;
+      };
+      const mounted = mountedRef.current;
+      if (!mounted || !canStart(lifecycleRef.current)) {
+        setChampionshipPhase("error");
+        return;
+      }
+      officialKeyRef.current = null;
+      mounted.runAbort?.abort();
+      const runAbort = new AbortController();
+      mounted.runAbort = runAbort;
+      mounted.endedThisRun = false;
+      countedAttemptRef.current = null;
+      officialAttemptRef.current = issued.attemptId;
+      setScore(0);
+      scoreRef.current = 0;
+      setEndReason(null);
+      setCompletionActive(false);
+      setChampionshipPoints(null);
+      setCounted({ kind: "idle" });
+      setChampionshipPhase("active");
+      runStartedAtRef.current = performance.now();
+      try {
+        mounted.music.start();
+        mounted.instance.start({
+          mode: "prize",
+          attemptId: issued.attemptId,
+          seed: issued.seed,
+          random: seededRandom(issued.seed),
+          signal: runAbort.signal,
+          competition: { captureTrace: true },
+        });
+      } catch {
+        officialAttemptRef.current = null;
+        teardown();
+        transition("failed");
+        setChampionshipPhase("error");
+        return;
+      }
+      if (mounted.endedThisRun) return;
+      mounted.loop?.start();
+      transition("running");
+    } catch {
+      setChampionshipPhase("error");
+    } finally {
+      officialIssuingRef.current = false;
+    }
+  }, [championshipRound, gameId, teardown, transition]);
+
   /** Issue today's counted attempt, then run with its server seed (§9.2). */
   const startCountedRun = useCallback(async () => {
+    if (officialIssuingRef.current) return;
     if (!canStart(lifecycleRef.current)) return;
     if (issuingRef.current) return; // same-task double activation (P2)
     issuingRef.current = true;
@@ -610,6 +781,16 @@ export function GameHostInner({
       data-lifecycle={lifecycle}
       data-score={score}
     >
+      {championshipRound && (
+        <ChampionshipControls
+          phase={championshipPhase}
+          canStart={canStart(lifecycle)}
+          points={championshipPoints}
+          onStart={() => void startChampionshipRun()}
+          onRetry={() => void submitOfficial()}
+          hasRetry={hasOfficialRetry}
+        />
+      )}
       <header className="flex items-center justify-between gap-2 border-b border-line bg-surface pb-2 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))]">
         {/* 44\u00d744 minimum touch target (iOS HIG / WCAG 2.5.5). The glyph
             stays small; only the hit area grows, so the header keeps its

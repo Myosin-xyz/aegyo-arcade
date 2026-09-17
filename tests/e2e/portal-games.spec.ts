@@ -172,31 +172,16 @@ const SMOKE_ACTIONS: Record<
       const scale = Math.min(box.width / 390, box.height / 780);
       const originX = box.x + (box.width - 390 * scale) / 2;
       const originY = box.y + (box.height - 780 * scale) / 2;
-      const shotsHud = {
-        x: originX + (195 - 50) * scale,
-        y: originY + 75 * scale,
-        width: 100 * scale,
-        height: 34 * scale,
-      };
-      const before = await page.screenshot({ clip: shotsHud });
+      await expect(surface).toHaveAttribute("data-shots", "0");
       await page.mouse.move(originX + 195 * scale, originY + 650 * scale);
       await page.mouse.down();
       await page.mouse.move(originX + 245 * scale, originY + 280 * scale, {
         steps: 6,
       });
       await page.waitForTimeout(80);
-      const whileHeld = await page.screenshot({ clip: shotsHud });
-      if (!before.equals(whileHeld)) {
-        throw new Error(
-          "aegyo-pop: shot released before the aiming pointer lifted",
-        );
-      }
+      await expect(surface).toHaveAttribute("data-shots", "0");
       await page.mouse.up();
-      await page.waitForTimeout(80);
-      const after = await page.screenshot({ clip: shotsHud });
-      if (before.equals(after)) {
-        throw new Error("aegyo-pop: lifting the aiming pointer did not fire");
-      }
+      await expect(surface).toHaveAttribute("data-shots", "1");
     },
     terminal: false,
   },

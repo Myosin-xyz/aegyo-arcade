@@ -43,6 +43,10 @@ import {
   tickHitFeedback,
   triggerHitFeedback,
 } from "@/shell/feedback";
+import {
+  CompetitionTraceCapture,
+  type CompetitionAction,
+} from "@/competition/replay";
 
 const ASSETS_BASE = "/games/snake/";
 /** Minimum pointer travel (design px) that counts as a swipe. */
@@ -156,6 +160,7 @@ class SnakeGame implements ShellLoopGame {
   private swipeOrigins = new Map<number, { x: number; y: number }>();
   private pressedDirs = new Map<number, string>();
   private unsubscribers: (() => void)[] = [];
+  private competitionTrace: CompetitionTraceCapture | null = null;
 
   constructor(private readonly ctx: GameContext) {}
 
@@ -205,16 +210,21 @@ class SnakeGame implements ShellLoopGame {
     this.toastMs = 0;
     this.swipeOrigins.clear();
     this.pressedDirs.clear();
+    this.competitionTrace = run.competition?.captureTrace
+      ? new CompetitionTraceCapture("snake", run.seed)
+      : null;
     this.ctx.report.score(0);
   }
 
   pause(): void {
+    if (!this.paused) this.competitionTrace?.record("pause");
     this.paused = true;
     this.swipeOrigins.clear();
     this.pressedDirs.clear();
   }
 
   resume(): void {
+    if (this.paused) this.competitionTrace?.record("resume");
     this.paused = false;
   }
 
@@ -229,18 +239,26 @@ class SnakeGame implements ShellLoopGame {
       // top guard would stall the pending end forever (audit P1 fix).
       if (!this.endedReported) {
         tickHitFeedback(this.hitFx, dtMs);
+        this.competitionTrace?.advanceTick();
         this.finishTerminal(state.status, dtMs);
       }
       return;
     }
     // Level breaks wait for the player, like the delivery's GO! button.
-    if (state.status === "levelBreak") return;
-    if (!this.armed) return; // frozen until the first input
+    if (state.status === "levelBreak") {
+      this.competitionTrace?.advanceTick();
+      return;
+    }
+    if (!this.armed) {
+      this.competitionTrace?.advanceTick();
+      return;
+    } // frozen until the first input
 
     const before = state.status;
     // step() RETURNS the new status: reading state.status back here would
     // keep TypeScript's pre-call narrowing and dead-end the comparisons.
     const after = step(state, dtMs, rng);
+    this.competitionTrace?.advanceTick();
     tickHitFeedback(this.hitFx, dtMs);
 
     if (state.score !== this.lastScore) {
@@ -284,6 +302,10 @@ class SnakeGame implements ShellLoopGame {
     this.ctx.audio.play(status === "won" ? "win" : "lose");
     this.ctx.report.end({
       reason: status === "won" ? "completed" : "lost",
+      competitionTrace: this.competitionTrace?.finish(
+        status === "won" ? "completed" : "lost",
+        status,
+      ),
     });
   }
 
@@ -325,6 +347,16 @@ class SnakeGame implements ShellLoopGame {
     if (!state) return false;
     if (state.status === "levelBreak") return false;
     if (!queueDirection(state, dir)) return false;
+    const action = (
+      dir.y < 0
+        ? "snake:up"
+        : dir.y > 0
+          ? "snake:down"
+          : dir.x < 0
+            ? "snake:left"
+            : "snake:right"
+    ) satisfies CompetitionAction;
+    this.competitionTrace?.record(action);
     this.armed = true;
     return true;
   }
@@ -360,6 +392,7 @@ class SnakeGame implements ShellLoopGame {
       // Level break: any tap continues (the delivery's GO! button).
       if (state.status === "levelBreak" && this.rng) {
         continueFromLevelBreak(state, this.rng);
+        this.competitionTrace?.record("snake:continue");
         return;
       }
       // D-pad first — a press inside a button is a turn, not a swipe.

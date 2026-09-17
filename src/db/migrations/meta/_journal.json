@@ -8,6 +8,20 @@
       "when": 1784339503850,
       "tag": "0000_foamy_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789165792963,
+      "tag": "0001_arcade_shared_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789239167663,
+      "tag": "0002_arcade_competition",
+      "breakpoints": true
     }
   ]
 }

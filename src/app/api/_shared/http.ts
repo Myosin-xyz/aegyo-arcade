@@ -11,11 +11,13 @@ import {
   SESSION_COOKIE,
   type SessionDevice,
 } from "@/server/identity";
+import { canonicalExternalRequestUrl } from "@/server/request-origin";
 
 export function sameOriginOk(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return true; // same-origin GET/HEAD and some agents omit it
-  return origin === new URL(request.url).origin;
+  const externalUrl = canonicalExternalRequestUrl(request);
+  return externalUrl !== null && origin === externalUrl.origin;
 }
 
 export function jsonError(

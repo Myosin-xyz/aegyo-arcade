@@ -8,6 +8,7 @@ export type MaterialLaunchBlocker =
   | "eligibility_geography_age"
   | "prize_allocation"
   | "claim_deadline_fulfillment"
+  | "game_point_tables"
   | "full_arena_bonus"
   | "schedule"
   | "exact_tie_policy"
@@ -70,9 +71,9 @@ export function materialLaunchBlockers(
   if (!isResolvedCompetitionTerm(approval?.claims))
     blockers.push("claim_deadline_fulfillment");
   if (rules.version === 2) {
-    // The working public rules specify a 20-point Full Arena bonus. Keep
-    // material rounds fail-closed until the configured value matches them.
-    if (rules.scoring.fullArenaBonusPoints !== 20)
+    if (!isResolvedCompetitionTerm(approval?.scoring?.gamePoints))
+      blockers.push("game_point_tables");
+    if (!isResolvedCompetitionTerm(approval?.scoring?.fullArenaBonus))
       blockers.push("full_arena_bonus");
     if (!isResolvedCompetitionTerm(approval?.schedule))
       blockers.push("schedule");

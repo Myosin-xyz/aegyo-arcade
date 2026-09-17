@@ -12,10 +12,39 @@ import {
   openRound,
   operatorReviewBundle,
   rejectPendingAttempt,
+  settleAttempt,
+  validateDraftRoundDefinition,
 } from "../../src/competition/operations-store";
-import { verifyAttempt } from "../../src/competition/store";
+import { materialLaunchBlockers } from "../../src/competition/launch-readiness";
 
 type Args = Record<string, string>;
+
+function operatorDatabaseClientConfig(connectionString: string) {
+  let address: URL;
+  try {
+    address = new URL(connectionString);
+  } catch {
+    throw new Error(
+      "COMPETITION_OPERATOR_DATABASE_URL must be a PostgreSQL URL",
+    );
+  }
+  if (!["postgres:", "postgresql:"].includes(address.protocol))
+    throw new Error(
+      "COMPETITION_OPERATOR_DATABASE_URL must be a PostgreSQL URL",
+    );
+  const local = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]).has(
+    address.hostname,
+  );
+  const sslModes = address.searchParams.getAll("sslmode");
+  if (!local && (sslModes.length !== 1 || sslModes[0] !== "verify-full"))
+    throw new Error(
+      "Remote COMPETITION_OPERATOR_DATABASE_URL must use sslmode=verify-full",
+    );
+  return {
+    connectionString,
+    ...(local ? {} : { ssl: { rejectUnauthorized: true } }),
+  };
+}
 
 function parseArgs(argv: string[]): { command: string; args: Args } {
   const [command = "", ...rest] = argv;
@@ -38,6 +67,27 @@ function required(args: Args, key: string): string {
 
 async function main() {
   const { command, args } = parseArgs(process.argv.slice(2));
+  if (command === "validate-definition") {
+    const definition = JSON.parse(
+      await readFile(required(args, "definition-file"), "utf8"),
+    );
+    const validated = validateDraftRoundDefinition(definition);
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          ok: true,
+          slug: validated.slug,
+          opensAt: validated.opensAt.toISOString(),
+          closesAt: validated.closesAt.toISOString(),
+          rules: validated.rules,
+          launchBlockers: materialLaunchBlockers(validated.rules),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return;
+  }
   const connectionString = process.env.COMPETITION_OPERATOR_DATABASE_URL;
   if (!connectionString)
     throw new Error(
@@ -57,7 +107,10 @@ async function main() {
       "ARCADE_COMPETITION_ENABLED must equal true for an operator rehearsal",
     );
   }
-  const pool = new Pool({ connectionString, max: 1 });
+  const pool = new Pool({
+    ...operatorDatabaseClientConfig(connectionString),
+    max: 1,
+  });
   try {
     const database = (
       await pool.query<{ name: string }>("SELECT current_database() AS name")
@@ -98,9 +151,11 @@ async function main() {
         reason: required(args, "reason"),
       });
     } else if (command === "settle") {
-      result = await verifyAttempt(db, required(args, "attempt-id"));
-      if (typeof result === "object" && result && "receipt" in result)
-        delete (result as { receipt?: unknown }).receipt;
+      result = await settleAttempt(db, {
+        roundId: required(args, "round-id"),
+        attemptId: required(args, "attempt-id"),
+        ...mutationIdentity(),
+      });
     } else if (command === "reject-pending") {
       result = await rejectPendingAttempt(db, {
         roundId: required(args, "round-id"),
@@ -138,7 +193,7 @@ async function main() {
       });
     } else {
       throw new Error(
-        "Command must be create-draft, open, close, settle, reject-pending, disqualify, export-review, finalize, or fulfill",
+        "Command must be validate-definition, create-draft, open, close, settle, reject-pending, disqualify, export-review, finalize, or fulfill",
       );
     }
     const safeResult =

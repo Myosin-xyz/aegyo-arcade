@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "test:competition:db": "node scripts/competition/prove-core.mjs",
     "test:competition:browser": "node scripts/competition/browser-proof.mjs",
+    "competition:preflight": "node scripts/competition/preflight.mjs",
     "competition:operator": "node --import tsx scripts/competition/operator.ts",
     "test:e2e": "playwright test",
     "format": "prettier --write .",

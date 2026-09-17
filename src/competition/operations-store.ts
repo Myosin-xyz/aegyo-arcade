@@ -18,6 +18,7 @@ import {
   parseRules,
   type RoundRules,
 } from "./rules";
+import { verifyAttempt } from "./store";
 
 type SqlRows<T> = { rows: T[] };
 type RoundRow = {
@@ -54,6 +55,17 @@ export type DraftRoundDefinition = {
   closesAt: string;
   rules: unknown;
 };
+export type ValidatedDraftRoundDefinition = {
+  slug: string;
+  opensAt: Date;
+  closesAt: Date;
+  rules: RoundRules;
+};
+
+type SettlementResult = Omit<
+  Awaited<ReturnType<typeof verifyAttempt>>,
+  "receipt"
+> & { repeated: boolean };
 
 function rows<T>(result: unknown): T[] {
   return (result as SqlRows<T>).rows;
@@ -85,6 +97,20 @@ function requireAuthEnabled(): void {
     throw new Error("Shared authentication is disabled");
 }
 
+/** Validate and normalize a round file without connecting to a database. */
+export function validateDraftRoundDefinition(
+  definition: DraftRoundDefinition,
+): ValidatedDraftRoundDefinition {
+  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(definition.slug))
+    throw new Error("Round slug is invalid");
+  const rules = parseRules(definition.rules);
+  const opensAt = inputDate(definition.opensAt, "opensAt");
+  const closesAt = inputDate(definition.closesAt, "closesAt");
+  if (closesAt <= opensAt)
+    throw new Error("Round close must follow its open time");
+  return { slug: definition.slug, opensAt, closesAt, rules };
+}
+
 export async function createDraftRound(
   db: Db,
   input: {
@@ -95,16 +121,11 @@ export async function createDraftRound(
 ): Promise<{ roundId: string; slug: string; repeated: boolean }> {
   requireText(input.actor, "actor");
   requireText(input.idempotencyKey, "idempotencyKey");
-  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(input.definition.slug))
-    throw new Error("Round slug is invalid");
-  const rules = parseRules(input.definition.rules);
-  const opensAt = inputDate(input.definition.opensAt, "opensAt");
-  const closesAt = inputDate(input.definition.closesAt, "closesAt");
-  if (closesAt <= opensAt)
-    throw new Error("Round close must follow its open time");
+  const validated = validateDraftRoundDefinition(input.definition);
+  const { rules, opensAt, closesAt } = validated;
   return db.transaction(async (tx) => {
     await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`competition-round-slug:${input.definition.slug}`},0))`,
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`competition-round-slug:${validated.slug}`},0))`,
     );
     const existing = rows<{
       id: string;
@@ -113,11 +134,11 @@ export async function createDraftRound(
       closes_at: Date | string;
     }>(
       await tx.execute(
-        sql`SELECT id,rules,opens_at,closes_at FROM competition_rounds WHERE slug=${input.definition.slug}`,
+        sql`SELECT id,rules,opens_at,closes_at FROM competition_rounds WHERE slug=${validated.slug}`,
       ),
     )[0];
     const definitionDigest = digest({
-      slug: input.definition.slug,
+      slug: validated.slug,
       opensAt: opensAt.toISOString(),
       closesAt: closesAt.toISOString(),
       rules,
@@ -133,7 +154,7 @@ export async function createDraftRound(
       if (audit?.payload.definitionDigest === definitionDigest)
         return {
           roundId: existing.id,
-          slug: input.definition.slug,
+          slug: validated.slug,
           repeated: true,
         };
       throw new Error("Round slug already exists with a different operation");
@@ -148,7 +169,7 @@ export async function createDraftRound(
     const roundId = randomUUID();
     await tx.execute(sql`
       INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
-      VALUES(${roundId},${input.definition.slug},${JSON.stringify(rules)}::jsonb,'draft',${opensAt},${closesAt})
+      VALUES(${roundId},${validated.slug},${JSON.stringify(rules)}::jsonb,'draft',${opensAt},${closesAt})
     `);
     await tx.execute(sql`
       INSERT INTO competition_operation_audit
@@ -156,7 +177,7 @@ export async function createDraftRound(
       VALUES(${randomUUID()},${roundId},'create-draft',${input.actor},${input.idempotencyKey},
              ${JSON.stringify({ definitionDigest, rulesDigest: digest(rules) })}::jsonb)
     `);
-    return { roundId, slug: input.definition.slug, repeated: false };
+    return { roundId, slug: validated.slug, repeated: false };
   });
 }
 
@@ -525,10 +546,9 @@ export async function disqualifyAttempt(
     `),
     )[0];
     if (!attempt) throw new Error("Competition attempt not found");
-    if (attempt.status !== "verified" && attempt.status !== "void") {
+    if (attempt.status !== "verified") {
       throw new Error(`Attempt cannot be disqualified from ${attempt.status}`);
     }
-    if (attempt.status === "void") return { repeated: true };
     await tx.execute(sql`
       UPDATE competition_attempts SET status='void', rejection_code=${input.reason}
        WHERE id=${input.attemptId}
@@ -610,8 +630,89 @@ export async function rejectPendingAttempt(
   });
 }
 
-export async function operatorReviewBundle(db: Db, roundId: string) {
+/**
+ * Replay already-confirmed evidence as an explicit operator operation.
+ * Verification and its audit record share one transaction so an uncertain
+ * client response can always be retried with the same idempotency key.
+ */
+export async function settleAttempt(
+  db: Db,
+  input: {
+    roundId: string;
+    attemptId: string;
+    actor: string;
+    idempotencyKey: string;
+  },
+): Promise<SettlementResult> {
   requireOperationsEnabled();
+  requireText(input.actor, "actor");
+  requireText(input.idempotencyKey, "idempotencyKey");
+  return db.transaction(async (tx) => {
+    const round = await lockRound(tx, input.roundId);
+    assertRoundAvailable(round.rules);
+    const prior = rows<{
+      payload: {
+        attemptId?: string;
+        result?: Omit<SettlementResult, "repeated">;
+      };
+    }>(
+      await tx.execute(sql`
+        SELECT payload FROM competition_operation_audit
+         WHERE round_id=${input.roundId} AND operation='settle'
+           AND idempotency_key=${input.idempotencyKey}
+      `),
+    )[0];
+    if (prior) {
+      if (prior.payload.attemptId !== input.attemptId || !prior.payload.result)
+        throw new Error("Settlement idempotency conflict");
+      return { ...prior.payload.result, repeated: true };
+    }
+    if (!["open", "closing"].includes(round.status))
+      throw new Error(`Attempt cannot settle from round ${round.status}`);
+    const attempt = rows<{ status: string; security_confirmed: boolean }>(
+      await tx.execute(sql`
+        SELECT status,security_confirmed FROM competition_attempts
+         WHERE id=${input.attemptId}::uuid AND round_id=${input.roundId}::uuid
+         FOR UPDATE
+      `),
+    )[0];
+    if (!attempt) throw new CompetitionError("attempt_not_found", 404);
+    if (attempt.status !== "pending")
+      throw new Error(`Attempt cannot settle from ${attempt.status}`);
+    if (!attempt.security_confirmed)
+      throw new CompetitionError("security_confirmation_required", 409);
+
+    // Drizzle transactions support nested transactions through savepoints.
+    // Keeping verification inside this outer transaction makes its score,
+    // ledger changes, and the operator audit record atomic.
+    const verified = await verifyAttempt(tx as unknown as Db, input.attemptId);
+    const { receipt: _privateReceipt, ...result } = verified;
+    await tx.execute(sql`
+      INSERT INTO competition_operation_audit
+        (id,round_id,operation,actor,idempotency_key,payload)
+      VALUES (${randomUUID()},${input.roundId},'settle',${input.actor},${input.idempotencyKey},
+              ${JSON.stringify({ attemptId: input.attemptId, result })}::jsonb)
+    `);
+    return { ...result, repeated: false };
+  });
+}
+
+export async function operatorReviewBundle(
+  db: Db,
+  roundId: string,
+  options?: {
+    pendingLimit?: number;
+    pendingAfter?: { receivedAt: Date | string; id: string };
+  },
+) {
+  requireOperationsEnabled();
+  if (
+    options?.pendingLimit !== undefined &&
+    (!Number.isSafeInteger(options.pendingLimit) ||
+      options.pendingLimit < 1 ||
+      options.pendingLimit > 501)
+  )
+    throw new Error("Pending review limit is invalid");
   const round = rows<{
     id: string;
     slug: string;
@@ -628,11 +729,17 @@ export async function operatorReviewBundle(db: Db, roundId: string) {
     status: string;
     security_confirmed: boolean;
     receipt: unknown;
+    received_at: Date | string;
+    received_cursor: string;
   }>(
     await db.execute(sql`
-    SELECT id,status,security_confirmed,receipt FROM competition_attempts
+    SELECT id,status,security_confirmed,receipt,received_at,
+           to_char(received_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS received_cursor
+      FROM competition_attempts
      WHERE round_id=${roundId} AND status='pending' AND received_at<${asDate(round.closes_at)}
+       ${options?.pendingAfter ? sql`AND (received_at,id)>(${options.pendingAfter.receivedAt}::timestamptz,${options.pendingAfter.id}::uuid)` : sql``}
      ORDER BY received_at,id
+     ${options?.pendingLimit ? sql`LIMIT ${options.pendingLimit}` : sql``}
   `),
   );
   const snapshot = rows<{
@@ -658,6 +765,7 @@ export async function operatorReviewBundle(db: Db, roundId: string) {
       status: attempt.status,
       securityConfirmed: attempt.security_confirmed,
       receiptDigest: digest(attempt.receipt),
+      receivedAt: attempt.received_cursor,
     })),
     candidate: snapshot
       ? {

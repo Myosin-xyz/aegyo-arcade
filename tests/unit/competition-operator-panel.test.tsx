@@ -76,7 +76,12 @@ describe("competition operator panel", () => {
           mode: "material_prize",
           rulesVersion: 2,
           winnerCount: 3,
-          launchBlockers: ["prize_allocation", "exact_tie_policy"],
+          launchBlockers: [
+            "prize_allocation",
+            "game_point_tables",
+            "full_arena_bonus",
+            "exact_tie_policy",
+          ],
         },
       }),
     );
@@ -84,6 +89,12 @@ describe("competition operator panel", () => {
       expect(container?.textContent).toContain("This contest cannot open"),
     );
     expect(container?.textContent).toContain("Approve prizes by rank");
+    expect(container?.textContent).toContain(
+      "Approve the frozen score-to-points tables",
+    );
+    expect(container?.textContent).toContain(
+      "Approve the configured Full Arena bonus",
+    );
     const button = [...(container?.querySelectorAll("button") ?? [])].find(
       (candidate) => candidate.textContent === "Open round",
     );
@@ -155,5 +166,179 @@ describe("competition operator panel", () => {
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(button?.disabled).toBe(false);
+  });
+
+  it("requires a reason and confirmation before disqualifying a verified attempt", async () => {
+    const attemptId = "50000000-0000-4000-8000-000000000001";
+    const selected = {
+      round: { status: "open" },
+      attempts: [
+        {
+          id: attemptId,
+          gameId: "snake",
+          status: "verified",
+          securityConfirmed: true,
+          score: 80,
+          points: 20,
+          receivedAt: "2026-09-20T03:00:00.000Z",
+          rejectionCode: null,
+          username: "fan_one",
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(selected))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ repeated: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({ ...selected, attempts: [], round: { status: "open" } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(window, "prompt").mockReturnValue("published automation rule");
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root?.render(<CompetitionOperatorPanel />));
+    const button = await vi.waitFor(() => {
+      const candidate = [...(container?.querySelectorAll("button") ?? [])].find(
+        (item) => item.textContent === "Disqualify",
+      );
+      expect(candidate).toBeTruthy();
+      return candidate!;
+    });
+    await act(async () => button.click());
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(window.prompt).toHaveBeenCalledWith(
+      "Published disqualification reason recorded in the audit trail",
+    );
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Disqualify this verified attempt and recompute the player’s daily best?",
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
+      action: "disqualify",
+      roundId: round.id,
+      attemptId,
+      reason: "published automation rule",
+      confirmation: `disqualify:${attemptId}`,
+    });
+  });
+
+  it("reuses an action idempotency key after a lost response", async () => {
+    const attemptId = "50000000-0000-4000-8000-000000000002";
+    const selected = {
+      round: { status: "open" },
+      attempts: [
+        {
+          id: attemptId,
+          gameId: "snake",
+          status: "pending",
+          securityConfirmed: true,
+          score: null,
+          points: null,
+          receivedAt: "2026-09-20T03:00:00.000Z",
+          rejectionCode: null,
+          username: "fan_two",
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(selected))
+      .mockRejectedValueOnce(new TypeError("response lost"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ repeated: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({ ...selected, attempts: [], round: { status: "open" } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root?.render(<CompetitionOperatorPanel />));
+    const replay = await vi.waitFor(() => {
+      const candidate = [...(container?.querySelectorAll("button") ?? [])].find(
+        (item) => item.textContent === "Replay",
+      );
+      expect(candidate).toBeTruthy();
+      return candidate!;
+    });
+    await act(async () => replay.click());
+    await vi.waitFor(() =>
+      expect(container?.textContent).toContain("response lost"),
+    );
+    await act(async () => replay.click());
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    const firstKey = JSON.parse(
+      String(fetchMock.mock.calls[1][1]?.body),
+    ).idempotencyKey;
+    const retryKey = JSON.parse(
+      String(fetchMock.mock.calls[2][1]?.body),
+    ).idempotencyKey;
+    expect(firstKey).toBeTruthy();
+    expect(retryKey).toBe(firstKey);
+  });
+
+  it("loads older pending attempts with the stable server cursor", async () => {
+    const firstAttempt = {
+      id: "50000000-0000-4000-8000-000000000003",
+      gameId: "snake",
+      status: "pending",
+      securityConfirmed: false,
+      score: null,
+      points: null,
+      receivedAt: "2026-09-19T01:00:00.000Z",
+      rejectionCode: null,
+      username: "first_fan",
+    };
+    const secondAttempt = {
+      ...firstAttempt,
+      id: "50000000-0000-4000-8000-000000000004",
+      receivedAt: "2026-09-19T02:00:00.000Z",
+      username: "second_fan",
+    };
+    const cursor = {
+      receivedAt: firstAttempt.receivedAt,
+      id: firstAttempt.id,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ attempts: [firstAttempt], pendingNextCursor: cursor }),
+      )
+      .mockResolvedValueOnce(
+        response({ attempts: [secondAttempt], pendingNextCursor: null }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root?.render(<CompetitionOperatorPanel />));
+    const loadMore = await vi.waitFor(() => {
+      const candidate = [...(container?.querySelectorAll("button") ?? [])].find(
+        (item) => item.textContent === "Load older pending attempts",
+      );
+      expect(candidate).toBeTruthy();
+      return candidate!;
+    });
+    await act(async () => loadMore.click());
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      `pendingAfterAt=${encodeURIComponent(cursor.receivedAt)}`,
+    );
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      `pendingAfterId=${cursor.id}`,
+    );
+    expect(container?.textContent).toContain("@first_fan");
+    expect(container?.textContent).toContain("@second_fan");
   });
 });

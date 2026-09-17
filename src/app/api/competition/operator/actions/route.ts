@@ -1,18 +1,18 @@
 import { NextRequest } from "next/server";
-import { sql } from "drizzle-orm";
 import { boundedBody, handle, response, UUID } from "@/competition/http";
 import { competitionOperatorContext } from "@/competition/operator-auth";
 import {
   closeRound,
+  disqualifyAttempt,
   finalizeRound,
   fulfillAward,
   openRound,
   rejectPendingAttempt,
+  settleAttempt,
   type FinalAward,
 } from "@/competition/operations-store";
 import type { TieReviewDecision } from "@/competition/operations";
 import { CompetitionError } from "@/competition/rules";
-import { verifyAttempt } from "@/competition/store";
 
 const KEY = /^[A-Za-z0-9_-]{16,100}$/;
 const AWARD_KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
@@ -141,17 +141,13 @@ export async function POST(request: NextRequest) {
       const roundId = requiredUuid(body, "roundId");
       const attemptId = requiredUuid(body, "attemptId");
       requireConfirmation(body, `settle:${attemptId}`);
-      const found = (
-        await context.db.execute(sql`
-          SELECT 1 FROM competition_attempts
-           WHERE id=${attemptId}::uuid AND round_id=${roundId}::uuid
-        `)
-      ).rows.length;
-      if (!found) throw new CompetitionError("attempt_not_found", 404);
-      const result = await verifyAttempt(context.db, attemptId);
-      if (typeof result === "object" && result && "receipt" in result)
-        delete (result as { receipt?: unknown }).receipt;
-      return response(result);
+      return response(
+        await settleAttempt(context.db, {
+          roundId,
+          attemptId,
+          ...identity,
+        }),
+      );
     }
     if (action === "reject_pending") {
       const roundId = requiredUuid(body, "roundId");
@@ -159,6 +155,19 @@ export async function POST(request: NextRequest) {
       requireConfirmation(body, `reject:${attemptId}`);
       return response(
         await rejectPendingAttempt(context.db, {
+          roundId,
+          attemptId,
+          reason: requiredText(body, "reason", 500),
+          ...identity,
+        }),
+      );
+    }
+    if (action === "disqualify") {
+      const roundId = requiredUuid(body, "roundId");
+      const attemptId = requiredUuid(body, "attemptId");
+      requireConfirmation(body, `disqualify:${attemptId}`);
+      return response(
+        await disqualifyAttempt(context.db, {
           roundId,
           attemptId,
           reason: requiredText(body, "reason", 500),

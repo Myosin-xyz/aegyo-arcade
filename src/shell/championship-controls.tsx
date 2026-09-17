@@ -13,7 +13,7 @@ export type ChampionshipPhase =
 const copy = {
   en: {
     title: "Championship attempt",
-    rule: "Starting uses one of your 3 attempts for this game today (UTC). Reloading or leaving forfeits it. Practice stays available.",
+    rule: "Starting uses one of your official attempts for this game today. The championship page shows the daily limit and reset time. Reloading or leaving forfeits it. Practice stays available.",
     start: "Start championship attempt",
     issuing: "Reserving attempt…",
     active: "Championship attempt in progress",
@@ -30,7 +30,7 @@ const copy = {
   },
   "es-419": {
     title: "Intento del campeonato",
-    rule: "Empezar usa uno de tus 3 intentos de este juego de hoy (UTC). Recargar o salir lo consume. Puedes seguir practicando.",
+    rule: "Empezar usa uno de tus intentos oficiales de este juego por hoy. La página del campeonato muestra el límite diario y la hora de reinicio. Recargar o salir lo consume. Puedes seguir practicando.",
     start: "Iniciar intento del campeonato",
     issuing: "Reservando intento…",
     active: "Intento del campeonato en curso",

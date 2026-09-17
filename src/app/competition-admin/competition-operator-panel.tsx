@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./operator.module.css";
 
 type Round = {
@@ -67,7 +67,9 @@ type Dashboard = {
       status: string;
       securityConfirmed: boolean;
       receiptDigest: string;
+      receivedAt: string;
     }[];
+    pendingNextCursor: { receivedAt: string; id: string } | null;
     candidate: null | {
       snapshotId: string;
       sourceDigest: string;
@@ -100,7 +102,8 @@ const readinessLabel: Record<string, string> = {
   prize_allocation: "Approve prizes by rank",
   claim_deadline_fulfillment:
     "Approve the claim deadline and fulfillment terms",
-  full_arena_bonus: "Set the Full Arena bonus to the approved 20 points",
+  game_point_tables: "Approve the frozen score-to-points tables",
+  full_arena_bonus: "Approve the configured Full Arena bonus",
   schedule: "Approve the complete schedule and time zone",
   exact_tie_policy: "Approve exact-tie and prize-boundary handling",
   engagement_sources: "Approve engagement sources, caps, and verification",
@@ -128,36 +131,81 @@ export function CompetitionOperatorPanel() {
     {},
   );
   const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const operationKeys = useRef(new Map<string, string>());
 
-  const load = useCallback(async (roundId?: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const query = roundId ? `?roundId=${encodeURIComponent(roundId)}` : "";
-      const response = await fetch(`/api/competition/operator${query}`, {
-        cache: "no-store",
-      });
-      const body = (await response.json()) as Dashboard & { code?: string };
-      if (!response.ok) throw new Error(body.code ?? "operator_load_failed");
-      setDashboard(body);
-      setSelectedRoundId(body.selected?.round.id);
-      setTieRationales(
-        Object.fromEntries(
-          (body.selected?.tieDecisions ?? []).map((decision) => [
-            decision.exactTieKey,
-            decision.rationale,
-          ]),
-        ),
-      );
-      setAllocations([]);
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "operator_load_failed",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (
+      roundId?: string,
+      pendingCursor?: { receivedAt: string; id: string },
+      appendPending = false,
+    ) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const query = new URLSearchParams();
+        if (roundId) query.set("roundId", roundId);
+        if (pendingCursor) {
+          query.set("pendingAfterAt", pendingCursor.receivedAt);
+          query.set("pendingAfterId", pendingCursor.id);
+        }
+        const suffix = query.size ? `?${query}` : "";
+        const response = await fetch(`/api/competition/operator${suffix}`, {
+          cache: "no-store",
+        });
+        const body = (await response.json()) as Dashboard & { code?: string };
+        if (!response.ok) throw new Error(body.code ?? "operator_load_failed");
+        setDashboard((current) => {
+          if (
+            !appendPending ||
+            !current?.selected ||
+            !body.selected ||
+            current.selected.round.id !== body.selected.round.id
+          )
+            return body;
+          const attempts = new Map(
+            current.selected.attempts.map((attempt) => [attempt.id, attempt]),
+          );
+          for (const attempt of body.selected.attempts)
+            attempts.set(attempt.id, attempt);
+          const pending = new Map(
+            current.selected.pending.map((attempt) => [
+              attempt.attemptId,
+              attempt,
+            ]),
+          );
+          for (const attempt of body.selected.pending)
+            pending.set(attempt.attemptId, attempt);
+          return {
+            ...body,
+            selected: {
+              ...body.selected,
+              attempts: [...attempts.values()],
+              pending: [...pending.values()],
+            },
+          };
+        });
+        setSelectedRoundId(body.selected?.round.id);
+        if (!appendPending) {
+          setTieRationales(
+            Object.fromEntries(
+              (body.selected?.tieDecisions ?? []).map((decision) => [
+                decision.exactTieKey,
+                decision.rationale,
+              ]),
+            ),
+          );
+          setAllocations([]);
+        }
+      } catch (caught) {
+        setError(
+          caught instanceof Error ? caught.message : "operator_load_failed",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -193,6 +241,8 @@ export function CompetitionOperatorPanel() {
 
   const act = useCallback(
     async (key: string, body: Record<string, unknown>, success: string) => {
+      const requestKey = operationKeys.current.get(key) ?? idempotencyKey();
+      operationKeys.current.set(key, requestKey);
       setBusy(key);
       setError(null);
       setNotice(null);
@@ -200,10 +250,15 @@ export function CompetitionOperatorPanel() {
         const response = await fetch("/api/competition/operator/actions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...body, idempotencyKey: idempotencyKey() }),
+          body: JSON.stringify({ ...body, idempotencyKey: requestKey }),
         });
         const result = (await response.json()) as { code?: string };
-        if (!response.ok) throw new Error(result.code ?? "operation_failed");
+        if (!response.ok) {
+          if (response.status >= 400 && response.status < 500)
+            operationKeys.current.delete(key);
+          throw new Error(result.code ?? "operation_failed");
+        }
+        operationKeys.current.delete(key);
         setNotice(success);
         await load(selectedRoundId);
       } catch (caught) {
@@ -251,7 +306,7 @@ export function CompetitionOperatorPanel() {
   const canFinalize =
     !!selected?.candidate &&
     selected.round.status === "review" &&
-    selected.pending.length === 0 &&
+    selected.round.pendingCount === 0 &&
     unresolvedTies.every((tie) => tieRationales[tie.exactTieKey]?.trim()) &&
     allocationReady;
   const canOpen = (selected?.round.launchBlockers.length ?? 0) === 0;
@@ -262,12 +317,17 @@ export function CompetitionOperatorPanel() {
     ? ["open", "closing"].includes(selected.round.status) &&
       serverNow >= Date.parse(selected.round.closesAt)
     : false;
+  const canDisqualify = selected
+    ? ["open", "closing"].includes(selected.round.status) &&
+      !selected.round.hasCandidateSnapshot
+    : false;
   const candidateOptions = useMemo(
     () => selected?.candidate?.standings ?? [],
     [selected?.candidate?.standings],
   );
 
   function chooseRound(roundId: string) {
+    operationKeys.current.clear();
     setSelectedRoundId(roundId);
     void load(roundId);
   }
@@ -328,8 +388,11 @@ export function CompetitionOperatorPanel() {
           <button
             type="button"
             className={styles.secondaryButton}
-            disabled={loading}
-            onClick={() => void load(selectedRoundId)}
+            disabled={loading || busy !== null}
+            onClick={() => {
+              operationKeys.current.clear();
+              void load(selectedRoundId);
+            }}
           >
             Refresh
           </button>
@@ -521,7 +584,7 @@ export function CompetitionOperatorPanel() {
                 <div className={styles.sectionHeading}>
                   <div>
                     <p className={styles.kicker}>Evidence queue</p>
-                    <h3>Pending and rejected attempts</h3>
+                    <h3>Verified and reviewed attempts</h3>
                   </div>
                   <span>{selected.attempts.length}</span>
                 </div>
@@ -587,12 +650,62 @@ export function CompetitionOperatorPanel() {
                             </button>
                           </div>
                         ) : null}
+                        {attempt.status === "verified" && canDisqualify ? (
+                          <button
+                            type="button"
+                            className={styles.dangerButton}
+                            disabled={busy !== null}
+                            onClick={() => {
+                              const reason = window.prompt(
+                                "Published disqualification reason recorded in the audit trail",
+                              );
+                              if (!reason?.trim()) return;
+                              if (
+                                !window.confirm(
+                                  selected.round.rulesVersion === 2
+                                    ? "Disqualify this verified attempt and recompute the player’s weekly best and Full Arena bonus?"
+                                    : "Disqualify this verified attempt and recompute the player’s daily best?",
+                                )
+                              )
+                                return;
+                              void act(
+                                `disqualify:${attempt.id}`,
+                                {
+                                  action: "disqualify",
+                                  roundId: selected.round.id,
+                                  attemptId: attempt.id,
+                                  reason,
+                                  confirmation: `disqualify:${attempt.id}`,
+                                },
+                                "Attempt disqualified and standings recomputed.",
+                              );
+                            }}
+                          >
+                            Disqualify
+                          </button>
+                        ) : null}
                       </article>
                     ))}
+                    {selected.pendingNextCursor ? (
+                      <button
+                        type="button"
+                        className={styles.secondaryButton}
+                        disabled={loading || busy !== null}
+                        onClick={() =>
+                          void load(
+                            selected.round.id,
+                            selected.pendingNextCursor ?? undefined,
+                            true,
+                          )
+                        }
+                      >
+                        Load older pending attempts
+                      </button>
+                    ) : null}
                   </div>
                 ) : (
                   <p className={styles.empty}>
-                    No attempts require operator review.
+                    No verified or reviewed attempts are available.
                   </p>
                 )}
               </section>

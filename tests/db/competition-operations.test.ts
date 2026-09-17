@@ -441,6 +441,23 @@ integration("competition closure operations", () => {
         idempotencyKey: "dq-1",
       }),
     ).rejects.toThrow(/idempotency conflict/);
+    await expect(
+      disqualifyAttempt(db, {
+        roundId: openRoundId,
+        attemptId: dqAttempt,
+        actor: "operator",
+        reason: "different_unrecorded_reason",
+        idempotencyKey: "dq-2",
+      }),
+    ).rejects.toThrow("Attempt cannot be disqualified from void");
+    expect(
+      (
+        await db.execute(sql`
+          SELECT count(*)::int AS count FROM competition_operation_audit
+           WHERE round_id=${openRoundId}::uuid AND operation='disqualify'
+        `)
+      ).rows[0]?.count,
+    ).toBe(1);
     expect(
       (
         await db.execute(

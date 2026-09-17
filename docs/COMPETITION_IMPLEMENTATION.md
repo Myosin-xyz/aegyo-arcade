@@ -76,8 +76,28 @@ outside the current state machine and must not be improvised through the UI.
 
 The operator CLI never reads ordinary `DATABASE_URL` and never accepts a database URL on the command line. Put the credential in the dedicated environment variable so it is not exposed in the process argument list. Every command connects, reads `current_database()`, and refuses to proceed unless both database-name arguments match it exactly.
 
+Before a rehearsal or launch, verify the selected database without reading user
+records. The preflight checks migration hashes and required schema protections,
+then reports aggregate competition health from a rolled-back read-only
+transaction:
+
 ```sh
-export COMPETITION_OPERATOR_DATABASE_URL='postgresql://...'
+COMPETITION_OPERATOR_DATABASE_URL='postgresql://user:password@database.example.com/db?sslmode=verify-full' \
+pnpm competition:preflight -- \
+  --expected-database EXACT_DATABASE_NAME \
+  --confirm-database EXACT_DATABASE_NAME
+```
+
+Validate a completed round file before touching a database. This command is
+offline and reports every unresolved launch approval:
+
+```sh
+./scripts/competition/operator.ts validate-definition \
+  --definition-file /absolute/path/to/completed-round.json
+```
+
+```sh
+export COMPETITION_OPERATOR_DATABASE_URL='postgresql://user:password@database.example.com/db?sslmode=verify-full'
 export ARCADE_COMPETITION_ENABLED=true
 export ARCADE_SHARED_AUTH_ENABLED=true
 # Required as well for an approved material_prize round:
@@ -111,7 +131,10 @@ export ARCADE_SHARED_AUTH_ENABLED=true
   --confirm-database EXACT_DATABASE_NAME
 
 ./scripts/competition/operator.ts settle \
+  --round-id ROUND_UUID \
   --attempt-id ATTEMPT_UUID \
+  --actor OPERATOR_ID \
+  --idempotency-key settle-ATTEMPT_UUID-v1 \
   --expected-database EXACT_DATABASE_NAME \
   --confirm-database EXACT_DATABASE_NAME
 

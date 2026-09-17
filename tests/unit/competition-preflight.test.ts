@@ -31,16 +31,7 @@ function completeProof() {
       }),
     ),
     constraints: Object.entries(EXPECTED_CONSTRAINTS).map(
-      ([name, fragments]) => ({
-        name,
-        validated: true,
-        definition:
-          name === "competition_period_best_points"
-            ? "CHECK (points BETWEEN 0 AND 1000)"
-            : name === "competition_period_bonus_points"
-              ? "CHECK (points BETWEEN 1 AND 1000)"
-              : fragments.join(" "),
-      }),
+      ([name, definition]) => ({ name, validated: true, definition }),
     ),
     indexes: Object.entries(EXPECTED_INDEXES).map(([name, fragments]) => ({
       name,
@@ -140,6 +131,16 @@ describe("competition database preflight", () => {
     )!.definition = "CHECK (points BETWEEN -1000 AND 10000)";
     expect(assessSchemaProof(proof).objects.mismatchedConstraints).toContain(
       "competition_period_best_points",
+    );
+  });
+
+  it("refuses a date constraint that mentions both columns but allows reversal", () => {
+    const proof = completeProof();
+    proof.constraints.find(
+      ({ name }) => name === "competition_round_dates",
+    )!.definition = "CHECK (closes_at IS DISTINCT FROM opens_at)";
+    expect(assessSchemaProof(proof).objects.mismatchedConstraints).toContain(
+      "competition_round_dates",
     );
   });
 

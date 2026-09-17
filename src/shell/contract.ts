@@ -57,7 +57,7 @@ export type RunContext =
 export interface GameEndResult {
   reason?: "completed" | "lost" | "quit";
   /** Optional deterministic evidence for an explicitly captured run. */
-  competitionTrace?: import("@/competition/replay").CompetitionTraceV1;
+  competitionTrace?: import("@/competition/verify-replay").CompetitionTrace;
 }
 
 export interface GameContext {

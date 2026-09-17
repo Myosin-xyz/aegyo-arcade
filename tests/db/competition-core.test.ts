@@ -11,6 +11,7 @@ import {
   recomputeDailyBestTx,
   verifyAttempt,
 } from "@/competition/store";
+import type { RoundRules } from "@/competition/rules";
 import { publicRound } from "@/competition/read";
 import {
   positiveSnakeTraceFixture,
@@ -53,6 +54,27 @@ const rules = {
     },
   ],
 };
+const monthlyRules = {
+  ...rules,
+  version: 2 as const,
+  dailyAttempts: 2 as const,
+  games: rules.games.map((game) => ({
+    gameId: game.gameId,
+    calibration: [
+      { score: 0, points: 0 },
+      { score: 1, points: 5 },
+      { score: 50, points: 10 },
+      { score: 100, points: 20 },
+    ],
+  })),
+  cadence: "monthly" as const,
+  winnerCount: 3 as const,
+  scoring: {
+    bestPerGame: "week" as const,
+    timeZone: "America/New_York",
+    fullArenaBonusPoints: 25,
+  },
+};
 
 let pool: Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
@@ -86,8 +108,8 @@ async function seed() {
     [DEVICE],
   );
 }
-async function enrollActor(memberId = A) {
-  await enroll(db, actor(memberId), ROUND, digest(rules));
+async function enrollActor(memberId = A, acceptedRules: RoundRules = rules) {
+  await enroll(db, actor(memberId), ROUND, digest(acceptedRules));
 }
 async function manualAttempt(
   memberId: string,
@@ -101,7 +123,7 @@ async function manualAttempt(
   const id = crypto.randomUUID();
   const issued = new Date(Date.now() - Math.ceil(fixture.durationMs) - 250);
   await pool.query(
-    `INSERT INTO competition_attempts(id,round_id,member_id,provider_session_id,game_id,day_key,ordinal,idempotency_key,seed,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,to_char(now() at time zone 'UTC','YYYY-MM-DD'),$6,$7,$8,$9,now()+($10::text)::interval)`,
+    `INSERT INTO competition_attempts(id,round_id,member_id,provider_session_id,game_id,day_key,score_period_key,ordinal,idempotency_key,seed,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,to_char(now() at time zone 'UTC','YYYY-MM-DD'),to_char(now() at time zone 'UTC','YYYY-MM-DD'),$6,$7,$8,$9,now()+($10::text)::interval)`,
     [
       id,
       ROUND,
@@ -337,6 +359,140 @@ describe("competition store on PostgreSQL", () => {
     expect(await scalar("SELECT sum(delta) n FROM competition_ledger")).toBe(
       500,
     );
+  });
+
+  it("awards and reverses the dynamic full-arena bonus for a weekly scoring period", async () => {
+    await pool.query(`DELETE FROM competition_rounds WHERE id=$1`, [ROUND]);
+    await pool.query(
+      `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+       VALUES ($1,'synthetic',$2,'open',now()-interval '1 hour',now()+interval '1 hour')`,
+      [ROUND, monthlyRules],
+    );
+    const snake = await manualAttempt(
+      A,
+      actor().providerSessionId,
+      positiveSnakeTraceFixture(),
+      1,
+    );
+    const flappy = await manualAttempt(
+      A,
+      actor().providerSessionId,
+      zeroScoreFlappyTraceFixture(),
+      2,
+    );
+    await pool.query(
+      `UPDATE competition_attempts SET status='verified',score=50,points=500,received_at=now() WHERE id=$1`,
+      [snake],
+    );
+    await pool.query(
+      `UPDATE competition_attempts SET status='verified',score=10,points=1000,received_at=now()+interval '1 second' WHERE id=$1`,
+      [flappy],
+    );
+    const period = (
+      await pool.query(
+        `SELECT score_period_key FROM competition_attempts WHERE id=$1`,
+        [snake],
+      )
+    ).rows[0].score_period_key;
+
+    await db.transaction((tx) =>
+      recomputeDailyBestTx(tx, {
+        roundId: ROUND,
+        memberId: A,
+        gameId: "snake",
+        scorePeriodKey: period,
+        reason: "monthly-proof-snake",
+        rules: monthlyRules,
+      }),
+    );
+    expect(
+      await db.transaction((tx) =>
+        recomputeDailyBestTx(tx, {
+          roundId: ROUND,
+          memberId: A,
+          gameId: "flappy",
+          scorePeriodKey: period,
+          reason: "monthly-proof-flappy",
+          rules: monthlyRules,
+        }),
+      ),
+    ).toMatchObject({ bonus: { points: 25, delta: 25 } });
+    expect(
+      await scalar("SELECT coalesce(sum(delta),0) n FROM competition_ledger"),
+    ).toBe(1525);
+
+    await pool.query(
+      `UPDATE competition_attempts SET status='void' WHERE id=$1`,
+      [flappy],
+    );
+    expect(
+      await db.transaction((tx) =>
+        recomputeDailyBestTx(tx, {
+          roundId: ROUND,
+          memberId: A,
+          gameId: "flappy",
+          scorePeriodKey: period,
+          reason: "monthly-proof-disqualification",
+          rules: monthlyRules,
+        }),
+      ),
+    ).toMatchObject({ points: 0, bonus: { points: 0, delta: -25 } });
+    expect(
+      await scalar(
+        "SELECT count(*) n FROM competition_period_bonuses WHERE round_id='" +
+          ROUND +
+          "'",
+      ),
+    ).toBe(0);
+    expect(
+      await scalar("SELECT coalesce(sum(delta),0) n FROM competition_ledger"),
+    ).toBe(500);
+  });
+
+  it("enforces Dai Dai's two-play local-day allowance for monthly rounds", async () => {
+    await pool.query(`DELETE FROM competition_rounds WHERE id=$1`, [ROUND]);
+    await pool.query(
+      `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+       VALUES ($1,'synthetic',$2,'open',now()-interval '1 hour',now()+interval '1 hour')`,
+      [ROUND, monthlyRules],
+    );
+    await enrollActor(A, monthlyRules);
+    await expect(
+      issueAttempt(
+        db,
+        actor(),
+        {
+          roundId: ROUND,
+          gameId: "snake",
+          idempotencyKey: "monthly_attempt_01",
+        },
+        SECRET,
+      ),
+    ).resolves.toMatchObject({ remaining: 1 });
+    await expect(
+      issueAttempt(
+        db,
+        actor(),
+        {
+          roundId: ROUND,
+          gameId: "snake",
+          idempotencyKey: "monthly_attempt_02",
+        },
+        SECRET,
+      ),
+    ).resolves.toMatchObject({ remaining: 0 });
+    await expect(
+      issueAttempt(
+        db,
+        actor(),
+        {
+          roundId: ROUND,
+          gameId: "snake",
+          idempotencyKey: "monthly_attempt_03",
+        },
+        SECRET,
+      ),
+    ).rejects.toMatchObject({ code: "daily_limit_reached" });
   });
 
   it("rejects round cutoff/attempt expiry and never mutates guest identity", async () => {

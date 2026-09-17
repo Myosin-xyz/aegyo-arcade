@@ -107,6 +107,17 @@ const SMOKE_ACTIONS: Record<
     },
     terminal: true,
   },
+  "perfect-toss": {
+    // The marker begins at the far left while the target begins centered,
+    // so the first real tap is a deterministic miss. The game keeps its
+    // authored sad reaction visible before reporting the terminal run.
+    act: async (page) => {
+      await page
+        .getByTestId("game-surface")
+        .click({ position: { x: 20, y: 320 } });
+    },
+    terminal: true,
+  },
   "fanchant-hero": {
     // Pin the chart, catch its first note through the primary mobile pointer
     // path, and require an observable score change before waiting for the

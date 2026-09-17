@@ -31,3 +31,11 @@ Snake logic, Bias Flap logic, seeded random generation, or the replay verifier
 require a new version even if current example traces still produce the same
 scores. Behavioral fixtures remain useful evidence, while the source guard
 prevents untested seeds or states from drifting between issuance and review.
+
+## Replay version 2 — Perfect Toss
+
+Perfect Toss introduced a third deterministic game core on September 17, 2026. Version 1 and its manifest entry remain byte-for-byte unchanged.
+Perfect Toss emits version-2 traces, the server dispatches by the stored trace
+version, and the manifest freezes the complete version-2 dependency closure.
+This keeps every existing version-1 Snake and Bias Flap receipt replayable
+under the exact verifier that accepted it.

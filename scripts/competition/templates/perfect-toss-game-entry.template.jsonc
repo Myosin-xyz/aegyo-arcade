@@ -1,0 +1,14 @@
+// GAME-ENTRY FRAGMENT ONLY — this is deliberately not a complete round and
+// cannot be passed to operator.ts. Add it to the complete, approved frozen
+// `rules.games` list for a version-2 monthly round. Full Arena counts every
+// entry in that final list, so never create a one-game material-prize round
+// from this fragment.
+{
+  "gameId": "perfect-toss",
+  "calibration": [
+    { "score": 0, "points": 0 },
+    { "score": 1, "points": 5 },
+    { "score": 8, "points": 10 },
+    { "score": 15, "points": 20 },
+  ],
+}

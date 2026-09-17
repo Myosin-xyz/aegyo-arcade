@@ -78,6 +78,7 @@ export const competitionAttempts = pgTable(
     providerSessionId: text("provider_session_id").notNull(),
     gameId: text("game_id").notNull(),
     dayKey: text("day_key").notNull(),
+    scorePeriodKey: text("score_period_key").notNull(),
     ordinal: integer("ordinal").notNull(),
     idempotencyKey: text("idempotency_key").notNull(),
     seed: text("seed").notNull(),
@@ -111,6 +112,10 @@ export const competitionAttempts = pgTable(
     check(
       "competition_attempt_day",
       sql`${t.dayKey} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`,
+    ),
+    check(
+      "competition_attempt_score_period",
+      sql`${t.scorePeriodKey} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`,
     ),
     check("competition_attempt_ordinal", sql`${t.ordinal} BETWEEN 1 AND 3`),
     check(
@@ -147,6 +152,54 @@ export const competitionDailyBest = pgTable(
   (t) => [
     primaryKey({ columns: [t.roundId, t.memberId, t.gameId, t.dayKey] }),
     check("competition_best_points", sql`${t.points} BETWEEN 0 AND 1000`),
+  ],
+);
+export const competitionPeriodBest = pgTable(
+  "competition_period_best",
+  {
+    roundId: round(),
+    memberId: member(),
+    gameId: text("game_id").notNull(),
+    periodKey: text("period_key").notNull(),
+    attemptId: uuid("attempt_id")
+      .notNull()
+      .references(() => competitionAttempts.id),
+    points: integer("points").notNull(),
+    receivedAt: date("received_at").notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.roundId, t.memberId, t.gameId, t.periodKey],
+    }),
+    check(
+      "competition_period_best_key",
+      sql`${t.periodKey} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`,
+    ),
+    check(
+      "competition_period_best_points",
+      sql`${t.points} BETWEEN 0 AND 1000`,
+    ),
+  ],
+);
+export const competitionPeriodBonuses = pgTable(
+  "competition_period_bonuses",
+  {
+    roundId: round(),
+    memberId: member(),
+    periodKey: text("period_key").notNull(),
+    points: integer("points").notNull(),
+    earnedAt: date("earned_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.roundId, t.memberId, t.periodKey] }),
+    check(
+      "competition_period_bonus_key",
+      sql`${t.periodKey} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`,
+    ),
+    check(
+      "competition_period_bonus_points",
+      sql`${t.points} BETWEEN 1 AND 1000`,
+    ),
   ],
 );
 export const competitionLedger = pgTable(

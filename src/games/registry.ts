@@ -16,6 +16,7 @@ import { freebieMeta } from "./freebie/meta";
 import { froggerMeta } from "./frogger/meta";
 import { thisorthatMeta } from "./thisorthat/meta";
 import { photocardStackMeta } from "./photocard-stack/meta";
+import { perfectTossMeta } from "./perfect-toss/meta";
 import { fanchantHeroMeta } from "./fanchant-hero/meta";
 import { biasMatchMeta } from "./bias-match/meta";
 import { aegyoPopMeta } from "./aegyo-pop/meta";
@@ -199,6 +200,27 @@ const entries: RegistryEntry[] = [
       import("./photocard-stack/module").then(
         (m) => m.photocardStackDefinition,
       ),
+  },
+  {
+    meta: perfectTossMeta,
+    preview: landingPreview("perfect-toss"),
+    scorePresentation: "authored",
+    endPresentation: "game-authored",
+    introKeys: [
+      "game.perfect-toss.intro.1",
+      "game.perfect-toss.intro.2",
+      "game.perfect-toss.intro.3",
+      "game.perfect-toss.intro.4",
+      "game.perfect-toss.intro.5",
+    ],
+    introPresentation: {
+      titleKey: "game.perfect-toss.intro.title",
+      subtitleKey: "game.perfect-toss.intro.subtitle",
+      bulletIcons: ["👀", "👆", "✨", "🌀", "💚"],
+      variant: "neon",
+    },
+    load: () =>
+      import("./perfect-toss/module").then((m) => m.perfectTossDefinition),
   },
   {
     meta: fanchantHeroMeta,

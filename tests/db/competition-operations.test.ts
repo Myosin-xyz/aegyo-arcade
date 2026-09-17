@@ -63,13 +63,13 @@ integration("competition closure operations", () => {
       (${roundId}::uuid,${alice}::uuid,${"a".repeat(64)}),
       (${roundId}::uuid,${bob}::uuid,${"a".repeat(64)})`);
     await db.execute(sql`INSERT INTO competition_attempts
-      (id,round_id,member_id,provider_session_id,game_id,day_key,ordinal,idempotency_key,seed,status,issued_at,expires_at,received_at,security_confirmed,score,points)
+      (id,round_id,member_id,provider_session_id,game_id,day_key,score_period_key,ordinal,idempotency_key,seed,status,issued_at,expires_at,received_at,security_confirmed,score,points)
       VALUES
-      (${attemptA}::uuid,${roundId}::uuid,${alice}::uuid,'a','snake','2026-09-01',1,'attempt-alice-0001','s','verified',now()-interval '2 days',now()-interval '1 day',now()-interval '30 hours',true,1,10),
-      (${attemptB}::uuid,${roundId}::uuid,${bob}::uuid,'b','snake','2026-09-01',1,'attempt-bob-000001','s','verified',now()-interval '2 days',now()-interval '1 day',now()-interval '30 hours',true,1,10),
-      (${pendingAttempt}::uuid,${roundId}::uuid,${alice}::uuid,'a','snake','2026-09-01',2,'attempt-pending-01','s','pending',now()-interval '2 days',now()-interval '1 day',now()-interval '30 hours',false,null,null),
-      (${dqAttempt}::uuid,${openRoundId}::uuid,${alice}::uuid,'a','snake','2026-09-02',1,'attempt-dq-0000001','s','verified',now()-interval '2 hours',now()+interval '1 hour',now()-interval '1 hour',true,2,20)`);
-    await db.execute(sql`INSERT INTO competition_daily_best(round_id,member_id,game_id,day_key,attempt_id,points,received_at) VALUES
+      (${attemptA}::uuid,${roundId}::uuid,${alice}::uuid,'a','snake','2026-09-01','2026-09-01',1,'attempt-alice-0001','s','verified',now()-interval '2 days',now()-interval '1 day',now()-interval '30 hours',true,1,10),
+      (${attemptB}::uuid,${roundId}::uuid,${bob}::uuid,'b','snake','2026-09-01','2026-09-01',1,'attempt-bob-000001','s','verified',now()-interval '2 days',now()-interval '1 day',now()-interval '30 hours',true,1,10),
+      (${pendingAttempt}::uuid,${roundId}::uuid,${alice}::uuid,'a','snake','2026-09-01','2026-09-01',2,'attempt-pending-01','s','pending',now()-interval '2 days',now()-interval '1 day',now()-interval '30 hours',false,null,null),
+      (${dqAttempt}::uuid,${openRoundId}::uuid,${alice}::uuid,'a','snake','2026-09-02','2026-09-02',1,'attempt-dq-0000001','s','verified',now()-interval '2 hours',now()+interval '1 hour',now()-interval '1 hour',true,2,20)`);
+    await db.execute(sql`INSERT INTO competition_period_best(round_id,member_id,game_id,period_key,attempt_id,points,received_at) VALUES
       (${roundId}::uuid,${alice}::uuid,'snake','2026-09-01',${attemptA}::uuid,10,now()-interval '30 hours'),
       (${roundId}::uuid,${bob}::uuid,'snake','2026-09-01',${attemptB}::uuid,10,now()-interval '30 hours'),
       (${openRoundId}::uuid,${alice}::uuid,'snake','2026-09-02',${dqAttempt}::uuid,20,now()-interval '1 hour')`);
@@ -444,7 +444,7 @@ integration("competition closure operations", () => {
     expect(
       (
         await db.execute(
-          sql`SELECT * FROM competition_daily_best WHERE round_id=${openRoundId}::uuid`,
+          sql`SELECT * FROM competition_period_best WHERE round_id=${openRoundId}::uuid`,
         )
       ).rows,
     ).toHaveLength(0);

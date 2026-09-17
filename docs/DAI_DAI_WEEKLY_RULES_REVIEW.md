@@ -2,8 +2,12 @@
 
 **Reviewed:** September 16, 2026  
 **Source:** the `aegyo_arena_leaderboard` handoff supplied by Mateo  
-**Status:** product rules accepted as the working proposal; prize competition
-remains disabled until the decisions and launch gates below are complete
+**Status:** source review retained for game mappings. Simon's September 17
+decision changed the prize cadence to monthly and the top three receive prizes.
+The current implementation record is
+[`MONTHLY_LEADERBOARD_FOUNDATION_2026-09-17.md`](./MONTHLY_LEADERBOARD_FOUNDATION_2026-09-17.md).
+Prize competition remains disabled until the remaining point, tie, prize, and
+launch decisions are complete.
 
 The handoff is product input, not an installation package for this repository.
 Its Supabase SQL and browser client target a different architecture and must not
@@ -64,16 +68,17 @@ becomes true only when all ten games are verified and active.
 
 ## Weekly engagement and the monthly prize
 
-The original request names a cumulative monthly winner, while this handoff
-defines weekly resets. The clean combined model is:
+Simon has confirmed a monthly prize, while this handoff defines weekly scoring
+windows. The implemented combined model is:
 
-1. players see a fresh weekly leaderboard every Monday;
-2. a monthly campaign explicitly lists the weekly round IDs that count; and
-3. the monthly championship total is the sum of those frozen weekly totals.
+1. each game's best verified result counts once per New York competition week;
+2. Full Arena is evaluated independently for each week; and
+3. the monthly championship total sums those weekly contributions inside one
+   frozen monthly round.
 
-Explicit round membership avoids ambiguous partial weeks at month boundaries.
-If the team wants a weekly prize instead, that replaces this model and must be
-stated in the public rules before launch.
+The monthly round's exact opening and closing instants resolve partial weeks at
+month boundaries. Public copy must state those instants and the New York daily
+and weekly boundaries before launch.
 
 ## Identity and existing users
 

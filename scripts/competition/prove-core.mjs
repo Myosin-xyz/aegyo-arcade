@@ -80,6 +80,7 @@ try {
     "0000_foamy_rogue.sql",
     "0001_arcade_shared_auth.sql",
     "0002_arcade_competition.sql",
+    "0003_monthly_scoring_windows.sql",
   ]) {
     run(
       "docker",

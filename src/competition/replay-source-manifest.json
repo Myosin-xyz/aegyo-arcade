@@ -10,6 +10,16 @@
         "src/games/snake/logic.ts": "b179eae8867ef4b1388a6bbf5dffedac691fdb93a0581b6c3db0b37a5351b6aa",
         "src/shell/rng.ts": "61c5cec159a0da6cf81c2883b1736ceacc9a202c00586b41ac8e68347ee9483c"
       }
+    },
+    "2": {
+      "entrypoint": "src/competition/replay-v2.ts",
+      "files": {
+        "src/competition/replay-v2.ts": "fd5dada465c3b22acf5dcd5091ce6c7c1097128f5fec0761ad38399c6a2e6d32",
+        "src/games/flappy/logic.ts": "369f6e0aacb2d0faa39da15e8d90461d03d8f3ddc8e072e9c77d9e5896a9e0e3",
+        "src/games/perfect-toss/logic.ts": "da838cd8910e249f656bf7bb3671cffa0f8b4487f2b07bea099086e727511a8a",
+        "src/games/snake/logic.ts": "b179eae8867ef4b1388a6bbf5dffedac691fdb93a0581b6c3db0b37a5351b6aa",
+        "src/shell/rng.ts": "61c5cec159a0da6cf81c2883b1736ceacc9a202c00586b41ac8e68347ee9483c"
+      }
     }
   }
 }

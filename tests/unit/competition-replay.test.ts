@@ -3,9 +3,10 @@ import {
   CompetitionTraceCapture,
   MAX_TRACE_BYTES,
   MAX_TRACE_TICKS,
-  verifyCompetitionTrace,
 } from "@/competition/replay";
+import { verifyCompetitionTrace } from "@/competition/verify-replay";
 import {
+  positivePerfectTossTraceFixture,
   positiveSnakeTraceFixture,
   zeroScoreFlappyTraceFixture,
 } from "../fixtures/competition-traces";
@@ -35,6 +36,19 @@ describe("competition replay validation", () => {
       status: "cashedOut",
       reason: "quit",
       ticks: 0,
+    });
+  });
+
+  it("replays Perfect Toss inputs and ranks the verified catch count", () => {
+    const { trace, expectedScore } = positivePerfectTossTraceFixture();
+    expect(verifyCompetitionTrace(trace)).toEqual({
+      ok: true,
+      gameId: "perfect-toss",
+      seed: "perfect-toss-one-catch",
+      score: expectedScore,
+      status: "over",
+      reason: "lost",
+      ticks: trace.terminal.tick,
     });
   });
 

@@ -38,6 +38,7 @@ export const GAME_ACCENTS: Record<string, string> = {
   freebie: "#ff7a3d",
   frogger: PALETTE.brandSoft,
   "photocard-stack": PALETTE.gold,
+  "perfect-toss": "#ff4fd8",
   "fanchant-hero": PALETTE.accent,
   "aegyo-pop": "#ff4fd8",
 };

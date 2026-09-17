@@ -55,6 +55,13 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
       maxScore: maximumScoreForHeight(PHOTOCARD_MAX_HEIGHT),
       scored: true,
     },
+    // Perfect Toss ranks consecutive catches rather than its authored local
+    // 10/25/+50 display score. A counted attempt expires after 15 minutes and
+    // every submitted run includes one 33-tick throw per catch plus the final
+    // miss plus its visible reaction, so 1,634 is the absolute physical
+    // envelope within the 15-minute attempt TTL. Prize competition
+    // uses deterministic input-trace replay in addition to this cosmetic cap.
+    "perfect-toss": { maxScore: 1634, scored: true },
     // The shipped seeded chart is capped at 115 notes. Every note at
     // PERFECT with one uninterrupted combo reaches exactly 24,840.
     "fanchant-hero": { maxScore: FANCHANT_MAX_SCORE, scored: true },

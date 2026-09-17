@@ -3,8 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { boundedBody, memberContext } from "@/competition/http";
 import {
-  parseRules,
   assertRoundAvailable,
+  competitionAttemptDayKey,
+  competitionScorePeriodKey,
+  fullArenaBonusPoints,
+  parseRules,
   pointsForScore,
   publicRules,
 } from "@/competition/rules";
@@ -180,5 +183,66 @@ describe("published calibration and activation", () => {
     expect(JSON.stringify(visible)).not.toContain("private@example.test");
     expect(JSON.stringify(visible)).not.toContain("Internal review only");
     expect(visible.games).toEqual(draft.games);
+  });
+  it("supports a monthly round made from New York weekly bests", () => {
+    const rules = parseRules({
+      ...draft,
+      version: 2,
+      dailyAttempts: 2,
+      cadence: "monthly",
+      winnerCount: 3,
+      scoring: {
+        bestPerGame: "week",
+        timeZone: "America/New_York",
+        fullArenaBonusPoints: 20,
+      },
+    });
+    const sundayNight = new Date("2026-09-07T03:59:59Z");
+    const mondayStart = new Date("2026-09-07T04:00:00Z");
+    expect(competitionAttemptDayKey(rules, sundayNight)).toBe("2026-09-06");
+    expect(competitionScorePeriodKey(rules, sundayNight)).toBe("2026-08-31");
+    expect(competitionAttemptDayKey(rules, mondayStart)).toBe("2026-09-07");
+    expect(competitionScorePeriodKey(rules, mondayStart)).toBe("2026-09-07");
+    expect(fullArenaBonusPoints(rules)).toBe(20);
+    expect(publicRules(rules)).toMatchObject({
+      version: 2,
+      cadence: "monthly",
+      winnerCount: 3,
+      scoring: {
+        bestPerGame: "week",
+        timeZone: "America/New_York",
+        fullArenaBonusPoints: 20,
+      },
+    });
+  });
+  it("rejects malformed monthly scoring configuration", () => {
+    for (const scoring of [
+      {
+        bestPerGame: "day",
+        timeZone: "America/New_York",
+        fullArenaBonusPoints: 20,
+      },
+      {
+        bestPerGame: "week",
+        timeZone: "Not/AZone",
+        fullArenaBonusPoints: 20,
+      },
+      {
+        bestPerGame: "week",
+        timeZone: "America/New_York",
+        fullArenaBonusPoints: 1001,
+      },
+    ]) {
+      expect(() =>
+        parseRules({
+          ...draft,
+          version: 2,
+          dailyAttempts: 2,
+          cadence: "monthly",
+          winnerCount: 3,
+          scoring,
+        }),
+      ).toThrow("invalid_round_rules");
+    }
   });
 });

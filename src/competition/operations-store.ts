@@ -277,15 +277,20 @@ export async function closeRound(
       day_key: string;
       points: number;
       received_at: Date;
-      attempt_id: string;
+      attempt_id: string | null;
     }>(
       await tx.execute(sql`
-        SELECT b.member_id, b.day_key, b.points, b.received_at, b.attempt_id
-          FROM competition_daily_best b
+        SELECT b.member_id, b.period_key AS day_key, b.points, b.received_at, b.attempt_id
+          FROM competition_period_best b
           JOIN competition_attempts a ON a.id = b.attempt_id
          WHERE b.round_id = ${input.roundId}
            AND b.points > 0 AND a.status = 'verified'
-         ORDER BY b.member_id, b.day_key, b.game_id, b.attempt_id
+        UNION ALL
+        SELECT b.member_id, b.period_key AS day_key, b.points, b.earned_at AS received_at,
+               NULL::uuid AS attempt_id
+          FROM competition_period_bonuses b
+         WHERE b.round_id = ${input.roundId} AND b.points > 0
+         ORDER BY member_id, day_key, attempt_id NULLS LAST
       `),
     );
     const standings = rankCandidateStandings(
@@ -494,10 +499,11 @@ export async function disqualifyAttempt(
       member_id: string;
       game_id: string;
       day_key: string;
+      score_period_key: string;
       status: string;
     }>(
       await tx.execute(sql`
-      SELECT member_id, game_id, day_key, status FROM competition_attempts
+      SELECT member_id, game_id, day_key, score_period_key, status FROM competition_attempts
        WHERE id=${input.attemptId} AND round_id=${input.roundId} FOR UPDATE
     `),
     )[0];
@@ -514,9 +520,10 @@ export async function disqualifyAttempt(
       roundId: input.roundId,
       memberId: attempt.member_id,
       gameId: attempt.game_id,
-      dayKey: attempt.day_key,
+      scorePeriodKey: attempt.score_period_key,
       reason: `disqualification:${input.reason}`,
       actor: input.actor,
+      rules: lockedRound.rules,
     });
     await tx.execute(sql`
       INSERT INTO competition_operation_audit

@@ -10,13 +10,14 @@ import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import pg from "pg";
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 
 const repo = resolve(new URL("../..", import.meta.url).pathname);
 const migrations = [
   "src/db/migrations/0000_foamy_rogue.sql",
   "src/db/migrations/0001_arcade_shared_auth.sql",
   "src/db/migrations/0002_arcade_competition.sql",
+  "src/db/migrations/0003_monthly_scoring_windows.sql",
 ];
 const proofDir = join(repo, ".auth-proof", "competition-ui");
 const memberId = "10000000-0000-4000-8000-000000000001";

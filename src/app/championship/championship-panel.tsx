@@ -12,6 +12,7 @@ type Standing = {
   rank: number;
   totalPoints: number;
   maxDailyPoints: number;
+  maxPeriodPoints?: number;
 };
 type Round = {
   id: string;
@@ -49,7 +50,7 @@ type MemberState = {
   username: string | null;
   emailVerified: boolean;
   attempts: Attempt[];
-  remaining: { snake: number; flappy: number };
+  remaining: Record<string, number>;
   totalPoints: number;
   rank: number | null;
   awards?: { id: string; awardKey: string; status: string; rank: number }[];
@@ -104,6 +105,7 @@ const translations = {
     player: "Player",
     points: "Points",
     bestDay: "Best day",
+    bestWeek: "Best week",
     empty: "No verified scores yet.",
     yourRound: "Your round",
     signedOut: "Sign in to enroll and play official attempts.",
@@ -134,13 +136,21 @@ const translations = {
     score: "Score",
     rules: "Rules for this round",
     utc: "Daily limits reset at 00:00 UTC.",
-    three: "You receive three official attempts per game each UTC day.",
+    attemptsPerDay: (count: number) =>
+      `You receive ${count} official attempts per game each day.`,
     reserve:
       "An attempt is reserved when play starts. Reloading or leaving forfeits it.",
     expiry: "Each attempt expires after 15 minutes or when the round closes.",
     guest: "Earlier guest or practice scores do not count.",
     scoring:
       "Points use the published score steps below; scores between steps use the lower step.",
+    weeklyBest: "Only your best verified score in each game counts each week.",
+    fullArena: (games: number, points: number) =>
+      `Complete all ${games} active game${games === 1 ? "" : "s"} in the same week to earn a ${points}-point Full Arena bonus.`,
+    monthlyWinners: (count: number) =>
+      `The top ${count} players are selected when the monthly round closes.`,
+    localReset: (timeZone: string) =>
+      `Daily limits reset at midnight in ${timeZone}.`,
     game: "Game",
     rawScore: "Game score",
     roundPoints: "Round points",
@@ -169,6 +179,7 @@ const translations = {
     player: "Jugador",
     points: "Puntos",
     bestDay: "Mejor día",
+    bestWeek: "Mejor semana",
     empty: "Aún no hay puntajes verificados.",
     yourRound: "Tu ronda",
     signedOut: "Inicia sesión para inscribirte y jugar intentos oficiales.",
@@ -200,13 +211,22 @@ const translations = {
     score: "Puntaje",
     rules: "Reglas de esta ronda",
     utc: "Los límites diarios se reinician a las 00:00 UTC.",
-    three: "Recibes tres intentos oficiales por juego cada día UTC.",
+    attemptsPerDay: (count: number) =>
+      `Recibes ${count} intentos oficiales por juego cada día.`,
     reserve: "El intento se reserva al comenzar. Recargar o salir lo anula.",
     expiry:
       "Cada intento vence después de 15 minutos o cuando cierra la ronda.",
     guest: "Los puntajes anteriores de invitado o práctica no cuentan.",
     scoring:
       "Los puntos usan los niveles publicados abajo; un puntaje entre niveles recibe el nivel inferior.",
+    weeklyBest:
+      "Solo cuenta tu mejor puntaje verificado de cada juego por semana.",
+    fullArena: (games: number, points: number) =>
+      `Completa ${games === 1 ? "el" : "los"} ${games} juego${games === 1 ? "" : "s"} activo${games === 1 ? "" : "s"} en la misma semana para ganar un bono Full Arena de ${points} puntos.`,
+    monthlyWinners: (count: number) =>
+      `Los ${count} mejores jugadores se seleccionan cuando termina la ronda mensual.`,
+    localReset: (timeZone: string) =>
+      `Los límites diarios se reinician a medianoche en ${timeZone}.`,
     game: "Juego",
     rawScore: "Puntaje del juego",
     roundPoints: "Puntos de ronda",
@@ -468,6 +488,7 @@ export function ChampionshipPanel({
           <Rules round={round} text={text} />
           <Standings
             standings={state.publicState.standings ?? []}
+            round={round}
             text={text}
           />
           <GameHighScores
@@ -518,7 +539,7 @@ function MemberRound({
                 key={gameId}
               >
                 {gameId === "snake" ? text.playSnake : text.playFlappy} ·{" "}
-                {member.remaining[gameId]}
+                {member.remaining[gameId] ?? 0}
               </Link>
             ))}
           </div>
@@ -665,12 +686,30 @@ function Rules({
     <section className={styles.card} id="round-rules">
       <h2>{text.rules}</h2>
       <ul className={styles.rules}>
-        <li>{text.three}</li>
-        <li>{text.utc}</li>
+        <li>{text.attemptsPerDay(round.rules.dailyAttempts)}</li>
+        <li>
+          {round.rules.version === 2
+            ? text.localReset(round.rules.scoring.timeZone)
+            : text.utc}
+        </li>
         <li>{text.reserve}</li>
         <li>{text.expiry}</li>
         <li>{text.guest}</li>
         <li>{text.scoring}</li>
+        {round.rules.version === 2 ? (
+          <>
+            <li>{text.weeklyBest}</li>
+            {round.rules.scoring.fullArenaBonusPoints > 0 ? (
+              <li>
+                {text.fullArena(
+                  round.rules.games.length,
+                  round.rules.scoring.fullArenaBonusPoints,
+                )}
+              </li>
+            ) : null}
+            <li>{text.monthlyWinners(round.rules.winnerCount)}</li>
+          </>
+        ) : null}
       </ul>
       <div className={styles.calibrations}>
         {round.rules.games.map((game) => (
@@ -701,9 +740,11 @@ function Rules({
 
 function Standings({
   standings,
+  round,
   text,
 }: {
   standings: Standing[];
+  round: Round;
   text: (typeof translations)["en"] | (typeof translations)["es-419"];
 }) {
   return (
@@ -719,7 +760,9 @@ function Standings({
                 <th scope="col">#</th>
                 <th scope="col">{text.player}</th>
                 <th scope="col">{text.points}</th>
-                <th scope="col">{text.bestDay}</th>
+                <th scope="col">
+                  {round.rules.version === 2 ? text.bestWeek : text.bestDay}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -728,7 +771,11 @@ function Standings({
                   <td>{row.rank}</td>
                   <th scope="row">@{row.username}</th>
                   <td>{row.totalPoints}</td>
-                  <td>{row.maxDailyPoints}</td>
+                  <td>
+                    {round.rules.version === 2
+                      ? (row.maxPeriodPoints ?? row.maxDailyPoints)
+                      : row.maxDailyPoints}
+                  </td>
                 </tr>
               ))}
             </tbody>

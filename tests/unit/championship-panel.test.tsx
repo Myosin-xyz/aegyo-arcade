@@ -136,6 +136,53 @@ describe("championship journey", () => {
     expect(container?.textContent).toContain("42");
   });
 
+  it("explains weekly scoring and the dynamic Full Arena bonus for monthly rounds", async () => {
+    const monthlyRound = {
+      ...round,
+      rules: {
+        ...round.rules,
+        version: 2,
+        dailyAttempts: 2,
+        cadence: "monthly",
+        winnerCount: 3,
+        scoring: {
+          bestPerGame: "week",
+          timeZone: "America/New_York",
+          fullArenaBonusPoints: 25,
+        },
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({
+            round: monthlyRound,
+            standings: [
+              {
+                username: "fan_99",
+                rank: 1,
+                totalPoints: 500,
+                maxDailyPoints: 500,
+                maxPeriodPoints: 500,
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(response({ authenticated: false }, 401)),
+    );
+    await renderPanel();
+    await vi.waitFor(() =>
+      expect(container?.textContent).toContain("Only your best verified score"),
+    );
+    expect(container?.textContent).toContain("all 1 active game");
+    expect(container?.textContent).toContain("25-point Full Arena bonus");
+    expect(container?.textContent).toContain("top 3 players");
+    expect(container?.textContent).toContain("Best week");
+    expect(container?.textContent).toContain("America/New_York");
+  });
+
   it("shows the opening time without enrollment before a scheduled round", async () => {
     vi.stubGlobal(
       "fetch",

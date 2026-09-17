@@ -7,12 +7,22 @@ import {
 } from "./operations";
 import { digest, type Round } from "./store";
 import type { GameHighScore } from "./operations-store";
-import { assertRoundAvailable, parseRules, publicRules, utcDay } from "./rules";
+import {
+  assertRoundAvailable,
+  competitionAttemptDayKey,
+  parseRules,
+  publicRules,
+} from "./rules";
 export async function roundStandings(db: Db, roundId: string) {
   const contributions = (
-    await db.execute(
-      sql`SELECT member_id AS "memberId",points,day_key AS "dayKey",received_at AS "receivedAt" FROM competition_daily_best WHERE round_id=${roundId}::uuid ORDER BY member_id,day_key,game_id`,
-    )
+    await db.execute(sql`
+      SELECT member_id AS "memberId",points,period_key AS "dayKey",received_at AS "receivedAt"
+        FROM competition_period_best WHERE round_id=${roundId}::uuid
+      UNION ALL
+      SELECT member_id AS "memberId",points,period_key AS "dayKey",earned_at AS "receivedAt"
+        FROM competition_period_bonuses WHERE round_id=${roundId}::uuid
+      ORDER BY "memberId","dayKey"
+    `)
   ).rows as unknown as StandingContribution[];
   const ranked = rankCandidateStandings(
     contributions.map((row) => ({
@@ -40,6 +50,7 @@ export async function roundStandings(db: Db, roundId: string) {
         rank: row.provisionalRank,
         totalPoints: row.totalPoints,
         maxDailyPoints: row.maxUtcDailyPoints,
+        maxPeriodPoints: row.maxUtcDailyPoints,
       })),
   };
 }
@@ -98,6 +109,7 @@ async function finalPublishedRound(db: Db, roundId: string) {
       rank: row.finalRank,
       totalPoints: row.totalPoints,
       maxDailyPoints: row.maxUtcDailyPoints,
+      maxPeriodPoints: row.maxUtcDailyPoints,
     }));
   const gameHighScores = final.gameHighScores
     .filter((row) => byId.has(row.memberId))
@@ -174,26 +186,31 @@ export async function memberRound(
   emailVerified: boolean,
   roundId: string,
 ) {
-  const [enrollment, profile, attempts, board, awards] = await Promise.all([
-    db.execute(
-      sql`SELECT 1 FROM competition_enrollments WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid`,
-    ),
-    db.execute(
-      sql`SELECT username FROM competition_profiles WHERE member_id=${memberId}::uuid`,
-    ),
-    db.execute(
-      sql`SELECT id,game_id AS "gameId",day_key AS "dayKey",status,score,points FROM competition_attempts WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid ORDER BY issued_at DESC LIMIT 200`,
-    ),
-    roundStandings(db, roundId),
-    db.execute(
-      sql`SELECT c.id,c.award_key AS "awardKey",c.status,c.final_rank AS rank
+  const [roundResult, enrollment, profile, attempts, board, awards] =
+    await Promise.all([
+      db.execute(
+        sql`SELECT rules FROM competition_rounds WHERE id=${roundId}::uuid`,
+      ),
+      db.execute(
+        sql`SELECT 1 FROM competition_enrollments WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid`,
+      ),
+      db.execute(
+        sql`SELECT username FROM competition_profiles WHERE member_id=${memberId}::uuid`,
+      ),
+      db.execute(
+        sql`SELECT id,game_id AS "gameId",day_key AS "dayKey",score_period_key AS "scorePeriodKey",status,score,points FROM competition_attempts WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid ORDER BY issued_at DESC LIMIT 200`,
+      ),
+      roundStandings(db, roundId),
+      db.execute(
+        sql`SELECT c.id,c.award_key AS "awardKey",c.status,c.final_rank AS rank
             FROM competition_award_claims c
             JOIN competition_final_results f ON f.id=c.final_result_id AND f.round_id=c.round_id
            WHERE c.round_id=${roundId}::uuid AND c.member_id=${memberId}::uuid
            ORDER BY c.final_rank,c.award_key,c.id`,
-    ),
-  ]);
-  const today = utcDay(new Date());
+      ),
+    ]);
+  const roundRules = parseRules(roundResult.rows[0]?.rules);
+  const today = competitionAttemptDayKey(roundRules, new Date());
   const all = attempts.rows;
   const mine = board.ranked.find((row) => row.memberId === memberId);
   return {
@@ -201,18 +218,19 @@ export async function memberRound(
     username: profile.rows[0]?.username ?? null,
     emailVerified,
     attempts: all,
-    remaining: {
-      snake: Math.max(
-        0,
-        3 -
-          all.filter((a) => a.dayKey === today && a.gameId === "snake").length,
-      ),
-      flappy: Math.max(
-        0,
-        3 -
-          all.filter((a) => a.dayKey === today && a.gameId === "flappy").length,
-      ),
-    },
+    remaining: Object.fromEntries(
+      roundRules.games.map((game) => [
+        game.gameId,
+        Math.max(
+          0,
+          roundRules.dailyAttempts -
+            all.filter(
+              (attempt) =>
+                attempt.dayKey === today && attempt.gameId === game.gameId,
+            ).length,
+        ),
+      ]),
+    ),
     totalPoints: mine?.totalPoints ?? 0,
     rank: mine?.provisionalRank ?? null,
     awards: awards.rows,

@@ -1,28 +1,46 @@
 /** Versioned championship rules. No default prizes or production round. */
 export type CompetitionGame = "snake" | "flappy";
 export type CalibrationPoint = { score: number; points: number };
-export type RoundRules = {
-  version: 1;
+type CompetitionApproval = {
+  sponsor: string;
+  operator: string;
+  eligibility: string;
+  prizes: string;
+  claims: string;
+  approvedBy: string;
+};
+type CommonRoundRules = {
   mode: "synthetic" | "material_prize";
-  dailyAttempts: 3;
+  dailyAttempts: number;
   attemptTtlSeconds: number;
   games: { gameId: CompetitionGame; calibration: CalibrationPoint[] }[];
   rulesUrl?: string;
-  approval?: {
-    sponsor: string;
-    operator: string;
-    eligibility: string;
-    prizes: string;
-    claims: string;
-    approvedBy: string;
+  approval?: CompetitionApproval;
+};
+export type RoundRulesV1 = CommonRoundRules & {
+  version: 1;
+  dailyAttempts: 3;
+};
+export type RoundRulesV2 = CommonRoundRules & {
+  version: 2;
+  dailyAttempts: 2;
+  cadence: "monthly";
+  winnerCount: 3;
+  scoring: {
+    bestPerGame: "week";
+    timeZone: string;
+    fullArenaBonusPoints: number;
   };
 };
-export type PublicRoundRules = Omit<RoundRules, "approval"> & {
-  approval?: Omit<NonNullable<RoundRules["approval"]>, "approvedBy">;
+export type RoundRules = RoundRulesV1 | RoundRulesV2;
+type Publicize<T extends RoundRules> = Omit<T, "approval"> & {
+  approval?: Omit<CompetitionApproval, "approvedBy">;
 };
+export type PublicRoundRules =
+  Publicize<RoundRulesV1> | Publicize<RoundRulesV2>;
 /** Explicit public projection: operator approval identities and extra metadata stay private. */
 export function publicRules(rules: RoundRules): PublicRoundRules {
-  return {
+  const result = {
     version: rules.version,
     mode: rules.mode,
     dailyAttempts: rules.dailyAttempts,
@@ -47,6 +65,16 @@ export function publicRules(rules: RoundRules): PublicRoundRules {
         }
       : {}),
   };
+  return (
+    rules.version === 2
+      ? {
+          ...result,
+          cadence: rules.cadence,
+          winnerCount: rules.winnerCount,
+          scoring: { ...rules.scoring },
+        }
+      : result
+  ) as PublicRoundRules;
 }
 function isPublicHttpsUrl(value: unknown): boolean {
   if (typeof value !== "string") return false;
@@ -72,19 +100,43 @@ export class CompetitionError extends Error {
 }
 export const competitionEnabled = (env: NodeJS.ProcessEnv = process.env) =>
   env.ARCADE_COMPETITION_ENABLED === "true";
+function isTimeZone(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 100) return false;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
 export function parseRules(input: unknown): RoundRules {
   const rules = input as RoundRules | null;
   if (
     !rules ||
-    rules.version !== 1 ||
+    ![1, 2].includes(rules.version) ||
     !["synthetic", "material_prize"].includes(rules.mode) ||
-    rules.dailyAttempts !== 3 ||
     !Number.isInteger(rules.attemptTtlSeconds) ||
     rules.attemptTtlSeconds < 60 ||
     rules.attemptTtlSeconds > 900 ||
     !Array.isArray(rules.games) ||
     !rules.games.length ||
     rules.games.length > 2
+  )
+    throw new CompetitionError("invalid_round_rules", 400);
+  if (
+    (rules.version === 1 && rules.dailyAttempts !== 3) ||
+    (rules.version === 2 && rules.dailyAttempts !== 2)
+  )
+    throw new CompetitionError("invalid_round_rules", 400);
+  if (
+    rules.version === 2 &&
+    (rules.cadence !== "monthly" ||
+      rules.winnerCount !== 3 ||
+      rules.scoring?.bestPerGame !== "week" ||
+      !isTimeZone(rules.scoring.timeZone) ||
+      !Number.isSafeInteger(rules.scoring.fullArenaBonusPoints) ||
+      rules.scoring.fullArenaBonusPoints < 0 ||
+      rules.scoring.fullArenaBonusPoints > 1000)
   )
     throw new CompetitionError("invalid_round_rules", 400);
   const seen = new Set<string>();
@@ -165,6 +217,46 @@ export function pointsForScore(
 }
 export function utcDay(now: Date): string {
   return now.toISOString().slice(0, 10);
+}
+function localDay(now: Date, timeZone: string): string {
+  if (Number.isNaN(now.getTime()))
+    throw new CompetitionError("invalid_clock", 503);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    calendar: "iso8601",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+  const year = read("year");
+  const month = read("month");
+  const day = read("day");
+  if (![year, month, day].every(Number.isInteger))
+    throw new CompetitionError("invalid_clock", 503);
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+export function competitionAttemptDayKey(rules: RoundRules, now: Date): string {
+  return rules.version === 2
+    ? localDay(now, rules.scoring.timeZone)
+    : utcDay(now);
+}
+export function competitionScorePeriodKey(
+  rules: RoundRules,
+  now: Date,
+): string {
+  if (rules.version === 1) return utcDay(now);
+  const [year, month, day] = localDay(now, rules.scoring.timeZone)
+    .split("-")
+    .map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  return utcDay(date);
+}
+export function fullArenaBonusPoints(rules: RoundRules): number {
+  return rules.version === 2 ? rules.scoring.fullArenaBonusPoints : 0;
 }
 export function assertRoundAvailable(
   rules: RoundRules,

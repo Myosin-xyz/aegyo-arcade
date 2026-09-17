@@ -4,9 +4,11 @@ import type { Db } from "@/db/client";
 import {
   CompetitionError,
   assertRoundAvailable,
+  competitionAttemptDayKey,
+  competitionScorePeriodKey,
+  fullArenaBonusPoints,
   parseRules,
   pointsForScore,
-  utcDay,
   type RoundRules,
 } from "./rules";
 import { verifyCompetitionTrace } from "./replay";
@@ -31,6 +33,7 @@ type Attempt = {
   provider_session_id: string;
   game_id: string;
   day_key: string;
+  score_period_key: string;
   seed: string;
   status: string;
   issued_at: Date;
@@ -172,7 +175,8 @@ export async function issueAttempt(
         reissued: true,
       };
     }
-    const day = utcDay(now);
+    const day = competitionAttemptDayKey(round.rules, now);
+    const scorePeriod = competitionScorePeriodKey(round.rules, now);
     const used = Number(
       (
         await tx.execute(
@@ -180,7 +184,8 @@ export async function issueAttempt(
         )
       ).rows[0].count,
     );
-    if (used >= 3) throw new CompetitionError("daily_limit_reached");
+    if (used >= round.rules.dailyAttempts)
+      throw new CompetitionError("daily_limit_reached");
     const candidate = createHmac("sha256", secret)
       .update(`${round.id}:${input.gameId}:${day}:${digest(round.rules)}`)
       .digest("hex");
@@ -200,7 +205,7 @@ export async function issueAttempt(
     );
     const attempt = (
       await tx.execute(
-        sql`INSERT INTO competition_attempts(round_id,member_id,provider_session_id,game_id,day_key,ordinal,idempotency_key,seed,issued_at,expires_at) VALUES(${round.id}::uuid,${actor.memberId}::uuid,${actor.providerSessionId},${input.gameId},${day},${used + 1},${input.idempotencyKey},${seed},${now},${expiry}) RETURNING id`,
+        sql`INSERT INTO competition_attempts(round_id,member_id,provider_session_id,game_id,day_key,score_period_key,ordinal,idempotency_key,seed,issued_at,expires_at) VALUES(${round.id}::uuid,${actor.memberId}::uuid,${actor.providerSessionId},${input.gameId},${day},${scorePeriod},${used + 1},${input.idempotencyKey},${seed},${now},${expiry}) RETURNING id`,
       )
     ).rows[0];
     return {
@@ -208,7 +213,7 @@ export async function issueAttempt(
       seed,
       expiresAt: expiry.toISOString(),
       reissued: false,
-      remaining: 2 - used,
+      remaining: round.rules.dailyAttempts - used - 1,
     };
   });
 }
@@ -218,35 +223,101 @@ export async function recomputeDailyBestTx(
     roundId: string;
     memberId: string;
     gameId: string;
-    dayKey: string;
+    dayKey?: string;
+    scorePeriodKey?: string;
     reason: string;
     actor?: string;
+    rules?: RoundRules;
   },
 ) {
+  const periodKey = input.scorePeriodKey ?? input.dayKey;
+  if (!periodKey) throw new CompetitionError("score_period_key_required", 500);
   const old = (
     await tx.execute(
-      sql`SELECT points FROM competition_daily_best WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid AND game_id=${input.gameId} AND day_key=${input.dayKey}`,
+      sql`SELECT points FROM competition_period_best WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid AND game_id=${input.gameId} AND period_key=${periodKey}`,
     )
   ).rows[0];
   const best = (
     await tx.execute(
-      sql`SELECT id,points,received_at FROM competition_attempts WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid AND game_id=${input.gameId} AND day_key=${input.dayKey} AND status='verified' ORDER BY points DESC,received_at ASC,id ASC LIMIT 1`,
+      sql`SELECT id,points,received_at FROM competition_attempts WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid AND game_id=${input.gameId} AND score_period_key=${periodKey} AND status='verified' ORDER BY points DESC,received_at ASC,id ASC LIMIT 1`,
     )
   ).rows[0];
   const delta = Number(best?.points ?? 0) - Number(old?.points ?? 0);
   if (best)
     await tx.execute(
-      sql`INSERT INTO competition_daily_best(round_id,member_id,game_id,day_key,attempt_id,points,received_at) VALUES(${input.roundId}::uuid,${input.memberId}::uuid,${input.gameId},${input.dayKey},${best.id}::uuid,${best.points},${best.received_at}) ON CONFLICT(round_id,member_id,game_id,day_key) DO UPDATE SET attempt_id=excluded.attempt_id,points=excluded.points,received_at=excluded.received_at`,
+      sql`INSERT INTO competition_period_best(round_id,member_id,game_id,period_key,attempt_id,points,received_at) VALUES(${input.roundId}::uuid,${input.memberId}::uuid,${input.gameId},${periodKey},${best.id}::uuid,${best.points},${best.received_at}) ON CONFLICT(round_id,member_id,game_id,period_key) DO UPDATE SET attempt_id=excluded.attempt_id,points=excluded.points,received_at=excluded.received_at`,
     );
   else
     await tx.execute(
-      sql`DELETE FROM competition_daily_best WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid AND game_id=${input.gameId} AND day_key=${input.dayKey}`,
+      sql`DELETE FROM competition_period_best WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid AND game_id=${input.gameId} AND period_key=${periodKey}`,
     );
   if (delta)
     await tx.execute(
-      sql`INSERT INTO competition_ledger(round_id,member_id,attempt_id,game_id,day_key,delta,reason) VALUES(${input.roundId}::uuid,${input.memberId}::uuid,${best?.id ?? null}::uuid,${input.gameId},${input.dayKey},${delta},${input.reason})`,
+      sql`INSERT INTO competition_ledger(round_id,member_id,attempt_id,game_id,day_key,delta,reason) VALUES(${input.roundId}::uuid,${input.memberId}::uuid,${best?.id ?? null}::uuid,${input.gameId},${periodKey},${delta},${input.reason})`,
     );
-  return { points: Number(best?.points ?? 0), delta };
+  const bonus = input.rules
+    ? await recomputeFullArenaBonusTx(tx, {
+        roundId: input.roundId,
+        memberId: input.memberId,
+        periodKey,
+        rules: input.rules,
+      })
+    : { points: 0, delta: 0 };
+  return { points: Number(best?.points ?? 0), delta, bonus };
+}
+async function recomputeFullArenaBonusTx(
+  tx: CompetitionTx,
+  input: {
+    roundId: string;
+    memberId: string;
+    periodKey: string;
+    rules: RoundRules;
+  },
+) {
+  const configuredPoints = fullArenaBonusPoints(input.rules);
+  const old = (
+    await tx.execute(sql`
+      SELECT points FROM competition_period_bonuses
+       WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid
+         AND period_key=${input.periodKey}
+    `)
+  ).rows[0];
+  const coverage = (
+    await tx.execute(sql`
+      SELECT count(DISTINCT game_id)::int AS games, max(received_at) AS earned_at
+        FROM competition_period_best
+       WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid
+         AND period_key=${input.periodKey} AND points>0
+    `)
+  ).rows[0];
+  const complete =
+    configuredPoints > 0 &&
+    Number(coverage?.games ?? 0) === input.rules.games.length;
+  const nextPoints = complete ? configuredPoints : 0;
+  const oldPoints = Number(old?.points ?? 0);
+  const delta = nextPoints - oldPoints;
+  if (nextPoints > 0) {
+    await tx.execute(sql`
+      INSERT INTO competition_period_bonuses(round_id,member_id,period_key,points,earned_at)
+      VALUES(${input.roundId}::uuid,${input.memberId}::uuid,${input.periodKey},${nextPoints},${coverage.earned_at})
+      ON CONFLICT(round_id,member_id,period_key)
+      DO UPDATE SET points=excluded.points,earned_at=excluded.earned_at
+    `);
+  } else if (old) {
+    await tx.execute(sql`
+      DELETE FROM competition_period_bonuses
+       WHERE round_id=${input.roundId}::uuid AND member_id=${input.memberId}::uuid
+         AND period_key=${input.periodKey}
+    `);
+  }
+  if (delta) {
+    await tx.execute(sql`
+      INSERT INTO competition_ledger(round_id,member_id,attempt_id,game_id,day_key,delta,reason)
+      VALUES(${input.roundId}::uuid,${input.memberId}::uuid,NULL,'__full_arena__',${input.periodKey},${delta},
+             ${delta > 0 ? "full_arena_bonus" : "full_arena_bonus_reversed"})
+    `);
+  }
+  return { points: nextPoints, delta };
 }
 /** Receipt is persisted before verification, including during a provider outage. */
 export async function receiveTrace(
@@ -373,8 +444,9 @@ export async function verifyAttempt(db: Db, attemptId: string) {
       roundId: round.id,
       memberId: attempt.member_id,
       gameId: attempt.game_id,
-      dayKey: attempt.day_key,
+      scorePeriodKey: attempt.score_period_key,
       reason: "verified_attempt",
+      rules: round.rules,
     });
     return {
       attemptId,
@@ -382,6 +454,9 @@ export async function verifyAttempt(db: Db, attemptId: string) {
       score: result.score,
       points,
       dailyPoints: daily.points,
+      scorePeriodKey: attempt.score_period_key,
+      scorePeriodPoints: daily.points,
+      fullArenaBonusPoints: daily.bonus.points,
       receipt: attempt.receipt,
     };
   });

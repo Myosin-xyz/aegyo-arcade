@@ -150,14 +150,53 @@ try {
     "-d",
     "arcade_upgrade_proof",
     "-c",
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM competition_attempts
+          WHERE id='83000000-0000-4000-8000-000000000001'
+            AND round_id='82000000-0000-4000-8000-000000000001'
+            AND member_id='81000000-0000-4000-8000-000000000001'
+            AND game_id='snake' AND day_key='2026-09-17'
+            AND score_period_key='2026-09-14'
+       ) THEN
+         RAISE EXCEPTION 'snake attempt changed during migration';
+       END IF;
+       IF NOT EXISTS (
+         SELECT 1 FROM competition_attempts
+          WHERE id='83000000-0000-4000-8000-000000000002'
+            AND round_id='82000000-0000-4000-8000-000000000001'
+            AND member_id='81000000-0000-4000-8000-000000000001'
+            AND game_id='flappy' AND day_key='2026-09-17'
+            AND score_period_key='2026-09-14'
+       ) THEN
+         RAISE EXCEPTION 'flappy attempt changed during migration';
+       END IF;
+     END $$;`,
+  ]);
+  run("docker", [
+    "exec",
+    name,
+    "psql",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-U",
+    "postgres",
+    "-d",
+    "arcade_upgrade_proof",
+    "-c",
     `INSERT INTO competition_attempts
        (id,round_id,member_id,provider_session_id,game_id,day_key,score_period_key,ordinal,idempotency_key,seed,issued_at,expires_at)
      VALUES
        ('83000000-0000-4000-8000-000000000003','82000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','upgrade','perfect-toss','2026-09-17','2026-09-14',1,'upgrade-perfect-toss','seed',now(),now()+interval '5 minutes'),
        ('83000000-0000-4000-8000-000000000004','82000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','upgrade','hangman','2026-09-17','2026-09-14',1,'upgrade-hangman','seed',now(),now()+interval '5 minutes');
      DO $$ BEGIN
-       IF (SELECT count(*) FROM competition_attempts) <> 4 THEN
-         RAISE EXCEPTION 'competition attempt migration lost evidence';
+       IF (SELECT count(*) FROM competition_attempts) <> 4 OR
+          (SELECT count(*) FROM competition_attempts
+            WHERE (id='83000000-0000-4000-8000-000000000003'
+                   AND game_id='perfect-toss')
+               OR (id='83000000-0000-4000-8000-000000000004'
+                   AND game_id='hangman')) <> 2 THEN
+         RAISE EXCEPTION 'expanded games were not inserted as expected';
        END IF;
      END $$;`,
   ]);

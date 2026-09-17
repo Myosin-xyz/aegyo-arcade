@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { materialLaunchBlockers } from "@/competition/launch-readiness";
+import {
+  isResolvedCompetitionTerm,
+  materialLaunchBlockers,
+} from "@/competition/launch-readiness";
 import { publicRules, type RoundRulesV2 } from "@/competition/rules";
 
 const rules: RoundRulesV2 = {
@@ -65,5 +68,23 @@ describe("material competition launch readiness", () => {
       "exact_tie_policy",
       "engagement_sources",
     ]);
+  });
+
+  it("requires the approved 20-point Full Arena bonus for material rounds", () => {
+    expect(
+      materialLaunchBlockers({
+        ...rules,
+        scoring: { ...rules.scoring, fullArenaBonusPoints: 10 },
+      }),
+    ).toContain("full_arena_bonus");
+  });
+
+  it("rejects standalone required placeholders without rejecting legal prose", () => {
+    expect(isResolvedCompetitionTerm("Required")).toBe(false);
+    expect(isResolvedCompetitionTerm("Required.")).toBe(false);
+    expect(isResolvedCompetitionTerm("REQUIRED: prize allocation")).toBe(false);
+    expect(
+      isResolvedCompetitionTerm("Identity verification is required by law"),
+    ).toBe(true);
   });
 });

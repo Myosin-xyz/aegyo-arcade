@@ -100,6 +100,7 @@ const readinessLabel: Record<string, string> = {
   prize_allocation: "Approve prizes by rank",
   claim_deadline_fulfillment:
     "Approve the claim deadline and fulfillment terms",
+  full_arena_bonus: "Set the Full Arena bonus to the approved 20 points",
   schedule: "Approve the complete schedule and time zone",
   exact_tie_policy: "Approve exact-tie and prize-boundary handling",
   engagement_sources: "Approve engagement sources, caps, and verification",

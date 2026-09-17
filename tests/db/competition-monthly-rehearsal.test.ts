@@ -6,16 +6,31 @@ import { Pool } from "pg";
 import type { Db } from "@/db/client";
 import { closeRound, finalizeRound } from "@/competition/operations-store";
 import { publicRound } from "@/competition/read";
-import { recomputeDailyBestTx } from "@/competition/store";
-import type { RoundRulesV2 } from "@/competition/rules";
+import {
+  digest,
+  enroll,
+  issueAttempt,
+  receiveTrace,
+  recomputeDailyBestTx,
+  verifyAttempt,
+} from "@/competition/store";
+import {
+  competitionScorePeriodKey,
+  type RoundRulesV2,
+} from "@/competition/rules";
+import { positivePerfectTossTraceFixture } from "@/../tests/fixtures/competition-traces";
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const integration = TEST_URL ? describe : describe.skip;
 
 const ROUND = "70000000-0000-4000-8000-000000000001";
 const MEMBER = "71000000-0000-4000-8000-000000000001";
-const WEEK_ONE = "2026-09-07";
-const WEEK_TWO = "2026-09-14";
+const SECRET = "synthetic-monthly-rehearsal-secret-32-bytes";
+const actor = {
+  memberId: MEMBER,
+  providerSessionId: "synthetic-monthly-rehearsal-session",
+  emailVerified: true,
+};
 
 const rules: RoundRulesV2 = {
   version: 2,
@@ -81,17 +96,18 @@ integration("three-game prize-free monthly rehearsal", () => {
     await db.execute(sql`
       INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
       VALUES (${ROUND}::uuid,'three-game-synthetic-rehearsal',${JSON.stringify(rules)}::jsonb,
-              'open',now()-interval '31 days',now()-interval '1 second')
-    `);
-    await db.execute(sql`
-      INSERT INTO competition_enrollments(round_id,member_id,rules_digest)
-      VALUES (${ROUND}::uuid,${MEMBER}::uuid,${"a".repeat(64)})
+              'open',now()-interval '31 days',now()+interval '6 seconds')
     `);
   });
 
   afterAll(async () => pool?.end());
 
-  async function addVerifiedBest(input: {
+  /**
+   * Historical setup only. The database clock cannot issue an attempt in an
+   * already completed scoring week, so prior-week evidence is named and
+   * isolated here. Every current-week attempt below uses the production API.
+   */
+  async function backfillHistoricalVerifiedBest(input: {
     attemptId: string;
     gameId: "snake" | "flappy" | "perfect-toss";
     periodKey: string;
@@ -118,53 +134,84 @@ integration("three-game prize-free monthly rehearsal", () => {
         memberId: MEMBER,
         gameId: input.gameId,
         scorePeriodKey: input.periodKey,
-        reason: "synthetic_monthly_rehearsal",
+        reason: "synthetic_historical_rehearsal_backfill",
         rules,
       }),
     );
   }
 
-  it("keeps weekly bests, awards dynamic Full Arena, then snapshots and finalizes with no prizes", async () => {
+  async function closeAfterDatabaseDeadline() {
+    const deadline = Date.now() + 12_000;
+    for (;;) {
+      try {
+        return await closeRound(db, {
+          roundId: ROUND,
+          actor: "synthetic-rehearsal-operator",
+          idempotencyKey: "synthetic-rehearsal-close-01",
+        });
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          !error.message.includes("has not reached its close time") ||
+          Date.now() >= deadline
+        )
+          throw error;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+  }
+
+  it("uses production attempts for the active week, then snapshots and finalizes with no prizes", async () => {
+    const currentWeek = competitionScorePeriodKey(rules, new Date());
+    const priorWeekDate = new Date(`${currentWeek}T12:00:00.000Z`);
+    priorWeekDate.setUTCDate(priorWeekDate.getUTCDate() - 7);
+    const priorWeek = priorWeekDate.toISOString().slice(0, 10);
+    const historicalTime = (dayOffset: number) => {
+      const value = new Date(priorWeekDate);
+      value.setUTCDate(value.getUTCDate() + dayOffset);
+      return value.toISOString();
+    };
+
     await expect(
-      addVerifiedBest({
+      backfillHistoricalVerifiedBest({
         attemptId: "72000000-0000-4000-8000-000000000001",
         gameId: "snake",
-        periodKey: WEEK_ONE,
+        periodKey: priorWeek,
         ordinal: 1,
         score: 50,
         points: 5,
-        receivedAt: "2026-09-07T15:00:00.000Z",
+        receivedAt: historicalTime(0),
       }),
     ).resolves.toMatchObject({ points: 5, delta: 5, bonus: { points: 0 } });
     await expect(
-      addVerifiedBest({
+      backfillHistoricalVerifiedBest({
         attemptId: "72000000-0000-4000-8000-000000000002",
         gameId: "snake",
-        periodKey: WEEK_ONE,
-        ordinal: 2,
+        periodKey: priorWeek,
+        ordinal: 1,
         score: 300,
         points: 20,
-        receivedAt: "2026-09-08T15:00:00.000Z",
+        receivedAt: historicalTime(1),
       }),
     ).resolves.toMatchObject({ points: 20, delta: 15, bonus: { points: 0 } });
-    await addVerifiedBest({
+    await backfillHistoricalVerifiedBest({
       attemptId: "72000000-0000-4000-8000-000000000003",
       gameId: "flappy",
-      periodKey: WEEK_ONE,
+      periodKey: priorWeek,
       ordinal: 1,
       score: 5,
       points: 10,
-      receivedAt: "2026-09-09T15:00:00.000Z",
+      receivedAt: historicalTime(2),
     });
     await expect(
-      addVerifiedBest({
+      backfillHistoricalVerifiedBest({
         attemptId: "72000000-0000-4000-8000-000000000004",
         gameId: "perfect-toss",
-        periodKey: WEEK_ONE,
+        periodKey: priorWeek,
         ordinal: 1,
         score: 1,
         points: 5,
-        receivedAt: "2026-09-10T15:00:00.000Z",
+        receivedAt: historicalTime(3),
       }),
     ).resolves.toMatchObject({
       points: 5,
@@ -172,22 +219,59 @@ integration("three-game prize-free monthly rehearsal", () => {
       bonus: { points: 10, delta: 10 },
     });
 
-    const rehearsalGames = rules.games.filter(
-      (
-        game,
-      ): game is (typeof rules.games)[number] & {
-        gameId: "snake" | "flappy" | "perfect-toss";
-      } => game.gameId !== "hangman",
+    await expect(enroll(db, actor, ROUND, digest(rules))).resolves.toEqual({
+      enrolled: true,
+    });
+    const first = await issueAttempt(
+      db,
+      actor,
+      {
+        roundId: ROUND,
+        gameId: "perfect-toss",
+        idempotencyKey: "monthly_rehearsal_attempt_01",
+      },
+      SECRET,
     );
-    for (const [index, game] of rehearsalGames.entries()) {
-      await addVerifiedBest({
-        attemptId: `73000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
-        gameId: game.gameId,
-        periodKey: WEEK_TWO,
-        ordinal: 1,
-        score: game.calibration.at(-1)!.score,
-        points: 20,
-        receivedAt: `2026-09-${14 + index}T15:00:00.000Z`,
+    const second = await issueAttempt(
+      db,
+      actor,
+      {
+        roundId: ROUND,
+        gameId: "perfect-toss",
+        idempotencyKey: "monthly_rehearsal_attempt_02",
+      },
+      SECRET,
+    );
+    expect(first).toMatchObject({ reissued: false, remaining: 1 });
+    expect(second).toMatchObject({ reissued: false, remaining: 0 });
+    expect(second.seed).toBe(first.seed);
+    await expect(
+      issueAttempt(
+        db,
+        actor,
+        {
+          roundId: ROUND,
+          gameId: "perfect-toss",
+          idempotencyKey: "monthly_rehearsal_attempt_03",
+        },
+        SECRET,
+      ),
+    ).rejects.toMatchObject({ code: "daily_limit_reached" });
+
+    const fixture = positivePerfectTossTraceFixture(first.seed);
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, fixture.durationMs - 750)),
+    );
+    for (const issued of [first, second]) {
+      await expect(
+        receiveTrace(db, actor, issued.attemptId, fixture.trace, true),
+      ).resolves.toMatchObject({ status: "pending", replayed: false });
+      await expect(verifyAttempt(db, issued.attemptId)).resolves.toMatchObject({
+        status: "verified",
+        score: 1,
+        points: 5,
+        scorePeriodKey: currentWeek,
+        scorePeriodPoints: 5,
       });
     }
 
@@ -196,8 +280,8 @@ integration("three-game prize-free monthly rehearsal", () => {
       FROM competition_ledger
       WHERE round_id=${ROUND}::uuid AND member_id=${MEMBER}::uuid
     `);
-    // Week one: 20 + 10 + 5 + 10 bonus. Week two: 20 * 3 + 10 bonus.
-    expect(ledgerTotal.rows[0]?.total).toBe(115);
+    // Prior week: 20 + 10 + 5 + 10 bonus. Current week: one 5-point best.
+    expect(ledgerTotal.rows[0]?.total).toBe(50);
 
     const bests = await db.execute(sql`
       SELECT period_key,game_id,points
@@ -205,28 +289,24 @@ integration("three-game prize-free monthly rehearsal", () => {
       WHERE round_id=${ROUND}::uuid
       ORDER BY period_key,game_id
     `);
-    expect(bests.rows).toHaveLength(6);
+    expect(bests.rows).toHaveLength(4);
     expect(
       bests.rows.find(
-        (row) => row.period_key === WEEK_ONE && row.game_id === "snake",
+        (row) => row.period_key === priorWeek && row.game_id === "snake",
       ),
     ).toMatchObject({ points: 20 });
     expect(
       bests.rows.filter((row) => row.game_id === "perfect-toss"),
     ).toHaveLength(2);
 
-    const closed = await closeRound(db, {
-      roundId: ROUND,
-      actor: "synthetic-rehearsal-operator",
-      idempotencyKey: "synthetic-rehearsal-close-01",
-    });
+    const closed = await closeAfterDatabaseDeadline();
     expect(closed.kind).toBe("snapshot");
     if (closed.kind !== "snapshot") throw new Error("snapshot expected");
     expect(closed.snapshot.source_digest).toMatch(/^[0-9a-f]{64}$/);
     expect(closed.snapshot.standings).toEqual([
       expect.objectContaining({
         memberId: MEMBER,
-        totalPoints: 115,
+        totalPoints: 50,
         provisionalRank: 1,
         requiresReview: false,
       }),
@@ -273,7 +353,7 @@ integration("three-game prize-free monthly rehearsal", () => {
       await publicRound(db, "three-game-synthetic-rehearsal"),
     ).toMatchObject({
       provisional: false,
-      standings: [{ username: "monthly_rehearsal", totalPoints: 115, rank: 1 }],
+      standings: [{ username: "monthly_rehearsal", totalPoints: 50, rank: 1 }],
     });
-  });
+  }, 20_000);
 });

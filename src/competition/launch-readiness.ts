@@ -8,18 +8,21 @@ export type MaterialLaunchBlocker =
   | "eligibility_geography_age"
   | "prize_allocation"
   | "claim_deadline_fulfillment"
+  | "full_arena_bonus"
   | "schedule"
   | "exact_tie_policy"
   | "engagement_sources";
 
 const UNRESOLVED_TERM =
-  /(?:\b(?:tbd|todo|pending|placeholder|unknown|unconfirmed)\b|required[_\s-]|\[[^\]]*(?:required|pending|tbd)[^\]]*\])/i;
+  /(?:\b(?:tbd|todo|pending|placeholder|unknown|unconfirmed)\b|\[[^\]]*(?:required|pending|tbd)[^\]]*\])/i;
+const REQUIRED_PLACEHOLDER_PREFIX = /^required(?:\s*$|\s*[:._-])/i;
 
 export function isResolvedCompetitionTerm(value: unknown): value is string {
   return (
     typeof value === "string" &&
     value.trim().length >= 4 &&
-    !UNRESOLVED_TERM.test(value)
+    !UNRESOLVED_TERM.test(value) &&
+    !REQUIRED_PLACEHOLDER_PREFIX.test(value.trim())
   );
 }
 
@@ -67,6 +70,10 @@ export function materialLaunchBlockers(
   if (!isResolvedCompetitionTerm(approval?.claims))
     blockers.push("claim_deadline_fulfillment");
   if (rules.version === 2) {
+    // The working public rules specify a 20-point Full Arena bonus. Keep
+    // material rounds fail-closed until the configured value matches them.
+    if (rules.scoring.fullArenaBonusPoints !== 20)
+      blockers.push("full_arena_bonus");
     if (!isResolvedCompetitionTerm(approval?.schedule))
       blockers.push("schedule");
     if (!isResolvedCompetitionTerm(approval?.ties))

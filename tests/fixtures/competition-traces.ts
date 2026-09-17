@@ -133,8 +133,9 @@ export function zeroScoreFlappyTraceFixture(): CompetitionTraceFixture {
 }
 
 /** One verified catch followed by a miss, driven against the production core. */
-export function positivePerfectTossTraceFixture(): CompetitionTraceFixture {
-  const seed = "perfect-toss-one-catch";
+export function positivePerfectTossTraceFixture(
+  seed = "perfect-toss-one-catch",
+): CompetitionTraceFixture {
   const rng = seededRandom(seed);
   const state = createPerfectTossState(rng);
   const capture = new CompetitionTraceCaptureV2("perfect-toss", seed);

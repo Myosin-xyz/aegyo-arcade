@@ -75,28 +75,23 @@ export const EXPECTED_COLUMNS = [
 ];
 
 export const EXPECTED_CONSTRAINTS = {
-  competition_attempt_game: ["snake", "flappy", "perfect-toss", "hangman"],
-  competition_attempt_score_period: ["score_period_key", "CHECK"],
-  competition_attempt_status: [
-    "issued",
-    "pending",
-    "verified",
-    "rejected",
-    "void",
-  ],
-  competition_round_status: ["draft", "open", "closing", "review", "final"],
-  competition_round_dates: ["closes_at", "opens_at"],
-  competition_claim_state: [
-    "private_proof",
-    "claim_proof_digest",
-    "claimed_at",
-  ],
-  competition_period_best_points: ["points", "1000"],
-  competition_period_bonus_points: ["points", "1000"],
-  competition_attempts_round_id_competition_rounds_id_fk: [
-    "competition_rounds",
-  ],
-  competition_attempts_member_id_account_members_id_fk: ["account_members"],
+  competition_attempt_game:
+    "CHECK (game_id = ANY (ARRAY['snake'::text, 'flappy'::text, 'perfect-toss'::text, 'hangman'::text]))",
+  competition_attempt_score_period:
+    "CHECK (score_period_key ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'::text)",
+  competition_attempt_status:
+    "CHECK (status = ANY (ARRAY['issued'::text, 'pending'::text, 'verified'::text, 'rejected'::text, 'void'::text]))",
+  competition_round_status:
+    "CHECK (status = ANY (ARRAY['draft'::text, 'open'::text, 'closing'::text, 'review'::text, 'final'::text]))",
+  competition_round_dates: "CHECK (closes_at > opens_at)",
+  competition_claim_state:
+    "CHECK (status = 'unclaimed'::text AND private_proof IS NULL AND claim_proof_digest IS NULL AND claimed_at IS NULL OR (status = ANY (ARRAY['claimed'::text, 'fulfilled'::text])) AND private_proof IS NOT NULL AND claim_proof_digest IS NOT NULL AND claimed_at IS NOT NULL OR status = 'void'::text)",
+  competition_period_best_points: "CHECK (points >= 0 AND points <= 1000)",
+  competition_period_bonus_points: "CHECK (points >= 1 AND points <= 1000)",
+  competition_attempts_round_id_competition_rounds_id_fk:
+    "FOREIGN KEY (round_id) REFERENCES competition_rounds(id) ON DELETE RESTRICT",
+  competition_attempts_member_id_account_members_id_fk:
+    "FOREIGN KEY (member_id) REFERENCES account_members(id) ON DELETE RESTRICT",
 };
 
 export const EXPECTED_INDEXES = {
@@ -173,23 +168,13 @@ function normalizedCheck(definition) {
   return asString(definition)
     .toLowerCase()
     .replaceAll('"', "")
+    .replace(/\bpublic\./g, "")
     .replace(/\bcompetition_period_(?:best|bonuses)\./g, "")
     .replace(/[\s()]/g, "");
 }
 
-function constraintMatches(name, definition, fragments) {
-  const normalized = normalizedCheck(definition);
-  if (name === "competition_period_best_points")
-    return new Set([
-      "checkpointsbetween0and1000",
-      "checkpoints>=0andpoints<=1000",
-    ]).has(normalized);
-  if (name === "competition_period_bonus_points")
-    return new Set([
-      "checkpointsbetween1and1000",
-      "checkpoints>=1andpoints<=1000",
-    ]).has(normalized);
-  return includesAll(definition, fragments);
+function constraintMatches(definition, expectedDefinition) {
+  return normalizedCheck(definition) === normalizedCheck(expectedDefinition);
 }
 
 function count(value) {
@@ -250,12 +235,14 @@ export function assessSchemaProof(proof) {
   );
   const missingConstraints = [];
   const mismatchedConstraints = [];
-  for (const [name, fragments] of Object.entries(EXPECTED_CONSTRAINTS)) {
+  for (const [name, expectedDefinition] of Object.entries(
+    EXPECTED_CONSTRAINTS,
+  )) {
     const found = constraintByName.get(name);
     if (!found) missingConstraints.push(name);
     else if (
       !found.validated ||
-      !constraintMatches(name, found.definition, fragments)
+      !constraintMatches(found.definition, expectedDefinition)
     )
       mismatchedConstraints.push(name);
   }

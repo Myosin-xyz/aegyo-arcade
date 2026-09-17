@@ -8,6 +8,9 @@ const round = {
   slug: "weekly-test",
   status: "closing",
   mode: "synthetic",
+  rulesVersion: 1,
+  winnerCount: null,
+  launchBlockers: [],
   opensAt: "2026-09-14T04:00:00.000Z",
   closesAt: "2026-09-21T04:00:00.000Z",
   enrollmentCount: 2,
@@ -63,6 +66,28 @@ describe("competition operator panel", () => {
     await vi.waitFor(() =>
       expect(container?.textContent).toContain("Retry snapshot"),
     );
+  });
+
+  it("keeps a material draft closed while public terms are unresolved", async () => {
+    await render(
+      response({
+        round: {
+          status: "draft",
+          mode: "material_prize",
+          rulesVersion: 2,
+          winnerCount: 3,
+          launchBlockers: ["prize_allocation", "exact_tie_policy"],
+        },
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(container?.textContent).toContain("This contest cannot open"),
+    );
+    expect(container?.textContent).toContain("Approve prizes by rank");
+    const button = [...(container?.querySelectorAll("button") ?? [])].find(
+      (candidate) => candidate.textContent === "Open round",
+    );
+    expect(button?.disabled).toBe(true);
   });
 
   it("requires a written shared-rank rationale before finalization", async () => {

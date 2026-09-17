@@ -29,6 +29,13 @@
       "when": 1789670938683,
       "tag": "0003_monthly_scoring_windows",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789676286417,
+      "tag": "0004_expand_competition_games",
+      "breakpoints": true
     }
   ]
 }

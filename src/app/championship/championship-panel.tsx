@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import type { PublicRoundRules } from "@/competition/rules";
+import { materialLaunchBlockers } from "@/competition/launch-readiness";
 import { getLocale } from "@/i18n/t";
 import { AegyoLogo } from "../logo";
 import styles from "./championship.module.css";
@@ -86,8 +87,12 @@ const translations = {
     eyebrow: "Monthly challenge",
     title: "Championship",
     intro:
-      "Play the official daily challenges and climb the monthly standings.",
+      "Practice the games and follow verified monthly standings when a published round is active.",
     test: "Test round · no prizes",
+    materialPending: "Prize terms pending · enrollment closed",
+    materialPendingBody:
+      "No material contest is open. Practice play remains available while the official rules and operating terms are completed.",
+    officialRules: "Official promotion rules",
     loading: "Loading the championship…",
     unavailable: "The championship is unavailable right now.",
     retry: "Try again",
@@ -124,6 +129,9 @@ const translations = {
     attempts: "Attempts left today",
     playSnake: "Play Snake",
     playFlappy: "Play Flappy Bird",
+    playGame: (name: string) => `Play ${name}`,
+    gamePerfectToss: "Perfect Toss",
+    gameHangman: "Guess the Slang",
     recent: "Recent attempts",
     awards: "Your awards",
     awardInstructions: "Claim instructions",
@@ -159,8 +167,13 @@ const translations = {
   "es-419": {
     eyebrow: "Reto mensual",
     title: "Campeonato",
-    intro: "Juega los retos diarios oficiales y sube en la tabla mensual.",
+    intro:
+      "Practica los juegos y consulta la tabla mensual verificada cuando haya una ronda publicada activa.",
     test: "Ronda de prueba · sin premios",
+    materialPending: "Términos del premio pendientes · inscripción cerrada",
+    materialPendingBody:
+      "No hay un concurso con premios abierto. Las partidas de práctica siguen disponibles mientras se completan las reglas y condiciones operativas.",
+    officialRules: "Reglas oficiales de la promoción",
     loading: "Cargando el campeonato…",
     unavailable: "El campeonato no está disponible en este momento.",
     retry: "Intentar de nuevo",
@@ -199,6 +212,9 @@ const translations = {
     attempts: "Intentos disponibles hoy",
     playSnake: "Jugar Snake",
     playFlappy: "Jugar Flappy Bird",
+    playGame: (name: string) => `Jugar ${name}`,
+    gamePerfectToss: "Perfect Toss",
+    gameHangman: "Adivina el slang",
     recent: "Intentos recientes",
     awards: "Tus reconocimientos",
     awardInstructions: "Instrucciones para reclamar",
@@ -342,6 +358,11 @@ export function ChampionshipPanel({
     round && state.kind === "ready"
       ? phaseAt(round, clockTick + state.clockOffsetMs)
       : null;
+  const materialBlocked =
+    !!round &&
+    round.mode === "material_prize" &&
+    materialLaunchBlockers(round.rules).length > 0 &&
+    phase !== "final";
 
   return (
     <main className={styles.page}>
@@ -377,6 +398,9 @@ export function ChampionshipPanel({
               <div>
                 {round.mode === "synthetic" && (
                   <p className={styles.testBadge}>{text.test}</p>
+                )}
+                {materialBlocked && (
+                  <p className={styles.testBadge}>{text.materialPending}</p>
                 )}
                 <h2>{round.slug.replaceAll("-", " ")}</h2>
               </div>
@@ -424,7 +448,19 @@ export function ChampionshipPanel({
 
           <section className={styles.card}>
             <h2>{text.yourRound}</h2>
-            {phase !== "open" ? (
+            {materialBlocked ? (
+              <div className={styles.actionBlock}>
+                <p>{text.materialPendingBody}</p>
+                {member?.enrolled && (
+                  <MemberRound
+                    member={member}
+                    round={round}
+                    text={text}
+                    canPlay={false}
+                  />
+                )}
+              </div>
+            ) : phase !== "open" ? (
               <div className={styles.actionBlock}>
                 <p>
                   {phase === "upcoming"
@@ -538,8 +574,12 @@ function MemberRound({
                 href={`/play/${gameId}?championship=${encodeURIComponent(round.id)}`}
                 key={gameId}
               >
-                {gameId === "snake" ? text.playSnake : text.playFlappy} ·{" "}
-                {member.remaining[gameId] ?? 0}
+                {gameId === "snake"
+                  ? text.playSnake
+                  : gameId === "flappy"
+                    ? text.playFlappy
+                    : text.playGame(gameName(gameId, text))}{" "}
+                · {member.remaining[gameId] ?? 0}
               </Link>
             ))}
           </div>
@@ -685,6 +725,15 @@ function Rules({
   return (
     <section className={styles.card} id="round-rules">
       <h2>{text.rules}</h2>
+      {round.mode === "material_prize" &&
+      round.rules.rulesUrl &&
+      materialLaunchBlockers(round.rules).length === 0 ? (
+        <p>
+          <a href={round.rules.rulesUrl} rel="noreferrer" target="_blank">
+            {text.officialRules}
+          </a>
+        </p>
+      ) : null}
       <ul className={styles.rules}>
         <li>{text.attemptsPerDay(round.rules.dailyAttempts)}</li>
         <li>
@@ -714,9 +763,7 @@ function Rules({
       <div className={styles.calibrations}>
         {round.rules.games.map((game) => (
           <table key={game.gameId}>
-            <caption>
-              {game.gameId === "snake" ? "Snake" : "Flappy Bird"}
-            </caption>
+            <caption>{gameName(game.gameId, text)}</caption>
             <thead>
               <tr>
                 <th scope="col">{text.rawScore}</th>
@@ -809,9 +856,7 @@ function GameHighScores({
           <tbody>
             {scores.map((row) => (
               <tr key={`${row.gameId}-${row.username}`}>
-                <th scope="row">
-                  {row.gameId === "snake" ? "Snake" : "Flappy Bird"}
-                </th>
+                <th scope="row">{gameName(row.gameId, text)}</th>
                 <td>@{row.username}</td>
                 <td>{row.score}</td>
               </tr>
@@ -821,4 +866,15 @@ function GameHighScores({
       </div>
     </section>
   );
+}
+
+function gameName(
+  gameId: string,
+  text: (typeof translations)["en"] | (typeof translations)["es-419"],
+): string {
+  if (gameId === "snake") return "Snake";
+  if (gameId === "flappy") return "Flappy Bird";
+  if (gameId === "perfect-toss") return text.gamePerfectToss;
+  if (gameId === "hangman") return text.gameHangman;
+  return gameId;
 }

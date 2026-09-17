@@ -28,7 +28,7 @@ Round closure snapshots both game contributions and Full Arena bonuses. Existing
 - New York local-day and Monday week boundaries are covered.
 - Public version-2 rules expose cadence, winner count, time zone, weekly scoring, and Full Arena points.
 - The championship explains weekly best scoring, the local reset zone, the dynamic game count, the bonus, and the top-three monthly outcome.
-- The disposable PostgreSQL proof applies every migration and passes all 67 competition database tests.
+- The disposable PostgreSQL proof applies every migration, exercises the pre-0004 upgrade path, and passes all 70 competition database tests.
 - The database proof adds and then reverses a Full Arena bonus after a source attempt is voided.
 
 ## Deliberately pending product input

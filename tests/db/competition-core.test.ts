@@ -13,6 +13,7 @@ import {
 } from "@/competition/store";
 import type { RoundRules } from "@/competition/rules";
 import { publicRound } from "@/competition/read";
+import { finalizeRound } from "@/competition/operations-store";
 import {
   positiveSnakeTraceFixture,
   zeroScoreFlappyTraceFixture,
@@ -493,6 +494,66 @@ describe("competition store on PostgreSQL", () => {
         SECRET,
       ),
     ).rejects.toMatchObject({ code: "daily_limit_reached" });
+  });
+
+  it("blocks direct enrollment and issuance for a restored open material round with unresolved terms", async () => {
+    const unresolvedMaterialRules: RoundRules = {
+      ...monthlyRules,
+      mode: "material_prize",
+      rulesUrl: "https://example.test/draft-rules",
+      approval: {
+        sponsor: "Fixture sponsor",
+        operator: "Fixture operator",
+        eligibility: "[REQUIRED: geography and age]",
+        prizes: "TBD",
+        claims: "Pending",
+        approvedBy: "Fixture approver",
+        schedule: "Pending",
+        ties: "Pending",
+        engagementSources: "Pending",
+      },
+    };
+    await pool.query(`DELETE FROM competition_rounds WHERE id=$1`, [ROUND]);
+    await pool.query(
+      `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+       VALUES ($1,'restored-unresolved-material',$2,'open',now()-interval '1 hour',now()+interval '1 hour')`,
+      [ROUND, unresolvedMaterialRules],
+    );
+    process.env.ARCADE_MATERIAL_COMPETITION_ENABLED = "true";
+    process.env.ARCADE_COMPETITION_OPERATIONS_ENABLED = "true";
+    try {
+      await expect(
+        enroll(db, actor(), ROUND, digest(unresolvedMaterialRules)),
+      ).rejects.toMatchObject({ code: "material_launch_not_ready" });
+      await expect(
+        issueAttempt(
+          db,
+          actor(),
+          {
+            roundId: ROUND,
+            gameId: "snake",
+            idempotencyKey: "blocked_material_attempt_01",
+          },
+          SECRET,
+        ),
+      ).rejects.toMatchObject({ code: "material_launch_not_ready" });
+      await pool.query(
+        `UPDATE competition_rounds SET status='review' WHERE id=$1`,
+        [ROUND],
+      );
+      await expect(
+        finalizeRound(db, {
+          roundId: ROUND,
+          approvedBy: "fixture-operator",
+          idempotencyKey: "blocked-material-finalization-01",
+          tieDecisions: [],
+          awards: [],
+        }),
+      ).rejects.toMatchObject({ code: "material_launch_not_ready" });
+    } finally {
+      delete process.env.ARCADE_MATERIAL_COMPETITION_ENABLED;
+      delete process.env.ARCADE_COMPETITION_OPERATIONS_ENABLED;
+    }
   });
 
   it("rejects round cutoff/attempt expiry and never mutates guest identity", async () => {

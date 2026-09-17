@@ -26,6 +26,43 @@ export type FinalStanding = CandidateStanding & {
   finalRank: number;
 };
 
+type ProposedAward = { memberId: string };
+
+/**
+ * Material monthly prizes cannot be allocated until the published tie policy
+ * is implemented. The current operator workflow therefore accepts only an
+ * unambiguous, one-award-per-place allocation for every eligible finisher,
+ * up to the published winner count. If fewer people qualify, unassigned prizes
+ * remain unawarded rather than trapping the round in review.
+ */
+export function materialPrizeAllocationIssue(
+  standings: readonly FinalStanding[],
+  awards: readonly ProposedAward[],
+  winnerCount: number,
+): "exact_tie_policy_required" | "prize_allocation_required" | null {
+  if (
+    standings.some(
+      (standing) =>
+        standing.exactTieKey !== null && standing.finalRank <= winnerCount,
+    )
+  )
+    return "exact_tie_policy_required";
+
+  const winners = standings.filter(
+    (standing) => standing.finalRank <= winnerCount,
+  );
+  const requiredAwardCount = Math.min(winnerCount, standings.length);
+  const awardedMembers = new Set(awards.map((award) => award.memberId));
+  if (
+    winners.length !== requiredAwardCount ||
+    awards.length !== requiredAwardCount ||
+    awardedMembers.size !== requiredAwardCount ||
+    winners.some((winner) => !awardedMembers.has(winner.memberId))
+  )
+    return "prize_allocation_required";
+  return null;
+}
+
 type Aggregate = Omit<
   CandidateStanding,
   "provisionalRank" | "exactTieKey" | "requiresReview"

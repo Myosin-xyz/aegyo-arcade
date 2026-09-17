@@ -136,6 +136,51 @@ describe("championship journey", () => {
     expect(container?.textContent).toContain("42");
   });
 
+  it("does not expose enrollment or play when material terms are pending", async () => {
+    const pendingMaterialRound = {
+      ...round,
+      mode: "material_prize" as const,
+      rules: {
+        ...round.rules,
+        mode: "material_prize" as const,
+        rulesUrl: "https://example.com/draft",
+        approval: {
+          sponsor: "Example Sponsor",
+          operator: "Named Operator",
+          eligibility: "[REQUIRED: geography and age]",
+          prizes: "TBD",
+          claims: "Pending",
+        },
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(response({ round: pendingMaterialRound }))
+        .mockResolvedValueOnce(
+          response({
+            enrolled: true,
+            username: "fan_99",
+            emailVerified: true,
+            attempts: [],
+            remaining: { snake: 3 },
+            totalPoints: 0,
+            rank: null,
+          }),
+        ),
+    );
+    await renderPanel();
+    await vi.waitFor(() =>
+      expect(container?.textContent).toContain(
+        "Prize terms pending · enrollment closed",
+      ),
+    );
+    expect(container?.textContent).toContain("No material contest is open");
+    expect(container?.querySelector('a[href^="/play/"]')).toBeNull();
+    expect(container?.querySelector('button[type="submit"]')).toBeNull();
+  });
+
   it("explains weekly scoring and the dynamic Full Arena bonus for monthly rounds", async () => {
     const monthlyRound = {
       ...round,

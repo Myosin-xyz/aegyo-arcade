@@ -22,6 +22,13 @@ if (process.env.DATABASE_URL || process.env.TEST_DATABASE_URL) {
 const name = `aegyo-competition-proof-${process.pid}-${randomBytes(3).toString("hex")}`;
 const password = randomBytes(24).toString("hex");
 let created = false;
+const migrations = [
+  "0000_foamy_rogue.sql",
+  "0001_arcade_shared_auth.sql",
+  "0002_arcade_competition.sql",
+  "0003_monthly_scoring_windows.sql",
+  "0004_expand_competition_games.sql",
+];
 const run = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
     encoding: "utf8",
@@ -34,6 +41,28 @@ const run = (command, args, options = {}) => {
     );
   return result.stdout?.trim() ?? "";
 };
+const applyMigration = (container, database, migration) =>
+  run(
+    "docker",
+    [
+      "exec",
+      "-i",
+      container,
+      "psql",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      "postgres",
+      "-d",
+      database,
+    ],
+    {
+      input: readFileSync(
+        new URL(`../../src/db/migrations/${migration}`, import.meta.url),
+        "utf8",
+      ),
+    },
+  );
 
 try {
   run("docker", [
@@ -76,34 +105,64 @@ try {
   }
   if (!ready)
     throw new Error("PostgreSQL did not become ready within 15 seconds");
-  for (const migration of [
-    "0000_foamy_rogue.sql",
-    "0001_arcade_shared_auth.sql",
-    "0002_arcade_competition.sql",
-    "0003_monthly_scoring_windows.sql",
-  ]) {
-    run(
-      "docker",
-      [
-        "exec",
-        "-i",
-        name,
-        "psql",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-U",
-        "postgres",
-        "-d",
-        "arcade_proof",
-      ],
-      {
-        input: readFileSync(
-          new URL(`../../src/db/migrations/${migration}`, import.meta.url),
-          "utf8",
-        ),
-      },
-    );
-  }
+  // Prove the additive game constraint against a pre-0004 database containing
+  // legacy competition evidence before building the clean test database.
+  run("docker", [
+    "exec",
+    name,
+    "createdb",
+    "-U",
+    "postgres",
+    "arcade_upgrade_proof",
+  ]);
+  for (const migration of migrations.slice(0, -1))
+    applyMigration(name, "arcade_upgrade_proof", migration);
+  run("docker", [
+    "exec",
+    name,
+    "psql",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-U",
+    "postgres",
+    "-d",
+    "arcade_upgrade_proof",
+    "-c",
+    `INSERT INTO account_members(id,issuer,subject) VALUES
+       ('81000000-0000-4000-8000-000000000001','upgrade-proof','member');
+     INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at) VALUES
+       ('82000000-0000-4000-8000-000000000001','upgrade-proof','{}','draft',now()+interval '1 day',now()+interval '2 days');
+     INSERT INTO competition_attempts
+       (id,round_id,member_id,provider_session_id,game_id,day_key,score_period_key,ordinal,idempotency_key,seed,issued_at,expires_at)
+     VALUES
+       ('83000000-0000-4000-8000-000000000001','82000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','upgrade','snake','2026-09-17','2026-09-14',1,'upgrade-snake','seed',now(),now()+interval '5 minutes'),
+       ('83000000-0000-4000-8000-000000000002','82000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','upgrade','flappy','2026-09-17','2026-09-14',1,'upgrade-flappy','seed',now(),now()+interval '5 minutes');`,
+  ]);
+  applyMigration(name, "arcade_upgrade_proof", migrations.at(-1));
+  run("docker", [
+    "exec",
+    name,
+    "psql",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-U",
+    "postgres",
+    "-d",
+    "arcade_upgrade_proof",
+    "-c",
+    `INSERT INTO competition_attempts
+       (id,round_id,member_id,provider_session_id,game_id,day_key,score_period_key,ordinal,idempotency_key,seed,issued_at,expires_at)
+     VALUES
+       ('83000000-0000-4000-8000-000000000003','82000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','upgrade','perfect-toss','2026-09-17','2026-09-14',1,'upgrade-perfect-toss','seed',now(),now()+interval '5 minutes'),
+       ('83000000-0000-4000-8000-000000000004','82000000-0000-4000-8000-000000000001','81000000-0000-4000-8000-000000000001','upgrade','hangman','2026-09-17','2026-09-14',1,'upgrade-hangman','seed',now(),now()+interval '5 minutes');
+     DO $$ BEGIN
+       IF (SELECT count(*) FROM competition_attempts) <> 4 THEN
+         RAISE EXCEPTION 'competition attempt migration lost evidence';
+       END IF;
+     END $$;`,
+  ]);
+  for (const migration of migrations)
+    applyMigration(name, "arcade_proof", migration);
   const port = run("docker", ["port", name, "5432/tcp"]).split(":").at(-1);
   const testUrl = `postgres://postgres:${password}@127.0.0.1:${port}/arcade_proof`;
   run(
@@ -118,6 +177,7 @@ try {
         : [
             "tests/db/competition-core.test.ts",
             "tests/db/competition-operations.test.ts",
+            "tests/db/competition-monthly-rehearsal.test.ts",
             "tests/db/counted-runs.test.ts",
             "tests/db/claw-invariants.test.ts",
           ]),

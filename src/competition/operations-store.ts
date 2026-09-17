@@ -4,11 +4,13 @@ import type { Db } from "@/db/client";
 import { digest, lockRound, recomputeDailyBestTx } from "@/competition/store";
 import {
   applyTieReview,
+  materialPrizeAllocationIssue,
   rankCandidateStandings,
   type CandidateStanding,
   type FinalStanding,
   type TieReviewDecision,
 } from "./operations";
+import { materialLaunchBlockers } from "./launch-readiness";
 import {
   assertRoundAvailable,
   CompetitionError,
@@ -174,6 +176,8 @@ export async function openRound(
     );
     const round = await lockRound(tx, input.roundId);
     assertRoundAvailable(round.rules);
+    if (materialLaunchBlockers(round.rules).length > 0)
+      throw new CompetitionError("material_launch_not_ready", 409);
     const prior = rows<{ id: string }>(
       await tx.execute(sql`
       SELECT id FROM competition_operation_audit
@@ -371,6 +375,8 @@ export async function finalizeRound(
   return db.transaction(async (tx) => {
     const lockedRound = await lockRound(tx, input.roundId);
     assertRoundAvailable(lockedRound.rules);
+    if (materialLaunchBlockers(lockedRound.rules).length > 0)
+      throw new CompetitionError("material_launch_not_ready", 409);
     const requestedReview = {
       tieDecisions: input.tieDecisions,
       awards: input.awards,
@@ -408,6 +414,17 @@ export async function finalizeRound(
     )[0];
     if (!snapshot) throw new Error("Candidate snapshot not found");
     const standings = applyTieReview(snapshot.standings, input.tieDecisions);
+    if (
+      lockedRound.rules.mode === "material_prize" &&
+      lockedRound.rules.version === 2
+    ) {
+      const allocationIssue = materialPrizeAllocationIssue(
+        standings,
+        input.awards,
+        lockedRound.rules.winnerCount,
+      );
+      if (allocationIssue) throw new CompetitionError(allocationIssue, 409);
+    }
     const byMember = new Map(standings.map((item) => [item.memberId, item]));
     const awardPairs = new Set<string>();
     for (const award of input.awards) {

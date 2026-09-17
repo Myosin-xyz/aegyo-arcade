@@ -108,7 +108,10 @@ export const competitionAttempts = pgTable(
       t.idempotencyKey,
     ),
     index("competition_attempts_pending").on(t.roundId, t.status),
-    check("competition_attempt_game", sql`${t.gameId} IN ('snake','flappy')`),
+    check(
+      "competition_attempt_game",
+      sql`${t.gameId} IN ('snake','flappy','perfect-toss','hangman')`,
+    ),
     check(
       "competition_attempt_day",
       sql`${t.dayKey} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`,

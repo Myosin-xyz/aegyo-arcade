@@ -9,6 +9,9 @@ type Round = {
   slug: string;
   status: string;
   mode: string;
+  rulesVersion: number;
+  winnerCount: number | null;
+  launchBlockers: string[];
   opensAt: string;
   closesAt: string;
   enrollmentCount: number;
@@ -88,6 +91,19 @@ type Allocation = {
 };
 
 const label = (value: string) => value.replaceAll("_", " ");
+const readinessLabel: Record<string, string> = {
+  public_rules_url: "Publish the final HTTPS rules URL",
+  sponsor: "Name the sponsor",
+  named_operator: "Name the responsible operator",
+  approval_authority: "Record the final approving authority",
+  eligibility_geography_age: "Approve geography and age eligibility",
+  prize_allocation: "Approve prizes by rank",
+  claim_deadline_fulfillment:
+    "Approve the claim deadline and fulfillment terms",
+  schedule: "Approve the complete schedule and time zone",
+  exact_tie_policy: "Approve exact-tie and prize-boundary handling",
+  engagement_sources: "Approve engagement sources, caps, and verification",
+};
 const displayTime = (value: string | null) =>
   value
     ? new Intl.DateTimeFormat(undefined, {
@@ -200,11 +216,44 @@ export function CompetitionOperatorPanel() {
 
   const selected = dashboard?.selected;
   const unresolvedTies = selected?.tieDecisions ?? [];
+  const materialMonthly =
+    selected?.round.mode === "material_prize" &&
+    selected.round.rulesVersion === 2;
+  const winnerCount = selected?.round.winnerCount ?? 0;
+  const expectedWinners =
+    selected?.candidate?.standings.filter(
+      (standing) => standing.provisionalRank <= winnerCount,
+    ) ?? [];
+  const requiredAwardCount = Math.min(
+    winnerCount,
+    selected?.candidate?.standings.length ?? 0,
+  );
+  const awardedMembers = new Set(
+    allocations.map((allocation) => allocation.memberId),
+  );
+  const prizeTiePending =
+    materialMonthly &&
+    expectedWinners.some((standing) => standing.exactTieKey !== null);
+  const allocationReady =
+    !materialMonthly ||
+    (!prizeTiePending &&
+      expectedWinners.length === requiredAwardCount &&
+      allocations.length === requiredAwardCount &&
+      awardedMembers.size === requiredAwardCount &&
+      expectedWinners.every((standing) =>
+        awardedMembers.has(standing.memberId),
+      ) &&
+      allocations.every(
+        (allocation) =>
+          allocation.awardKey.trim() && allocation.allocationRationale.trim(),
+      ));
   const canFinalize =
     !!selected?.candidate &&
     selected.round.status === "review" &&
     selected.pending.length === 0 &&
-    unresolvedTies.every((tie) => tieRationales[tie.exactTieKey]?.trim());
+    unresolvedTies.every((tie) => tieRationales[tie.exactTieKey]?.trim()) &&
+    allocationReady;
+  const canOpen = (selected?.round.launchBlockers.length ?? 0) === 0;
   const serverNow = Date.parse(
     dashboard?.serverNow ?? "1970-01-01T00:00:00.000Z",
   );
@@ -345,7 +394,12 @@ export function CompetitionOperatorPanel() {
                   {selected.round.status === "draft" ? (
                     <button
                       type="button"
-                      disabled={busy !== null}
+                      disabled={busy !== null || !canOpen}
+                      title={
+                        canOpen
+                          ? undefined
+                          : "Resolve every launch-readiness item before opening"
+                      }
                       onClick={() => {
                         if (
                           !window.confirm(
@@ -402,6 +456,40 @@ export function CompetitionOperatorPanel() {
                   ) : null}
                 </div>
               </section>
+
+              {selected.round.mode === "material_prize" ? (
+                <section
+                  className={styles.card}
+                  aria-label="Material launch readiness"
+                >
+                  <div className={styles.sectionHeading}>
+                    <div>
+                      <p className={styles.kicker}>Material launch gate</p>
+                      <h3>
+                        {canOpen
+                          ? "Published terms are complete"
+                          : "This contest cannot open"}
+                      </h3>
+                    </div>
+                    <span>{selected.round.launchBlockers.length}</span>
+                  </div>
+                  {selected.round.launchBlockers.length ? (
+                    <ul>
+                      {selected.round.launchBlockers.map((blocker) => (
+                        <li key={blocker}>
+                          {readinessLabel[blocker] ?? label(blocker)}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className={styles.empty}>
+                      All public business terms have resolved values. The
+                      operator must still review the frozen schedule and rules
+                      before opening.
+                    </p>
+                  )}
+                </section>
+              ) : null}
 
               <section className={styles.metrics} aria-label="Round summary">
                 <article>
@@ -526,7 +614,11 @@ export function CompetitionOperatorPanel() {
                           <th>Rank</th>
                           <th>Player</th>
                           <th>Points</th>
-                          <th>Best day</th>
+                          <th>
+                            {selected.round.rulesVersion === 2
+                              ? "Best week"
+                              : "Best day"}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -645,8 +737,18 @@ export function CompetitionOperatorPanel() {
                     ))}
                     {!allocations.length ? (
                       <p className={styles.empty}>
-                        No awards assigned. Finalizing with none publishes
-                        standings without offering a prize.
+                        {materialMonthly
+                          ? requiredAwardCount > 0
+                            ? `Assign one award to each of the ${requiredAwardCount} eligible winner${requiredAwardCount === 1 ? "" : "s"} before finalizing.`
+                            : "No eligible finisher earned positive points; no award will be created."
+                          : "No awards assigned. Finalizing publishes standings without an award."}
+                      </p>
+                    ) : null}
+                    {prizeTiePending ? (
+                      <p className={styles.error} role="alert">
+                        A prize position has an exact tie. Finalization remains
+                        blocked until the published allocation policy is
+                        implemented.
                       </p>
                     ) : null}
                   </div>

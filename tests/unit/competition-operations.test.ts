@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyTieReview,
+  materialPrizeAllocationIssue,
   rankCandidateStandings,
   type StandingContribution,
 } from "@/competition/operations";
@@ -109,5 +110,65 @@ describe("competition candidate standings", () => {
         },
       ]),
     ).toThrow(/duplicate/);
+  });
+
+  it("fails closed on prize-position ties and incomplete monthly allocations", () => {
+    const base = {
+      totalPoints: 20,
+      maxUtcDailyPoints: 20,
+      reachedFinalTotalAt: "2026-09-01T01:00:00.000Z",
+      requiresReview: false,
+    };
+    const clear = [
+      {
+        ...base,
+        memberId: "one",
+        provisionalRank: 1,
+        finalRank: 1,
+        exactTieKey: null,
+      },
+      {
+        ...base,
+        memberId: "two",
+        provisionalRank: 2,
+        finalRank: 2,
+        exactTieKey: null,
+      },
+      {
+        ...base,
+        memberId: "three",
+        provisionalRank: 3,
+        finalRank: 3,
+        exactTieKey: null,
+      },
+    ];
+    expect(materialPrizeAllocationIssue(clear, [], 3)).toBe(
+      "prize_allocation_required",
+    );
+    expect(
+      materialPrizeAllocationIssue(
+        clear,
+        clear.map(({ memberId }) => ({ memberId })),
+        3,
+      ),
+    ).toBeNull();
+    expect(
+      materialPrizeAllocationIssue(
+        clear.slice(0, 2),
+        clear.slice(0, 2).map(({ memberId }) => ({ memberId })),
+        3,
+      ),
+    ).toBeNull();
+    expect(materialPrizeAllocationIssue([], [], 3)).toBeNull();
+    expect(
+      materialPrizeAllocationIssue(
+        [
+          ...clear.slice(0, 2),
+          { ...clear[2], exactTieKey: "20:20:time", requiresReview: true },
+        ],
+        clear.map(({ memberId }) => ({ memberId })),
+        3,
+      ),
+    ).toBe("exact_tie_policy_required");
   });
 });

@@ -29,7 +29,7 @@ foundation.
 - The weekly round resets Monday at 00:00 in `America/New_York`. The service
   computes those boundaries with the IANA time zone and stores exact UTC
   instants, including across daylight-saving changes.
-- Ranking order is total points, number of Legend tiers, then the receipt time
+- Ranking order is total points, best weekly point total, then the receipt time
   at which the final total was reached. Receipt time, rather than asynchronous
   verification completion time, is used. A remaining exact tie keeps a shared
   rank and requires the published award-allocation rule.
@@ -51,20 +51,24 @@ foundation.
 | Aegyo Pop            | `aegyo-pop`       | level/completion      | replay verifier required           |
 | Snake Freebies       | `snake`           | level/completion      | **verified replay exists**         |
 | Bias Flap            | `flappy`          | level/completion      | **verified replay exists**         |
+| Perfect Toss         | `perfect-toss`    | verified catches      | **verified replay exists**         |
 
-The repository also contains Hangman and This or That. They are not part of
-this ten-game proposal.
+The repository also contains Hangman and This or That. Hangman's replay verifier
+is available for synthetic rehearsals, but material rounds reject it because the
+answer and deterministic seed are visible in browser code. It needs an approved
+participation-point/abuse policy or a different challenge design before it can
+award prize points. This or That remains outside the material proposal.
 
-The September launch can safely award material points for Snake Freebies and
-Bias Flap today. The other eight games become eligible only after their server
+The September launch can safely award material points for Snake Freebies, Bias
+Flap and Perfect Toss. The other proposed games become eligible only after their server
 verifier reproduces a recorded run and rejects altered evidence. Client-supplied
 `level`, `height`, `completed` or flag fields are display hints, never prize
 evidence.
 
 Full Arena always means all games listed in the frozen round definition. If the
-first round launches with two verified games, its maximum is 60 points:
-`2 games × 20 + 20 bonus`. Public copy must say two games. The 220-point maximum
-becomes true only when all ten games are verified and active.
+first round launches with three verified games, its weekly maximum is 80 points:
+`3 games × 20 + 20 bonus`. Public copy must say three games. Any larger maximum
+becomes true only when the additional games are verified and frozen into the round.
 
 ## Weekly engagement and the monthly prize
 
@@ -91,40 +95,38 @@ and weekly boundaries before launch.
 - Emails, device IDs, internal member IDs and wallet identifiers are never
   exposed on the public board.
 
-## Required implementation changes
+## Implemented foundation and remaining work
 
-1. Add tier rules, weekly New York boundaries, two-attempt allowance, weekly
-   best-per-game contributions, Legend count and Full Arena bonus to the current
-   versioned round contract.
-2. Preserve the current issue, trace, replay, receipt and immutable-ledger path;
-   derive each tier only from the replay result.
-3. Update the championship UI with tier feedback, attempts remaining, weekly
-   game progress, Full Arena progress and localized reset time.
-4. Extend the verifier one game at a time. Every added game needs deterministic
+1. Tier rules, New York boundaries, two-attempt allowance, weekly best-per-game
+   contributions and the dynamic Full Arena bonus are implemented in version 2.
+2. The issue, trace, replay, receipt and immutable-ledger path remains intact;
+   every game tier derives from a versioned server replay result.
+3. The championship UI shows attempts, weekly scoring, Full Arena progress and
+   the localized reset zone.
+4. Continue extending the verifier one game at a time. Every added game needs deterministic
    reproduction tests, tamper tests and a frozen source manifest.
-5. Add an explicit monthly campaign aggregate only if the team confirms the
-   weekly-plus-monthly model.
+5. The confirmed monthly total now aggregates the weekly game contributions.
 6. Keep material competition behind `ARCADE_MATERIAL_COMPETITION_ENABLED` until
    public rules, prizes, eligibility, claim handling and production rehearsals
    are approved.
 
 ## Decisions still needed from Simon and Dai Dai
 
-1. Does the prize go to the monthly cumulative winner, weekly winners, or both?
-   If monthly, approve the explicit sum-of-weekly-rounds model.
-2. Is the prize for first place only or the top three, and how is an exact shared
-   rank allocated?
-3. Confirm the prize, approximate retail value, eligible geography/age, claim
+1. Confirm how an exact shared rank that reaches or crosses third place allocates
+   the three prizes.
+2. Confirm the prize assigned to each rank, approximate retail value, eligible geography/age, claim
    deadline and fulfillment owner.
-4. For the first public round, approve the two currently verified games or move
-   the date to allow all ten game verifiers to be completed and rehearsed.
+3. Approve the three currently material-verifiable games for the first public
+   round, or move the date to allow more verifiers to be completed and rehearsed.
+4. Confirm poll and slang-memory point values, caps, attribution, reversal and
+   abuse handling, or explicitly exclude engagement points from the first round.
 
 ## Launch acceptance
 
 - Production Accounts sign-in, signup and password reset pass on the final DNS
   hostname, and an existing Aegyo user retains the same local identity.
 - A guest with Arcade history signs in and keeps that history.
-- Both eligible games prove a positive recorded run, a rejected modified trace,
+- Every eligible game proves a positive recorded run, a rejected modified trace,
   the two-attempt limit and best-tier replacement on mobile and desktop.
 - Monday New York boundaries and daily allowance boundaries pass tests on both
   sides of a daylight-saving transition.

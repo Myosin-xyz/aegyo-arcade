@@ -25,6 +25,7 @@ import {
   type HangmanState,
 } from "./logic";
 import { arp, blip, sweep, thud } from "@/shell/sfx-presets";
+import { CompetitionTraceCaptureV3 } from "@/competition/replay-v3";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -35,6 +36,7 @@ class HangmanGame implements ShellLoopGame {
   private state: HangmanState | null = null;
   private paused = false;
   private endedReported = false;
+  private competitionTrace: CompetitionTraceCaptureV3 | null = null;
   private root: HTMLElement | null = null;
   private refs: {
     hint: HTMLElement;
@@ -125,23 +127,32 @@ class HangmanGame implements ShellLoopGame {
   start(run: RunContext): void {
     this.state = createHangmanState(run.random);
     this.endedReported = false;
+    this.paused = false;
+    this.competitionTrace = run.competition?.captureTrace
+      ? new CompetitionTraceCaptureV3("hangman", run.seed)
+      : null;
     this.ctx.report.score(0);
     this.renderState();
     this.setStatus("");
   }
 
   pause(): void {
+    if (!this.paused) this.competitionTrace?.record("pause");
     this.paused = true;
     this.refreshKeyboard();
   }
 
   resume(): void {
+    if (this.paused) this.competitionTrace?.record("resume");
     this.paused = false;
     this.refreshKeyboard();
   }
 
   update(): void {
     // Turn-based: nothing advances with time.
+    if (!this.paused && !this.endedReported) {
+      this.competitionTrace?.advanceTick();
+    }
   }
 
   render(): void {
@@ -156,12 +167,16 @@ class HangmanGame implements ShellLoopGame {
     this.root = null;
     this.refs = null;
     this.state = null;
+    this.competitionTrace = null;
   }
 
   private applyGuess(letter: string): void {
     const state = this.state;
     if (!state) return;
     const result = guess(state, letter);
+    if (result.kind !== "ignored") {
+      this.competitionTrace?.record(`hangman:guess:${result.letter}`);
+    }
     const t = this.ctx.t;
     this.renderState();
     if (result.kind === "correct") {
@@ -232,7 +247,10 @@ class HangmanGame implements ShellLoopGame {
     if (this.endedReported) return;
     this.endedReported = true;
     this.refreshKeyboard();
-    this.ctx.report.end({ reason });
+    this.ctx.report.end({
+      reason,
+      competitionTrace: this.competitionTrace?.finish(reason, reason),
+    });
   }
 
   private renderState(): void {

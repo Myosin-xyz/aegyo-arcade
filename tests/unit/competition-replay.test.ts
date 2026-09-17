@@ -4,7 +4,10 @@ import {
   MAX_TRACE_BYTES,
   MAX_TRACE_TICKS,
 } from "@/competition/replay";
+import { CompetitionTraceCaptureV3 } from "@/competition/replay-v3";
 import { verifyCompetitionTrace } from "@/competition/verify-replay";
+import { createHangmanState } from "@/games/hangman/logic";
+import { seededRandom } from "@/shell/rng";
 import {
   positivePerfectTossTraceFixture,
   positiveSnakeTraceFixture,
@@ -50,6 +53,51 @@ describe("competition replay validation", () => {
       reason: "lost",
       ticks: trace.terminal.tick,
     });
+  });
+
+  it("replays Hangman guesses and derives the score from remaining lives", () => {
+    const seed = "hangman-clean-solve";
+    const state = createHangmanState(seededRandom(seed));
+    const capture = new CompetitionTraceCaptureV3("hangman", seed);
+    for (const letter of new Set(state.term)) {
+      capture.record(`hangman:guess:${letter}`);
+    }
+    const trace = capture.finish("completed", "completed");
+
+    expect(verifyCompetitionTrace(trace)).toEqual({
+      ok: true,
+      gameId: "hangman",
+      seed,
+      score: 6,
+      status: "completed",
+      reason: "completed",
+      ticks: 0,
+    });
+  });
+
+  it("rejects malformed and mechanically incomplete Hangman evidence", () => {
+    const seed = "hangman-tamper";
+    const state = createHangmanState(seededRandom(seed));
+    const capture = new CompetitionTraceCaptureV3("hangman", seed);
+    for (const letter of new Set(state.term)) {
+      capture.record(`hangman:guess:${letter}`);
+    }
+    const trace = capture.finish("completed", "completed");
+
+    expect(
+      verifyCompetitionTrace({
+        ...trace,
+        events: trace.events.map((event, index) =>
+          index === 0 ? { ...event, action: "hangman:guess:1" } : event,
+        ),
+      }),
+    ).toEqual({ ok: false, code: "invalid_event_order" });
+    expect(
+      verifyCompetitionTrace({
+        ...trace,
+        events: trace.events.slice(0, -1),
+      }),
+    ).toEqual({ ok: false, code: "terminal_state_mismatch" });
   });
 
   it("rejects reordered, impossible, oversized, and overlong traces", () => {

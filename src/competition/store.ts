@@ -11,6 +11,7 @@ import {
   pointsForScore,
   type RoundRules,
 } from "./rules";
+import { materialLaunchBlockers } from "./launch-readiness";
 import { verifyCompetitionTrace } from "./verify-replay";
 export type CompetitionTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type Round = {
@@ -99,6 +100,8 @@ const clock = async (tx: CompetitionTx) =>
   );
 function isOpen(round: Round, now: Date) {
   assertRoundAvailable(round.rules);
+  if (materialLaunchBlockers(round.rules).length > 0)
+    throw new CompetitionError("material_launch_not_ready", 409);
   if (round.status !== "open" || now < round.opens_at || now >= round.closes_at)
     throw new CompetitionError("round_not_open");
 }

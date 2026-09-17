@@ -1,0 +1,51 @@
+// SYNTHETIC REHEARSAL ONLY. This commented JSONC file cannot be passed to
+// operator.ts. Copy it to a private plain-JSON file, replace the required
+// values with future staging dates, and follow docs/COMPETITION_REHEARSAL.md.
+// Never change mode to material_prize or add award allocations to this drill.
+{
+  "slug": "REQUIRED_UNIQUE_SYNTHETIC_REHEARSAL_SLUG",
+  "opensAt": "REQUIRED_FUTURE_STAGING_OPEN_ISO_TIME",
+  "closesAt": "REQUIRED_LATER_STAGING_CLOSE_ISO_TIME",
+  "rules": {
+    "version": 2,
+    "mode": "synthetic",
+    "dailyAttempts": 2,
+    "attemptTtlSeconds": 900,
+    "games": [
+      {
+        "gameId": "snake",
+        "calibration": [
+          { "score": 0, "points": 0 },
+          { "score": 50, "points": 5 },
+          { "score": 100, "points": 10 },
+          { "score": 300, "points": 20 },
+        ],
+      },
+      {
+        "gameId": "flappy",
+        "calibration": [
+          { "score": 0, "points": 0 },
+          { "score": 1, "points": 5 },
+          { "score": 5, "points": 10 },
+          { "score": 10, "points": 20 },
+        ],
+      },
+      {
+        "gameId": "perfect-toss",
+        "calibration": [
+          { "score": 0, "points": 0 },
+          { "score": 1, "points": 5 },
+          { "score": 8, "points": 10 },
+          { "score": 15, "points": 20 },
+        ],
+      },
+    ],
+    "cadence": "monthly",
+    "winnerCount": 3,
+    "scoring": {
+      "bestPerGame": "week",
+      "timeZone": "America/New_York",
+      "fullArenaBonusPoints": 10,
+    },
+  },
+}

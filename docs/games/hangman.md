@@ -1,6 +1,6 @@
 # Game Rules Seed — Guess the Slang
 
-**Status**: IMPLEMENTED (M2, 2026-07-18) — launch dictionary v1 (7 reviewed single-word terms); multi-word candidates parked pending fan-fluent review; daily term via server seed `daily:hangman:v1:<dayKey>`
+**Status**: IMPLEMENTED (M2, 2026-07-18); competition replay v3 added 2026-09-17 — launch dictionary v1 (7 reviewed single-word terms); multi-word candidates parked pending fan-fluent review; daily term via server seed `daily:hangman:v1:<dayKey>`
 **Source**: Nicole's playable mock and v0.1 keep/change review
 **Surface**: `dom`
 **Reference box**: responsive portal content area
@@ -13,6 +13,25 @@
 - A counted run uses the server-selected daily term for the current `day_key` and content version; the surface is cosmetic and the answer is not represented as cheat-proof.
 - Score on solve: remaining lives (1–6). Ties share a rank under the shared competition-ranking policy (`accepted_at` orders display only); any duration-based secondary metric requires a separate approved policy.
 - End: solve is `completed`; sixth wrong guess is `lost`.
+
+## Competition evidence
+
+- Official runs record normalized A–Z guesses plus pause and resume events in
+  trace version 3. Practice runs remain unchanged and produce no trace.
+- The server reconstructs the term from the issued seed, reapplies every guess
+  to the frozen Hangman rules, and derives the remaining-lives score. Claimed
+  scores and terminal states are never trusted.
+- The replay dependency closure includes the term list, rules, and seeded RNG.
+  Its raw source hashes are frozen in the replay manifest.
+- Hangman is available to synthetic version-2 rehearsal rounds, but material
+  prize rounds reject it. Its answer and deterministic seed are necessarily
+  visible in browser code, so replay can prove the submitted guesses while it
+  cannot prove unaided recall. A reviewed participation-point and abuse policy,
+  or a different server-hidden challenge, is required before it can award
+  material championship points.
+- Replay proves that submitted inputs produce the result. As with the other
+  deterministic browser games, it does not claim to prevent automation or a
+  player inspecting code delivered to their own browser.
 
 ## Seed dictionary
 

@@ -159,6 +159,20 @@ describe("published calibration and activation", () => {
     expect(() => parseRules({ ...draft, mode: "material_prize" })).toThrow(
       "promotion_approval_missing",
     );
+    expect(() =>
+      parseRules({
+        ...draft,
+        mode: "material_prize",
+        rulesUrl: "https://example.test/rules",
+        approval: {
+          sponsor: "Fixture",
+          operator: "Fixture",
+          eligibility: "Fixture",
+          prizes: "Fixture",
+          approvedBy: "Fixture",
+        },
+      }),
+    ).toThrow("promotion_approval_missing");
     for (const rulesUrl of [
       "https://",
       "https://private@example.test/rules",
@@ -257,6 +271,29 @@ describe("published calibration and activation", () => {
       parseRules({
         ...rules,
         games: draft.games,
+      }),
+    ).toThrow("invalid_calibration");
+
+    expect(
+      parseRules({
+        ...rules,
+        games: [{ gameId: "hangman", calibration: tierCalibration }],
+      }).games[0]?.gameId,
+    ).toBe("hangman");
+    expect(() =>
+      parseRules({
+        ...rules,
+        mode: "material_prize",
+        rulesUrl: "https://example.test/rules",
+        approval: {
+          sponsor: "Fixture sponsor",
+          operator: "Fixture operator",
+          eligibility: "Adults in an approved region",
+          prizes: "Three prizes allocated by rank",
+          claims: "Claim within seven days",
+          approvedBy: "Fixture approver",
+        },
+        games: [{ gameId: "hangman", calibration: tierCalibration }],
       }),
     ).toThrow("invalid_calibration");
   });

@@ -1,7 +1,9 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { operatorReviewBundle } from "./operations-store";
+import { materialLaunchBlockers } from "./launch-readiness";
 import { CompetitionError } from "./rules";
+import type { RoundRules } from "./rules";
 
 type SqlRows<T> = { rows: T[] };
 
@@ -19,6 +21,7 @@ type RoundRow = {
   slug: string;
   status: string;
   mode: string;
+  rules: RoundRules;
   opens_at: Date | string;
   closes_at: Date | string;
   enrollment_count: number | string;
@@ -34,7 +37,7 @@ export async function competitionOperatorDashboard(
 ) {
   const roundRows = rows<RoundRow>(
     await db.execute(sql`
-      SELECT r.id,r.slug,r.status,r.rules->>'mode' AS mode,r.opens_at,r.closes_at,
+      SELECT r.id,r.slug,r.status,r.rules->>'mode' AS mode,r.rules,r.opens_at,r.closes_at,
              count(DISTINCT e.member_id)::int AS enrollment_count,
              count(DISTINCT a.id)::int AS attempt_count,
              count(DISTINCT a.id) FILTER (WHERE a.status='pending')::int AS pending_count,
@@ -55,6 +58,9 @@ export async function competitionOperatorDashboard(
     slug: round.slug,
     status: round.status,
     mode: round.mode,
+    rulesVersion: round.rules.version,
+    winnerCount: round.rules.version === 2 ? round.rules.winnerCount : null,
+    launchBlockers: materialLaunchBlockers(round.rules),
     opensAt: iso(round.opens_at)!,
     closesAt: iso(round.closes_at)!,
     enrollmentCount: Number(round.enrollment_count),

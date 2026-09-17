@@ -39,3 +39,15 @@ Perfect Toss emits version-2 traces, the server dispatches by the stored trace
 version, and the manifest freezes the complete version-2 dependency closure.
 This keeps every existing version-1 Snake and Bias Flap receipt replayable
 under the exact verifier that accepted it.
+
+## Replay version 3 — Guess the Slang
+
+Guess the Slang introduced deterministic server replay for the turn-based
+Hangman core on September 17, 2026. Its version-3 evidence records normalized
+letter guesses, pauses, and resumes. The server independently selects the term
+from the issued seed, applies every guess to the frozen rules, and derives the
+terminal result and remaining-lives score.
+
+Versions 1 and 2 and their manifest entries remain unchanged. Version 3 has a
+small independent dependency closure so later Hangman content or rule changes
+cannot reinterpret evidence already issued under this version.

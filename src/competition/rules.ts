@@ -1,12 +1,18 @@
 /** Versioned championship rules. No default prizes or production round. */
-export type CompetitionGame = "snake" | "flappy" | "perfect-toss";
+export type CompetitionGame = "snake" | "flappy" | "perfect-toss" | "hangman";
 export type CalibrationPoint = { score: number; points: number };
 const COMPETITION_GAMES = new Set<CompetitionGame>([
   "snake",
   "flappy",
   "perfect-toss",
+  "hangman",
 ]);
 const V1_COMPETITION_GAMES = new Set<CompetitionGame>(["snake", "flappy"]);
+const V2_MATERIAL_COMPETITION_GAMES = new Set<CompetitionGame>([
+  "snake",
+  "flappy",
+  "perfect-toss",
+]);
 const V2_TIER_POINTS = new Set([0, 5, 10, 20]);
 type CompetitionApproval = {
   sponsor: string;
@@ -15,6 +21,12 @@ type CompetitionApproval = {
   prizes: string;
   claims: string;
   approvedBy: string;
+  /** Public schedule wording, including the controlling time zone. */
+  schedule?: string;
+  /** Published handling for exact ties, including prize-position ties. */
+  ties?: string;
+  /** Published sources, caps, and verification rules for engagement points. */
+  engagementSources?: string;
 };
 type CommonRoundRules = {
   mode: "synthetic" | "material_prize";
@@ -68,6 +80,13 @@ export function publicRules(rules: RoundRules): PublicRoundRules {
             eligibility: rules.approval.eligibility,
             prizes: rules.approval.prizes,
             claims: rules.approval.claims,
+            ...(rules.approval.schedule
+              ? { schedule: rules.approval.schedule }
+              : {}),
+            ...(rules.approval.ties ? { ties: rules.approval.ties } : {}),
+            ...(rules.approval.engagementSources
+              ? { engagementSources: rules.approval.engagementSources }
+              : {}),
           },
         }
       : {}),
@@ -149,7 +168,11 @@ export function parseRules(input: unknown): RoundRules {
   const seen = new Set<string>();
   for (const game of rules.games) {
     const eligibleGames =
-      rules.version === 1 ? V1_COMPETITION_GAMES : COMPETITION_GAMES;
+      rules.version === 1
+        ? V1_COMPETITION_GAMES
+        : rules.mode === "material_prize"
+          ? V2_MATERIAL_COMPETITION_GAMES
+          : COMPETITION_GAMES;
     if (
       !game ||
       !eligibleGames.has(game.gameId) ||
@@ -191,24 +214,24 @@ export function parseRules(input: unknown): RoundRules {
       throw new CompetitionError("invalid_calibration", 400);
   }
   if (rules.mode === "material_prize") {
+    const approval = rules.approval;
+    const requiredApprovalKeys = [
+      "sponsor",
+      "operator",
+      "eligibility",
+      "prizes",
+      "claims",
+      "approvedBy",
+    ] as const;
     if (
       !isPublicHttpsUrl(rules.rulesUrl) ||
-      !rules.approval ||
-      [
-        "sponsor",
-        "operator",
-        "eligibility",
-        "prizes",
-        "claims",
-        "approvedBy",
-      ].some(
+      !approval ||
+      requiredApprovalKeys.some(
+        (key) => typeof approval[key] !== "string" || !approval[key].trim(),
+      ) ||
+      (["schedule", "ties", "engagementSources"] as const).some(
         (key) =>
-          typeof rules.approval?.[
-            key as keyof NonNullable<RoundRules["approval"]>
-          ] !== "string" ||
-          !rules.approval[
-            key as keyof NonNullable<RoundRules["approval"]>
-          ].trim(),
+          approval[key] !== undefined && typeof approval[key] !== "string",
       )
     )
       throw new CompetitionError("promotion_approval_missing", 409);

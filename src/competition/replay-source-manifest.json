@@ -20,6 +20,15 @@
         "src/games/snake/logic.ts": "b179eae8867ef4b1388a6bbf5dffedac691fdb93a0581b6c3db0b37a5351b6aa",
         "src/shell/rng.ts": "61c5cec159a0da6cf81c2883b1736ceacc9a202c00586b41ac8e68347ee9483c"
       }
+    },
+    "3": {
+      "entrypoint": "src/competition/replay-v3.ts",
+      "files": {
+        "src/competition/replay-v3.ts": "66de575eecb375c9760d011f53e7c3f25570989c51966f7f26f99f566817870a",
+        "src/games/hangman/content.ts": "9dc71a2ce80bb482fa061daa729a9a921109d12dffbe1508f4bb4f6c4912a6ce",
+        "src/games/hangman/logic.ts": "a6fc7e88bc18cd2e5dcd2870fe65b7d83595f4baa87636f53e9328a0b6b5e4ae",
+        "src/shell/rng.ts": "61c5cec159a0da6cf81c2883b1736ceacc9a202c00586b41ac8e68347ee9483c"
+      }
     }
   }
 }

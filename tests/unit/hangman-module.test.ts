@@ -6,12 +6,13 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { GameContext, RunContext } from "@/shell/contract";
+import type { GameContext, GameEndResult, RunContext } from "@/shell/contract";
 import { createAudioBus } from "@/shell/audio";
 import { createInputBus } from "@/shell/input";
 import { seededRandom } from "@/shell/rng";
 import { LeakTracker } from "@/shell/conformance";
 import { hangmanDefinition } from "@/games/hangman/module";
+import { verifyCompetitionTrace } from "@/competition/verify-replay";
 
 function makeRun(seed: string): RunContext {
   return {
@@ -34,6 +35,7 @@ function createDomContext() {
   });
   const audio = createAudioBus();
   const ends: string[] = [];
+  const endResults: GameEndResult[] = [];
   const scores: number[] = [];
   const ctx: GameContext = {
     host,
@@ -43,7 +45,10 @@ function createDomContext() {
     t: (key, vars) => (vars ? `${key}:${JSON.stringify(vars)}` : key), // echo translator
     report: {
       score: (n) => scores.push(n),
-      end: (r) => ends.push(r?.reason ?? "?"),
+      end: (r) => {
+        ends.push(r?.reason ?? "?");
+        endResults.push(r ?? {});
+      },
     },
   };
   return {
@@ -51,6 +56,7 @@ function createDomContext() {
     root,
     input,
     ends,
+    endResults,
     scores,
     cleanup: () => {
       input.destroy();
@@ -170,5 +176,36 @@ describe("hangman dom module", () => {
     cleanup();
     const report = tracker.end();
     expect(report.clean, JSON.stringify(report)).toBe(true);
+  });
+
+  it("emits a server-replayable trace for an official solve", async () => {
+    const { ctx, root, endResults, cleanup } = createDomContext();
+    const game = hangmanDefinition.create(ctx);
+    await game.init(new AbortController().signal);
+    const seed = "hangman-official-module";
+    game.start({
+      mode: "prize",
+      attemptId: "10000000-0000-4000-8000-000000000003",
+      seed,
+      random: seededRandom(seed),
+      signal: new AbortController().signal,
+      competition: { captureTrace: true },
+    });
+    const term = (game as unknown as { state: { term: string } }).state.term;
+    for (const letter of new Set(term)) clickLetter(root, letter);
+
+    const trace = endResults.at(-1)?.competitionTrace;
+    expect(trace).toBeDefined();
+    expect(verifyCompetitionTrace(trace)).toMatchObject({
+      ok: true,
+      gameId: "hangman",
+      seed,
+      score: 6,
+      status: "completed",
+      reason: "completed",
+    });
+
+    game.destroy();
+    cleanup();
   });
 });

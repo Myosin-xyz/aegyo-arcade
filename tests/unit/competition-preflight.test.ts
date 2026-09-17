@@ -144,6 +144,17 @@ describe("competition database preflight", () => {
     );
   });
 
+  it("preserves logical grouping while comparing claim-state protection", () => {
+    const proof = completeProof();
+    proof.constraints.find(
+      ({ name }) => name === "competition_claim_state",
+    )!.definition =
+      "CHECK ((status = 'unclaimed'::text AND private_proof IS NULL AND claim_proof_digest IS NULL AND claimed_at IS NULL OR status = ANY (ARRAY['claimed'::text, 'fulfilled'::text])) AND private_proof IS NOT NULL AND claim_proof_digest IS NOT NULL AND claimed_at IS NOT NULL OR status = 'void'::text)";
+    expect(assessSchemaProof(proof).objects.mismatchedConstraints).toContain(
+      "competition_claim_state",
+    );
+  });
+
   it("starts read-only and rolls back before inspecting a wrongly selected database", async () => {
     const query = vi.fn(async (sql: string) => {
       if (sql.includes("current_database"))

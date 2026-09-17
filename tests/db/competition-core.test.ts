@@ -392,6 +392,14 @@ describe("competition store on PostgreSQL", () => {
   });
 
   it("never hides pending evidence behind the verified-attempt review limit", async () => {
+    const pendingBefore = Number(
+      (
+        await pool.query(
+          "SELECT count(*)::int AS n FROM competition_attempts WHERE round_id=$1 AND status='pending'",
+          [ROUND],
+        )
+      ).rows[0].n,
+    );
     await pool.query(
       `INSERT INTO competition_attempts
          (id,round_id,member_id,provider_session_id,game_id,day_key,
@@ -406,24 +414,52 @@ describe("competition store on PostgreSQL", () => {
          FROM generate_series(1,201) AS series`,
       [ROUND, A],
     );
-    const pendingId = crypto.randomUUID();
     await pool.query(
       `INSERT INTO competition_attempts
          (id,round_id,member_id,provider_session_id,game_id,day_key,
           score_period_key,ordinal,idempotency_key,seed,status,issued_at,
           expires_at,received_at)
-       VALUES ($1,$2,$3,'sid-pending','snake','2025-01-01','2025-01-01',2,
-               'old-pending-proof','seed','pending',now()-interval '2 years',
-               now()+interval '1 day',now()-interval '2 years')`,
-      [pendingId, ROUND, A],
+       SELECT md5('pending-history-' || series)::uuid,$1,$2,'sid-pending',
+              'snake',to_char(date '2024-01-01'+series,'YYYY-MM-DD'),
+              to_char(date '2024-01-01'+series,'YYYY-MM-DD'),2,
+              'pending-history-' || series,'seed','pending',
+              now()-interval '2 years'+series*interval '1 second',
+              now()+interval '1 day',
+              now()-interval '2 years'+series*interval '1 second'
+         FROM generate_series(1,101) AS series`,
+      [ROUND, B],
     );
 
-    const dashboard = await competitionOperatorDashboard(db, ROUND);
-    expect(dashboard.selected?.attempts).toHaveLength(201);
-    expect(dashboard.selected?.attempts[0]).toMatchObject({
-      id: pendingId,
-      status: "pending",
-    });
+    const first = await competitionOperatorDashboard(db, ROUND);
+    expect(first.selected?.attempts).toHaveLength(300);
+    expect(
+      first.selected?.attempts.filter(
+        (attempt) => attempt.status === "pending",
+      ),
+    ).toHaveLength(100);
+    expect(first.selected?.pendingNextCursor).not.toBeNull();
+
+    const second = await competitionOperatorDashboard(
+      db,
+      ROUND,
+      first.selected?.pendingNextCursor ?? undefined,
+    );
+    expect(
+      second.selected?.attempts.filter(
+        (attempt) => attempt.status === "pending",
+      ),
+    ).toHaveLength(pendingBefore + 1);
+    expect(second.selected?.pendingNextCursor).toBeNull();
+    expect(
+      new Set(
+        [
+          ...(first.selected?.attempts ?? []),
+          ...(second.selected?.attempts ?? []),
+        ]
+          .filter((attempt) => attempt.status === "pending")
+          .map((attempt) => attempt.id),
+      ).size,
+    ).toBe(pendingBefore + 101);
   });
 
   it("recomputes the daily best by delta when a higher result is disqualified", async () => {

@@ -82,7 +82,7 @@ then reports aggregate competition health from a rolled-back read-only
 transaction:
 
 ```sh
-COMPETITION_OPERATOR_DATABASE_URL='postgresql://...' \
+COMPETITION_OPERATOR_DATABASE_URL='postgresql://user:password@database.example.com/db?sslmode=verify-full' \
 pnpm competition:preflight -- \
   --expected-database EXACT_DATABASE_NAME \
   --confirm-database EXACT_DATABASE_NAME
@@ -97,7 +97,7 @@ offline and reports every unresolved launch approval:
 ```
 
 ```sh
-export COMPETITION_OPERATOR_DATABASE_URL='postgresql://...'
+export COMPETITION_OPERATOR_DATABASE_URL='postgresql://user:password@database.example.com/db?sslmode=verify-full'
 export ARCADE_COMPETITION_ENABLED=true
 export ARCADE_SHARED_AUTH_ENABLED=true
 # Required as well for an approved material_prize round:

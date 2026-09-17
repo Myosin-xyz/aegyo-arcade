@@ -546,10 +546,9 @@ export async function disqualifyAttempt(
     `),
     )[0];
     if (!attempt) throw new Error("Competition attempt not found");
-    if (attempt.status !== "verified" && attempt.status !== "void") {
+    if (attempt.status !== "verified") {
       throw new Error(`Attempt cannot be disqualified from ${attempt.status}`);
     }
-    if (attempt.status === "void") return { repeated: true };
     await tx.execute(sql`
       UPDATE competition_attempts SET status='void', rejection_code=${input.reason}
        WHERE id=${input.attemptId}
@@ -698,8 +697,22 @@ export async function settleAttempt(
   });
 }
 
-export async function operatorReviewBundle(db: Db, roundId: string) {
+export async function operatorReviewBundle(
+  db: Db,
+  roundId: string,
+  options?: {
+    pendingLimit?: number;
+    pendingAfter?: { receivedAt: Date | string; id: string };
+  },
+) {
   requireOperationsEnabled();
+  if (
+    options?.pendingLimit !== undefined &&
+    (!Number.isSafeInteger(options.pendingLimit) ||
+      options.pendingLimit < 1 ||
+      options.pendingLimit > 501)
+  )
+    throw new Error("Pending review limit is invalid");
   const round = rows<{
     id: string;
     slug: string;
@@ -716,11 +729,17 @@ export async function operatorReviewBundle(db: Db, roundId: string) {
     status: string;
     security_confirmed: boolean;
     receipt: unknown;
+    received_at: Date | string;
+    received_cursor: string;
   }>(
     await db.execute(sql`
-    SELECT id,status,security_confirmed,receipt FROM competition_attempts
+    SELECT id,status,security_confirmed,receipt,received_at,
+           to_char(received_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS received_cursor
+      FROM competition_attempts
      WHERE round_id=${roundId} AND status='pending' AND received_at<${asDate(round.closes_at)}
+       ${options?.pendingAfter ? sql`AND (received_at,id)>(${options.pendingAfter.receivedAt}::timestamptz,${options.pendingAfter.id}::uuid)` : sql``}
      ORDER BY received_at,id
+     ${options?.pendingLimit ? sql`LIMIT ${options.pendingLimit}` : sql``}
   `),
   );
   const snapshot = rows<{
@@ -746,6 +765,7 @@ export async function operatorReviewBundle(db: Db, roundId: string) {
       status: attempt.status,
       securityConfirmed: attempt.security_confirmed,
       receiptDigest: digest(attempt.receipt),
+      receivedAt: attempt.received_cursor,
     })),
     candidate: snapshot
       ? {

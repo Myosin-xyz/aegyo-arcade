@@ -10,6 +10,22 @@ export async function GET(request: NextRequest) {
     const roundId = request.nextUrl.searchParams.get("roundId") ?? undefined;
     if (roundId && !UUID.test(roundId))
       throw new CompetitionError("invalid_round", 400);
-    return response(await competitionOperatorDashboard(context.db, roundId));
+    const pendingAfterAt = request.nextUrl.searchParams.get("pendingAfterAt");
+    const pendingAfterId = request.nextUrl.searchParams.get("pendingAfterId");
+    if ((pendingAfterAt === null) !== (pendingAfterId === null))
+      throw new CompetitionError("invalid_pending_cursor", 400);
+    const pendingCursor =
+      pendingAfterAt && pendingAfterId
+        ? { receivedAt: pendingAfterAt, id: pendingAfterId }
+        : undefined;
+    if (
+      pendingCursor &&
+      (!Number.isFinite(Date.parse(pendingCursor.receivedAt)) ||
+        !UUID.test(pendingCursor.id))
+    )
+      throw new CompetitionError("invalid_pending_cursor", 400);
+    return response(
+      await competitionOperatorDashboard(context.db, roundId, pendingCursor),
+    );
   });
 }

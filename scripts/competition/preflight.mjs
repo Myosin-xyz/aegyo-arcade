@@ -27,11 +27,7 @@ function argumentsFrom(argv) {
   };
 }
 
-export async function main(argv = process.argv.slice(2), env = process.env) {
-  const { expectedDatabase } = argumentsFrom(argv);
-  const connectionString = env.COMPETITION_OPERATOR_DATABASE_URL;
-  if (!connectionString)
-    throw new CompetitionPreflightError("operator_database_url_required");
+export function operatorDatabaseClientConfig(connectionString) {
   let address;
   try {
     address = new URL(connectionString);
@@ -40,9 +36,25 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   }
   if (!["postgres:", "postgresql:"].includes(address.protocol))
     throw new CompetitionPreflightError("invalid_operator_database_url");
-
-  const client = new pg.Client({
+  const local = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]).has(
+    address.hostname,
+  );
+  const sslModes = address.searchParams.getAll("sslmode");
+  if (!local && (sslModes.length !== 1 || sslModes[0] !== "verify-full"))
+    throw new CompetitionPreflightError("database_tls_verification_required");
+  return {
     connectionString,
+    ...(local ? {} : { ssl: { rejectUnauthorized: true } }),
+  };
+}
+
+export async function main(argv = process.argv.slice(2), env = process.env) {
+  const { expectedDatabase } = argumentsFrom(argv);
+  const connectionString = env.COMPETITION_OPERATOR_DATABASE_URL;
+  if (!connectionString)
+    throw new CompetitionPreflightError("operator_database_url_required");
+  const client = new pg.Client({
+    ...operatorDatabaseClientConfig(connectionString),
     application_name: "aegyo-competition-readonly-preflight",
     connectionTimeoutMillis: 10_000,
   });

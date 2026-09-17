@@ -217,7 +217,9 @@ describe("competition operator panel", () => {
     expect(window.prompt).toHaveBeenCalledWith(
       "Published disqualification reason recorded in the audit trail",
     );
-    expect(window.confirm).toHaveBeenCalled();
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Disqualify this verified attempt and recompute the player’s daily best?",
+    );
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
       action: "disqualify",
       roundId: round.id,
@@ -284,5 +286,59 @@ describe("competition operator panel", () => {
     ).idempotencyKey;
     expect(firstKey).toBeTruthy();
     expect(retryKey).toBe(firstKey);
+  });
+
+  it("loads older pending attempts with the stable server cursor", async () => {
+    const firstAttempt = {
+      id: "50000000-0000-4000-8000-000000000003",
+      gameId: "snake",
+      status: "pending",
+      securityConfirmed: false,
+      score: null,
+      points: null,
+      receivedAt: "2026-09-19T01:00:00.000Z",
+      rejectionCode: null,
+      username: "first_fan",
+    };
+    const secondAttempt = {
+      ...firstAttempt,
+      id: "50000000-0000-4000-8000-000000000004",
+      receivedAt: "2026-09-19T02:00:00.000Z",
+      username: "second_fan",
+    };
+    const cursor = {
+      receivedAt: firstAttempt.receivedAt,
+      id: firstAttempt.id,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ attempts: [firstAttempt], pendingNextCursor: cursor }),
+      )
+      .mockResolvedValueOnce(
+        response({ attempts: [secondAttempt], pendingNextCursor: null }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root?.render(<CompetitionOperatorPanel />));
+    const loadMore = await vi.waitFor(() => {
+      const candidate = [...(container?.querySelectorAll("button") ?? [])].find(
+        (item) => item.textContent === "Load older pending attempts",
+      );
+      expect(candidate).toBeTruthy();
+      return candidate!;
+    });
+    await act(async () => loadMore.click());
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      `pendingAfterAt=${encodeURIComponent(cursor.receivedAt)}`,
+    );
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      `pendingAfterId=${cursor.id}`,
+    );
+    expect(container?.textContent).toContain("@first_fan");
+    expect(container?.textContent).toContain("@second_fan");
   });
 });

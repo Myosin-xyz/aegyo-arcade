@@ -1,44 +1,52 @@
 // REVIEW TEMPLATE ONLY. operator.ts uses JSON.parse, so this commented file
-// cannot be passed to create-draft. Resolve all REQUIRED_* values, review the
-// calibration in docs/FIRST_LIVE_COMPETITION_DRAFT.md, remove comments, and
-// save a separate plain JSON file only after business/legal approval.
+// cannot be passed to create-draft. Resolve every REQUIRED_* value, remove
+// comments, and save a separate plain JSON file only after business/legal
+// approval. Numeric placeholders must become bounded nonnegative integers.
 {
   "slug": "REQUIRED_APPROVED_PUBLIC_SLUG",
-  "opensAt": "2026-09-20T00:00:00.000Z",
-  "closesAt": "2026-10-01T00:00:00.000Z",
+  "opensAt": "REQUIRED_APPROVED_OPEN_ISO_TIME",
+  "closesAt": "REQUIRED_APPROVED_CLOSE_ISO_TIME",
   "rules": {
-    "version": 1,
+    "version": 2,
     "mode": "material_prize",
-    "dailyAttempts": 3,
+    "dailyAttempts": 2,
     "attemptTtlSeconds": 900,
+    "cadence": "monthly",
+    "winnerCount": 3,
+    "scoring": {
+      "bestPerGame": "week",
+      "timeZone": "America/New_York",
+      "fullArenaBonusPoints": "REQUIRED_APPROVED_NONNEGATIVE_INTEGER",
+    },
     "games": [
       {
         "gameId": "snake",
         "calibration": [
           { "score": 0, "points": 0 },
-          { "score": 50, "points": 75 },
-          { "score": 100, "points": 150 },
-          { "score": 300, "points": 300 },
-          { "score": 600, "points": 500 },
-          { "score": 1000, "points": 700 },
-          { "score": 1500, "points": 875 },
-          { "score": 1950, "points": 1000 },
+          {
+            "score": "REQUIRED_APPROVED_SNAKE_THRESHOLD",
+            "points": "REQUIRED_APPROVED_SNAKE_POINTS",
+          },
         ],
       },
       {
         "gameId": "flappy",
         "calibration": [
           { "score": 0, "points": 0 },
-          { "score": 30, "points": 75 },
-          { "score": 60, "points": 150 },
-          { "score": 140, "points": 275 },
-          { "score": 220, "points": 400 },
-          { "score": 360, "points": 525 },
-          { "score": 520, "points": 650 },
-          { "score": 760, "points": 775 },
-          { "score": 1000, "points": 875 },
-          { "score": 1350, "points": 950 },
-          { "score": 1700, "points": 1000 },
+          {
+            "score": "REQUIRED_APPROVED_FLAPPY_THRESHOLD",
+            "points": "REQUIRED_APPROVED_FLAPPY_POINTS",
+          },
+        ],
+      },
+      {
+        "gameId": "perfect-toss",
+        "calibration": [
+          { "score": 0, "points": 0 },
+          {
+            "score": "REQUIRED_APPROVED_PERFECT_TOSS_THRESHOLD",
+            "points": "REQUIRED_APPROVED_PERFECT_TOSS_POINTS",
+          },
         ],
       },
     ],
@@ -49,6 +57,13 @@
       "eligibility": "REQUIRED_ELIGIBILITY_DECISION_REFERENCE",
       "prizes": "REQUIRED_PRIZE_INVENTORY_AND_ALLOCATION_REFERENCE",
       "claims": "REQUIRED_CLAIM_FULFILLMENT_AND_APPEAL_REFERENCE",
+      "schedule": "REQUIRED_SCHEDULE_AND_TIME_ZONE_REFERENCE",
+      "ties": "REQUIRED_EXACT_TIE_POLICY_REFERENCE",
+      "engagementSources": "REQUIRED_ENGAGEMENT_SOURCE_DECISION_REFERENCE",
+      "scoring": {
+        "gamePoints": "REQUIRED_GAME_POINT_TABLE_APPROVAL_REFERENCE",
+        "fullArenaBonus": "REQUIRED_FULL_ARENA_BONUS_APPROVAL_REFERENCE",
+      },
       "approvedBy": "REQUIRED_PRIVATE_APPROVER_IDENTITY",
     },
   },

@@ -10,10 +10,11 @@ const mocks = vi.hoisted(() => ({
   },
   openRound: vi.fn(),
   closeRound: vi.fn(),
+  disqualifyAttempt: vi.fn(),
   finalizeRound: vi.fn(),
   fulfillAward: vi.fn(),
   rejectPendingAttempt: vi.fn(),
-  verifyAttempt: vi.fn(),
+  settleAttempt: vi.fn(),
 }));
 
 vi.mock("@/competition/http", () => ({
@@ -29,11 +30,12 @@ vi.mock("@/competition/operator-auth", () => ({
 vi.mock("@/competition/operations-store", () => ({
   openRound: mocks.openRound,
   closeRound: mocks.closeRound,
+  disqualifyAttempt: mocks.disqualifyAttempt,
   finalizeRound: mocks.finalizeRound,
   fulfillAward: mocks.fulfillAward,
   rejectPendingAttempt: mocks.rejectPendingAttempt,
+  settleAttempt: mocks.settleAttempt,
 }));
-vi.mock("@/competition/store", () => ({ verifyAttempt: mocks.verifyAttempt }));
 
 import { competitionOperatorContext } from "@/competition/operator-auth";
 import { POST } from "@/app/api/competition/operator/actions/route";
@@ -62,6 +64,12 @@ describe("competition operator actions", () => {
       standings: [{ memberId }],
       repeated: false,
     });
+    mocks.settleAttempt.mockResolvedValue({
+      attemptId: memberId,
+      status: "verified",
+      repeated: false,
+    });
+    mocks.disqualifyAttempt.mockResolvedValue({ repeated: false });
   });
 
   it("opens a round only through the sensitive operator context", async () => {
@@ -95,6 +103,44 @@ describe("competition operator actions", () => {
       status: 409,
     });
     expect(mocks.openRound).not.toHaveBeenCalled();
+  });
+
+  it("settles through the audited operator operation", async () => {
+    mocks.body = {
+      action: "settle",
+      roundId,
+      attemptId: memberId,
+      confirmation: `settle:${memberId}`,
+      idempotencyKey: "operator-settle-0001",
+    };
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(mocks.settleAttempt).toHaveBeenCalledWith(mocks.context.db, {
+      roundId,
+      attemptId: memberId,
+      actor: "accounts:user_1",
+      idempotencyKey: "operator-settle-0001",
+    });
+  });
+
+  it("passes a reviewed disqualification to the guarded operation", async () => {
+    mocks.body = {
+      action: "disqualify",
+      roundId,
+      attemptId: memberId,
+      reason: "published-automation-rule",
+      confirmation: `disqualify:${memberId}`,
+      idempotencyKey: "operator-disqualify-0001",
+    };
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(mocks.disqualifyAttempt).toHaveBeenCalledWith(mocks.context.db, {
+      roundId,
+      attemptId: memberId,
+      actor: "accounts:user_1",
+      reason: "published-automation-rule",
+      idempotencyKey: "operator-disqualify-0001",
+    });
   });
 
   it("passes reviewed shared ties and explicit awards to finalization", async () => {

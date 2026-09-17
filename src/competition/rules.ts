@@ -13,7 +13,13 @@ const V2_MATERIAL_COMPETITION_GAMES = new Set<CompetitionGame>([
   "flappy",
   "perfect-toss",
 ]);
-const V2_TIER_POINTS = new Set([0, 5, 10, 20]);
+const MAX_CONFIGURED_POINTS = 1000;
+type CompetitionScoringApproval = {
+  /** Reviewed source for every game's frozen score-to-points table. */
+  gamePoints: string;
+  /** Reviewed source for the frozen Full Arena bonus, including zero. */
+  fullArenaBonus: string;
+};
 type CompetitionApproval = {
   sponsor: string;
   operator: string;
@@ -27,6 +33,8 @@ type CompetitionApproval = {
   ties?: string;
   /** Published sources, caps, and verification rules for engagement points. */
   engagementSources?: string;
+  /** References proving the configured game and bonus values were approved. */
+  scoring?: CompetitionScoringApproval;
 };
 type CommonRoundRules = {
   mode: "synthetic" | "material_prize";
@@ -86,6 +94,9 @@ export function publicRules(rules: RoundRules): PublicRoundRules {
             ...(rules.approval.ties ? { ties: rules.approval.ties } : {}),
             ...(rules.approval.engagementSources
               ? { engagementSources: rules.approval.engagementSources }
+              : {}),
+            ...(rules.approval.scoring
+              ? { scoring: { ...rules.approval.scoring } }
               : {}),
           },
         }
@@ -162,7 +173,7 @@ export function parseRules(input: unknown): RoundRules {
       !isTimeZone(rules.scoring.timeZone) ||
       !Number.isSafeInteger(rules.scoring.fullArenaBonusPoints) ||
       rules.scoring.fullArenaBonusPoints < 0 ||
-      rules.scoring.fullArenaBonusPoints > 1000)
+      rules.scoring.fullArenaBonusPoints > MAX_CONFIGURED_POINTS)
   )
     throw new CompetitionError("invalid_round_rules", 400);
   const seen = new Set<string>();
@@ -185,7 +196,6 @@ export function parseRules(input: unknown): RoundRules {
     seen.add(game.gameId);
     let score = -1,
       points = -1;
-    const publishedPoints = new Set<number>();
     for (const item of game.calibration) {
       if (
         !item ||
@@ -194,22 +204,17 @@ export function parseRules(input: unknown): RoundRules {
         item.score <= score ||
         !Number.isSafeInteger(item.points) ||
         item.points < 0 ||
-        item.points > 1000 ||
-        item.points < points ||
-        (rules.version === 2 && !V2_TIER_POINTS.has(item.points))
+        item.points > MAX_CONFIGURED_POINTS ||
+        item.points < points
       )
         throw new CompetitionError("invalid_calibration", 400);
       score = item.score;
       points = item.points;
-      publishedPoints.add(points);
     }
     if (
       game.calibration[0].score !== 0 ||
       game.calibration[0].points !== 0 ||
-      (rules.version === 1
-        ? points !== 1000
-        : points !== 20 ||
-          [...V2_TIER_POINTS].some((value) => !publishedPoints.has(value)))
+      (rules.version === 1 ? points !== 1000 : points <= 0)
     )
       throw new CompetitionError("invalid_calibration", 400);
   }
@@ -232,7 +237,13 @@ export function parseRules(input: unknown): RoundRules {
       (["schedule", "ties", "engagementSources"] as const).some(
         (key) =>
           approval[key] !== undefined && typeof approval[key] !== "string",
-      )
+      ) ||
+      (approval.scoring !== undefined &&
+        (!approval.scoring ||
+          typeof approval.scoring !== "object" ||
+          Array.isArray(approval.scoring) ||
+          typeof approval.scoring.gamePoints !== "string" ||
+          typeof approval.scoring.fullArenaBonus !== "string"))
     )
       throw new CompetitionError("promotion_approval_missing", 409);
   }

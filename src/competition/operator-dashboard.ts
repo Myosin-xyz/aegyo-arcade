@@ -35,8 +35,8 @@ export async function competitionOperatorDashboard(
   db: Db,
   selectedRoundId?: string,
 ) {
-  const roundRows = rows<RoundRow>(
-    await db.execute(sql`
+  const [roundResult, clockResult] = await Promise.all([
+    db.execute(sql`
       SELECT r.id,r.slug,r.status,r.rules->>'mode' AS mode,r.rules,r.opens_at,r.closes_at,
              count(DISTINCT e.member_id)::int AS enrollment_count,
              count(DISTINCT a.id)::int AS attempt_count,
@@ -52,7 +52,13 @@ export async function competitionOperatorDashboard(
        ORDER BY r.opens_at DESC,r.id DESC
        LIMIT 24
     `),
+    db.execute(sql`SELECT clock_timestamp() AS server_now`),
+  ]);
+  const roundRows = rows<RoundRow>(roundResult);
+  const serverNow = iso(
+    rows<{ server_now: Date | string }>(clockResult)[0]?.server_now ?? null,
   );
+  if (!serverNow) throw new Error("Competition database clock is unavailable");
   const rounds = roundRows.map((round) => ({
     id: round.id,
     slug: round.slug,
@@ -72,7 +78,7 @@ export async function competitionOperatorDashboard(
   const roundId = selectedRoundId ?? rounds[0]?.id;
   if (!roundId)
     return {
-      serverNow: new Date().toISOString(),
+      serverNow,
       rounds,
       selected: null,
     };
@@ -83,14 +89,22 @@ export async function competitionOperatorDashboard(
     [
       operatorReviewBundle(db, roundId),
       db.execute(sql`
+      WITH visible_attempts AS (
+        SELECT * FROM competition_attempts
+         WHERE round_id=${roundId}::uuid AND status='pending'
+        UNION ALL
+        (SELECT * FROM competition_attempts
+          WHERE round_id=${roundId}::uuid
+            AND status IN ('verified','rejected','void')
+          ORDER BY received_at DESC NULLS LAST,issued_at DESC,id DESC
+          LIMIT 200)
+      )
       SELECT a.id,a.game_id,a.status,a.security_confirmed,a.score,a.points,
              a.received_at,a.rejection_code,p.username
-        FROM competition_attempts a
+        FROM visible_attempts a
         LEFT JOIN competition_profiles p ON p.member_id=a.member_id
-       WHERE a.round_id=${roundId}::uuid
-         AND a.status IN ('pending','rejected','void')
-       ORDER BY a.received_at DESC,a.id DESC
-       LIMIT 100
+       ORDER BY CASE WHEN a.status='pending' THEN 0 ELSE 1 END,
+                a.received_at DESC NULLS LAST,a.issued_at DESC,a.id DESC
     `),
       db.execute(sql`
       SELECT c.id,c.member_id,c.final_rank,c.award_key,c.status,c.claimed_at,
@@ -126,7 +140,7 @@ export async function competitionOperatorDashboard(
   );
 
   return {
-    serverNow: new Date().toISOString(),
+    serverNow,
     rounds,
     selected: {
       round: rounds.find((round) => round.id === roundId)!,

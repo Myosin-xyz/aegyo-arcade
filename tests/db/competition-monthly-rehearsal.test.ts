@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import type { Db } from "@/db/client";
 import { closeRound, finalizeRound } from "@/competition/operations-store";
-import { publicRound } from "@/competition/read";
+import { memberRound, publicRound } from "@/competition/read";
 import {
   digest,
   enroll,
@@ -299,6 +299,24 @@ integration("three-game prize-free monthly rehearsal", () => {
       bests.rows.filter((row) => row.game_id === "perfect-toss"),
     ).toHaveLength(2);
 
+    await expect(memberRound(db, MEMBER, true, ROUND)).resolves.toMatchObject({
+      currentPeriod: {
+        periodKey: currentWeek,
+        completedGames: 1,
+        eligibleGames: 3,
+        games: expect.arrayContaining([
+          { gameId: "snake", points: 0, completed: false },
+          { gameId: "flappy", points: 0, completed: false },
+          { gameId: "perfect-toss", points: 5, completed: true },
+        ]),
+        fullArena: {
+          configuredPoints: 10,
+          earned: false,
+          earnedPoints: 0,
+        },
+      },
+    });
+
     const closed = await closeAfterDatabaseDeadline();
     expect(closed.kind).toBe("snapshot");
     if (closed.kind !== "snapshot") throw new Error("snapshot expected");
@@ -349,11 +367,27 @@ integration("three-game prize-free monthly rehearsal", () => {
       WHERE round_id=${ROUND}::uuid
     `);
     expect(awards.rows[0]?.count).toBe(0);
-    expect(
-      await publicRound(db, "three-game-synthetic-rehearsal"),
-    ).toMatchObject({
+    const published = await publicRound(db, "three-game-synthetic-rehearsal");
+    expect(published).toMatchObject({
       provisional: false,
       standings: [{ username: "monthly_rehearsal", totalPoints: 50, rank: 1 }],
+    });
+    process.env.ARCADE_COMPETITION_ENABLED = "false";
+    try {
+      await expect(
+        publicRound(db, "three-game-synthetic-rehearsal"),
+      ).rejects.toMatchObject({ code: "not_found", status: 404 });
+    } finally {
+      process.env.ARCADE_COMPETITION_ENABLED = "true";
+    }
+    await expect(
+      publicRound(db, "three-game-synthetic-rehearsal"),
+    ).resolves.toMatchObject({
+      round: { id: ROUND, status: "final" },
+      standings: published.standings,
+    });
+    await expect(memberRound(db, MEMBER, false, ROUND)).resolves.toMatchObject({
+      currentPeriod: null,
     });
   }, 20_000);
 });

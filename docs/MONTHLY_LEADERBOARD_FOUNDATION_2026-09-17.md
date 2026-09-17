@@ -11,6 +11,9 @@
 - The public rules declare three winners.
 - Full Arena uses the number of games frozen into that round. It is never hardcoded to ten.
 - The Full Arena bonus can be changed in the round definition without changing application code.
+- Version-2 score thresholds and championship point values are frozen in each
+  round definition. Changing the approved values requires a new reviewed JSON
+  definition, not an application release.
 - Version-2 rounds allow two official attempts per eligible game per local competition day, using the round's IANA time zone. Existing version-1 rounds retain their three-attempt UTC behavior.
 - Existing guest identity, practice history, verified attempts, receipts, and version-1 standings remain intact.
 
@@ -33,7 +36,8 @@ Round closure snapshots both game contributions and Full Arena bonuses. Existing
 
 ## Deliberately pending product input
 
-The following values are not guessed in code:
+The following values are not guessed in code and can be supplied through the
+reviewed round definition:
 
 - final Full Arena bonus amount;
 - the points and caps for polls and the slang memory game;
@@ -45,7 +49,9 @@ These values belong in a frozen version-2 round definition or a reviewed engagem
 
 ## Next implementation after the reply
 
-1. Add the approved tie order to the candidate snapshot calculation and show the same order in public rules.
-2. Add idempotent signed ingestion for poll and slang events using the approved point values and per-member caps.
-3. Add the claw scoring adapter after the authoritative chute and plush-letter evidence is identified in the existing claw result.
-4. Create the first monthly round as a draft, assign rank-one through rank-three prize keys in the operator dashboard, and run the full staging lifecycle before opening it.
+1. Record the approved score tables and Full Arena value in a new version-2
+   definition together with their decision references.
+2. Add the approved tie order to the candidate snapshot calculation and show the same order in public rules.
+3. Add idempotent signed ingestion for poll and slang events using the approved point values and per-member caps.
+4. Add the claw scoring adapter after the authoritative chute and plush-letter evidence is identified in the existing claw result.
+5. Create the first monthly round as a draft, assign rank-one through rank-three prize keys in the operator dashboard, and run the full staging lifecycle before opening it.

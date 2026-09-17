@@ -29,6 +29,17 @@ Perfect Toss constraint migration. The monthly rehearsal test then checks:
 - monthly totals made from multiple weekly contributions;
 - immutable closure snapshot and source digest;
 - finalization with `awards: []`, leaving no claim or fulfillment records.
+- disabling the competition flag hides the final round without changing its
+  attempts, ledger, snapshot or standings, and re-enabling restores the same
+  immutable result.
+
+The local browser proof also uses a version-2 three-game round with deliberately
+non-default point values and a non-default Full Arena bonus. This keeps the UI
+and lifecycle proof independent from the pending business values:
+
+```sh
+node scripts/competition/browser-proof.mjs
+```
 
 ## Optional staging operator drill
 
@@ -64,3 +75,10 @@ After the staging database clock passes the configured close:
 Delete the private review export after evidence has been reduced to IDs,
 digests and aggregate counts. Disable the staging base competition flag when
 the drill finishes. The synthetic round is never reused as a live round.
+
+`staging-browser-proof.mjs` reads the selected round's actual daily quota and
+supports Snake, Bias Flap and Perfect Toss. Set
+`ARCADE_COMPETITION_STAGING_GAME` to one of those eligible games. Optional
+`*_ORIGIN` variables can point to replacement Railway staging services, but the
+script rejects non-HTTPS and non-staging Railway hosts before login or any
+mutation.

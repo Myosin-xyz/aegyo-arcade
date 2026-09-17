@@ -206,6 +206,38 @@
   font-family: var(--font-arcade), sans-serif;
   font-size: 1.2rem;
 }
+.progress {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgb(20 10 38 / 55%);
+  font-size: 0.78rem;
+}
+.progressHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.progressHeading span,
+.progress > p {
+  color: var(--muted);
+}
+.progress ul {
+  display: grid;
+  gap: 0.4rem;
+}
+.progress li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.progress li[data-complete="true"] strong,
+.fullArenaProgress {
+  color: var(--accent);
+}
 .gameActions {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

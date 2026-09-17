@@ -12,8 +12,10 @@ import {
   openRound,
   operatorReviewBundle,
   rejectPendingAttempt,
+  settleAttempt,
+  validateDraftRoundDefinition,
 } from "../../src/competition/operations-store";
-import { verifyAttempt } from "../../src/competition/store";
+import { materialLaunchBlockers } from "../../src/competition/launch-readiness";
 
 type Args = Record<string, string>;
 
@@ -38,6 +40,27 @@ function required(args: Args, key: string): string {
 
 async function main() {
   const { command, args } = parseArgs(process.argv.slice(2));
+  if (command === "validate-definition") {
+    const definition = JSON.parse(
+      await readFile(required(args, "definition-file"), "utf8"),
+    );
+    const validated = validateDraftRoundDefinition(definition);
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          ok: true,
+          slug: validated.slug,
+          opensAt: validated.opensAt.toISOString(),
+          closesAt: validated.closesAt.toISOString(),
+          rules: validated.rules,
+          launchBlockers: materialLaunchBlockers(validated.rules),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return;
+  }
   const connectionString = process.env.COMPETITION_OPERATOR_DATABASE_URL;
   if (!connectionString)
     throw new Error(
@@ -98,9 +121,11 @@ async function main() {
         reason: required(args, "reason"),
       });
     } else if (command === "settle") {
-      result = await verifyAttempt(db, required(args, "attempt-id"));
-      if (typeof result === "object" && result && "receipt" in result)
-        delete (result as { receipt?: unknown }).receipt;
+      result = await settleAttempt(db, {
+        roundId: required(args, "round-id"),
+        attemptId: required(args, "attempt-id"),
+        ...mutationIdentity(),
+      });
     } else if (command === "reject-pending") {
       result = await rejectPendingAttempt(db, {
         roundId: required(args, "round-id"),
@@ -138,7 +163,7 @@ async function main() {
       });
     } else {
       throw new Error(
-        "Command must be create-draft, open, close, settle, reject-pending, disqualify, export-review, finalize, or fulfill",
+        "Command must be validate-definition, create-draft, open, close, settle, reject-pending, disqualify, export-review, finalize, or fulfill",
       );
     }
     const safeResult =

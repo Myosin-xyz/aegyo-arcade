@@ -54,6 +54,17 @@ type MemberState = {
   remaining: Record<string, number>;
   totalPoints: number;
   rank: number | null;
+  currentPeriod?: {
+    periodKey: string;
+    completedGames: number;
+    eligibleGames: number;
+    games: { gameId: string; points: number; completed: boolean }[];
+    fullArena: {
+      configuredPoints: number;
+      earned: boolean;
+      earnedPoints: number;
+    };
+  } | null;
   awards?: { id: string; awardKey: string; status: string; rank: number }[];
 };
 type LoadState =
@@ -127,6 +138,13 @@ const translations = {
     total: "Total points",
     rank: "Rank",
     attempts: "Attempts left today",
+    weeklyProgress: "This week",
+    gamesComplete: (complete: number, total: number) =>
+      `${complete} of ${total} games complete`,
+    contributed: "counting",
+    fullArenaEarned: (points: number) => `Full Arena earned · ${points} points`,
+    fullArenaPending: (points: number) =>
+      `Complete every active game to earn ${points} Full Arena points.`,
     playSnake: "Play Snake",
     playFlappy: "Play Flappy Bird",
     playGame: (name: string) => `Play ${name}`,
@@ -210,6 +228,14 @@ const translations = {
     total: "Puntos totales",
     rank: "Posición",
     attempts: "Intentos disponibles hoy",
+    weeklyProgress: "Esta semana",
+    gamesComplete: (complete: number, total: number) =>
+      `${complete} de ${total} juegos completados`,
+    contributed: "contando",
+    fullArenaEarned: (points: number) =>
+      `Full Arena obtenido · ${points} puntos`,
+    fullArenaPending: (points: number) =>
+      `Completa todos los juegos activos para ganar ${points} puntos Full Arena.`,
     playSnake: "Jugar Snake",
     playFlappy: "Jugar Flappy Bird",
     playGame: (name: string) => `Jugar ${name}`,
@@ -564,6 +590,42 @@ function MemberRound({
           <strong>{member.rank ? `#${member.rank}` : "—"}</strong>
         </div>
       </div>
+      {member.currentPeriod && (
+        <section className={styles.progress}>
+          <div className={styles.progressHeading}>
+            <h3>{text.weeklyProgress}</h3>
+            <span>{member.currentPeriod.periodKey}</span>
+          </div>
+          <p>
+            {text.gamesComplete(
+              member.currentPeriod.completedGames,
+              member.currentPeriod.eligibleGames,
+            )}
+          </p>
+          <ul>
+            {member.currentPeriod.games.map((game) => (
+              <li key={game.gameId} data-complete={game.completed}>
+                <span>{gameName(game.gameId, text)}</span>
+                <strong>
+                  {game.points} {text.points.toLowerCase()}
+                  {game.completed ? ` · ${text.contributed}` : ""}
+                </strong>
+              </li>
+            ))}
+          </ul>
+          {member.currentPeriod.fullArena.configuredPoints > 0 && (
+            <p className={styles.fullArenaProgress}>
+              {member.currentPeriod.fullArena.earned
+                ? text.fullArenaEarned(
+                    member.currentPeriod.fullArena.earnedPoints,
+                  )
+                : text.fullArenaPending(
+                    member.currentPeriod.fullArena.configuredPoints,
+                  )}
+            </p>
+          )}
+        </section>
+      )}
       {canPlay && (
         <>
           <h3>{text.attempts}</h3>
@@ -677,7 +739,7 @@ function AwardClaims({
           <p>
             <strong>#{award.rank}</strong> · {award.awardKey}
           </p>
-          {award.status === "offered" ? (
+          {award.status === "unclaimed" ? (
             <>
               <label className={styles.checkbox}>
                 <input

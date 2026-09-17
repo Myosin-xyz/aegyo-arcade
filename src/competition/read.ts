@@ -10,6 +10,7 @@ import type { GameHighScore } from "./operations-store";
 import {
   assertRoundAvailable,
   competitionAttemptDayKey,
+  competitionScorePeriodKey,
   parseRules,
   publicRules,
 } from "./rules";
@@ -189,7 +190,7 @@ export async function memberRound(
   const [roundResult, enrollment, profile, attempts, board, awards] =
     await Promise.all([
       db.execute(
-        sql`SELECT rules FROM competition_rounds WHERE id=${roundId}::uuid`,
+        sql`SELECT rules,status,opens_at,closes_at,statement_timestamp() AS server_now FROM competition_rounds WHERE id=${roundId}::uuid`,
       ),
       db.execute(
         sql`SELECT 1 FROM competition_enrollments WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid`,
@@ -210,9 +211,26 @@ export async function memberRound(
       ),
     ]);
   const roundRules = parseRules(roundResult.rows[0]?.rules);
-  const today = competitionAttemptDayKey(roundRules, new Date());
+  const serverNow = new Date(roundResult.rows[0]?.server_now as Date | string);
+  const roundRow = roundResult.rows[0];
+  const roundCanPlay =
+    roundRow?.status === "open" &&
+    new Date(roundRow.opens_at as Date | string) <= serverNow &&
+    new Date(roundRow.closes_at as Date | string) > serverNow;
+  const today = competitionAttemptDayKey(roundRules, serverNow);
+  const periodKey = competitionScorePeriodKey(roundRules, serverNow);
   const all = attempts.rows;
   const mine = board.ranked.find((row) => row.memberId === memberId);
+  const currentPeriod =
+    roundRules.version === 2 && roundCanPlay
+      ? await currentPeriodProgress(
+          db,
+          roundId,
+          memberId,
+          periodKey,
+          roundRules,
+        )
+      : null;
   return {
     enrolled: !!enrollment.rows.length,
     username: profile.rows[0]?.username ?? null,
@@ -233,6 +251,50 @@ export async function memberRound(
     ),
     totalPoints: mine?.totalPoints ?? 0,
     rank: mine?.provisionalRank ?? null,
+    currentPeriod,
     awards: awards.rows,
+  };
+}
+
+async function currentPeriodProgress(
+  db: Db,
+  roundId: string,
+  memberId: string,
+  periodKey: string,
+  rules: Extract<ReturnType<typeof parseRules>, { version: 2 }>,
+) {
+  const [bests, bonus] = await Promise.all([
+    db.execute(sql`
+      SELECT game_id AS "gameId",points
+        FROM competition_period_best
+       WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid
+         AND period_key=${periodKey}
+    `),
+    db.execute(sql`
+      SELECT points
+        FROM competition_period_bonuses
+       WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid
+         AND period_key=${periodKey}
+    `),
+  ]);
+  const byGame = new Map(
+    bests.rows.map((row) => [String(row.gameId), Number(row.points)]),
+  );
+  const games = rules.games.map(({ gameId }) => ({
+    gameId,
+    points: byGame.get(gameId) ?? 0,
+    completed: (byGame.get(gameId) ?? 0) > 0,
+  }));
+  const earnedBonus = Number(bonus.rows[0]?.points ?? 0);
+  return {
+    periodKey,
+    completedGames: games.filter((game) => game.completed).length,
+    eligibleGames: games.length,
+    games,
+    fullArena: {
+      configuredPoints: rules.scoring.fullArenaBonusPoints,
+      earned: earnedBonus > 0,
+      earnedPoints: earnedBonus,
+    },
   };
 }

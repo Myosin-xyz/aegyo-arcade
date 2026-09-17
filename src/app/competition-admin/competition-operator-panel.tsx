@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./operator.module.css";
 
 type Round = {
@@ -100,7 +100,8 @@ const readinessLabel: Record<string, string> = {
   prize_allocation: "Approve prizes by rank",
   claim_deadline_fulfillment:
     "Approve the claim deadline and fulfillment terms",
-  full_arena_bonus: "Set the Full Arena bonus to the approved 20 points",
+  game_point_tables: "Approve the frozen score-to-points tables",
+  full_arena_bonus: "Approve the configured Full Arena bonus",
   schedule: "Approve the complete schedule and time zone",
   exact_tie_policy: "Approve exact-tie and prize-boundary handling",
   engagement_sources: "Approve engagement sources, caps, and verification",
@@ -128,6 +129,7 @@ export function CompetitionOperatorPanel() {
     {},
   );
   const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const operationKeys = useRef(new Map<string, string>());
 
   const load = useCallback(async (roundId?: string) => {
     setLoading(true);
@@ -193,6 +195,8 @@ export function CompetitionOperatorPanel() {
 
   const act = useCallback(
     async (key: string, body: Record<string, unknown>, success: string) => {
+      const requestKey = operationKeys.current.get(key) ?? idempotencyKey();
+      operationKeys.current.set(key, requestKey);
       setBusy(key);
       setError(null);
       setNotice(null);
@@ -200,10 +204,15 @@ export function CompetitionOperatorPanel() {
         const response = await fetch("/api/competition/operator/actions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...body, idempotencyKey: idempotencyKey() }),
+          body: JSON.stringify({ ...body, idempotencyKey: requestKey }),
         });
         const result = (await response.json()) as { code?: string };
-        if (!response.ok) throw new Error(result.code ?? "operation_failed");
+        if (!response.ok) {
+          if (response.status >= 400 && response.status < 500)
+            operationKeys.current.delete(key);
+          throw new Error(result.code ?? "operation_failed");
+        }
+        operationKeys.current.delete(key);
         setNotice(success);
         await load(selectedRoundId);
       } catch (caught) {
@@ -262,12 +271,17 @@ export function CompetitionOperatorPanel() {
     ? ["open", "closing"].includes(selected.round.status) &&
       serverNow >= Date.parse(selected.round.closesAt)
     : false;
+  const canDisqualify = selected
+    ? ["open", "closing"].includes(selected.round.status) &&
+      !selected.round.hasCandidateSnapshot
+    : false;
   const candidateOptions = useMemo(
     () => selected?.candidate?.standings ?? [],
     [selected?.candidate?.standings],
   );
 
   function chooseRound(roundId: string) {
+    operationKeys.current.clear();
     setSelectedRoundId(roundId);
     void load(roundId);
   }
@@ -328,8 +342,11 @@ export function CompetitionOperatorPanel() {
           <button
             type="button"
             className={styles.secondaryButton}
-            disabled={loading}
-            onClick={() => void load(selectedRoundId)}
+            disabled={loading || busy !== null}
+            onClick={() => {
+              operationKeys.current.clear();
+              void load(selectedRoundId);
+            }}
           >
             Refresh
           </button>
@@ -521,7 +538,7 @@ export function CompetitionOperatorPanel() {
                 <div className={styles.sectionHeading}>
                   <div>
                     <p className={styles.kicker}>Evidence queue</p>
-                    <h3>Pending and rejected attempts</h3>
+                    <h3>Verified and reviewed attempts</h3>
                   </div>
                   <span>{selected.attempts.length}</span>
                 </div>
@@ -587,12 +604,44 @@ export function CompetitionOperatorPanel() {
                             </button>
                           </div>
                         ) : null}
+                        {attempt.status === "verified" && canDisqualify ? (
+                          <button
+                            type="button"
+                            className={styles.dangerButton}
+                            disabled={busy !== null}
+                            onClick={() => {
+                              const reason = window.prompt(
+                                "Published disqualification reason recorded in the audit trail",
+                              );
+                              if (!reason?.trim()) return;
+                              if (
+                                !window.confirm(
+                                  "Disqualify this verified attempt and recompute the player’s weekly best and Full Arena bonus?",
+                                )
+                              )
+                                return;
+                              void act(
+                                `disqualify:${attempt.id}`,
+                                {
+                                  action: "disqualify",
+                                  roundId: selected.round.id,
+                                  attemptId: attempt.id,
+                                  reason,
+                                  confirmation: `disqualify:${attempt.id}`,
+                                },
+                                "Attempt disqualified and standings recomputed.",
+                              );
+                            }}
+                          >
+                            Disqualify
+                          </button>
+                        ) : null}
                       </article>
                     ))}
                   </div>
                 ) : (
                   <p className={styles.empty}>
-                    No attempts require operator review.
+                    No verified or reviewed attempts are available.
                   </p>
                 )}
               </section>

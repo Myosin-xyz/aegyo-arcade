@@ -217,6 +217,7 @@ try {
             "tests/db/competition-core.test.ts",
             "tests/db/competition-operations.test.ts",
             "tests/db/competition-monthly-rehearsal.test.ts",
+            "tests/db/account-device-continuity.test.ts",
             "tests/db/counted-runs.test.ts",
             "tests/db/claw-invariants.test.ts",
           ]),

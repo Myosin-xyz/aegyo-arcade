@@ -1,7 +1,8 @@
 // REVIEW TEMPLATE ONLY. operator.ts uses JSON.parse, so this commented file
 // cannot be passed to create-draft. Resolve every REQUIRED_* value, remove
-// comments, and save a separate plain JSON file only after business/legal
-// approval. Numeric placeholders must become bounded nonnegative integers.
+// comments and trailing commas, and save a separate plain JSON file only after
+// business/legal approval. Numeric placeholders must become bounded
+// nonnegative integers.
 {
   "slug": "REQUIRED_APPROVED_PUBLIC_SLUG",
   "opensAt": "REQUIRED_APPROVED_OPEN_ISO_TIME",

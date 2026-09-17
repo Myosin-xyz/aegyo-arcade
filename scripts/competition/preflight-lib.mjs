@@ -95,74 +95,112 @@ export const EXPECTED_CONSTRAINTS = {
 };
 
 export const EXPECTED_INDEXES = {
-  competition_attempt_quota: [
-    "UNIQUE",
-    "round_id",
-    "member_id",
-    "game_id",
-    "day_key",
-    "ordinal",
-  ],
-  competition_attempt_idempotency: [
-    "UNIQUE",
-    "round_id",
-    "member_id",
-    "idempotency_key",
-  ],
-  competition_attempts_pending: ["round_id", "status"],
-  competition_award_unique: ["UNIQUE", "round_id", "member_id", "award_key"],
-  competition_operation_idempotency: [
-    "UNIQUE",
-    "round_id",
-    "operation",
-    "idempotency_key",
-  ],
+  competition_attempt_quota:
+    "CREATE UNIQUE INDEX competition_attempt_quota ON public.competition_attempts USING btree (round_id, member_id, game_id, day_key, ordinal)",
+  competition_attempt_idempotency:
+    "CREATE UNIQUE INDEX competition_attempt_idempotency ON public.competition_attempts USING btree (round_id, member_id, idempotency_key)",
+  competition_attempts_pending:
+    "CREATE INDEX competition_attempts_pending ON public.competition_attempts USING btree (round_id, status)",
+  competition_award_unique:
+    "CREATE UNIQUE INDEX competition_award_unique ON public.competition_award_claims USING btree (round_id, member_id, award_key)",
+  competition_operation_idempotency:
+    "CREATE UNIQUE INDEX competition_operation_idempotency ON public.competition_operation_audit USING btree (round_id, operation, idempotency_key)",
 };
 
 export const EXPECTED_TRIGGERS = {
-  competition_frozen_rules: "competition_rounds",
-  competition_ledger_immutable: "competition_ledger",
-  competition_ledger_no_truncate: "competition_ledger",
-  competition_evidence_frozen: "competition_attempts",
-  competition_candidate_snapshots_immutable: "competition_candidate_snapshots",
-  competition_candidate_snapshots_no_truncate:
-    "competition_candidate_snapshots",
-  competition_final_results_immutable: "competition_final_results",
-  competition_final_results_no_truncate: "competition_final_results",
-  competition_operation_audit_immutable: "competition_operation_audit",
-  competition_operation_audit_no_truncate: "competition_operation_audit",
+  competition_frozen_rules: {
+    table: "competition_rounds",
+    function: "competition_frozen_rules",
+    type: 19,
+  },
+  competition_ledger_immutable: {
+    table: "competition_ledger",
+    function: "competition_immutable_record",
+    type: 27,
+  },
+  competition_ledger_no_truncate: {
+    table: "competition_ledger",
+    function: "competition_immutable_record",
+    type: 34,
+  },
+  competition_evidence_frozen: {
+    table: "competition_attempts",
+    function: "competition_evidence_frozen",
+    type: 19,
+  },
+  competition_candidate_snapshots_immutable: {
+    table: "competition_candidate_snapshots",
+    function: "competition_immutable_record",
+    type: 27,
+  },
+  competition_candidate_snapshots_no_truncate: {
+    table: "competition_candidate_snapshots",
+    function: "competition_immutable_record",
+    type: 34,
+  },
+  competition_final_results_immutable: {
+    table: "competition_final_results",
+    function: "competition_immutable_record",
+    type: 27,
+  },
+  competition_final_results_no_truncate: {
+    table: "competition_final_results",
+    function: "competition_immutable_record",
+    type: 34,
+  },
+  competition_operation_audit_immutable: {
+    table: "competition_operation_audit",
+    function: "competition_immutable_record",
+    type: 27,
+  },
+  competition_operation_audit_no_truncate: {
+    table: "competition_operation_audit",
+    function: "competition_immutable_record",
+    type: 34,
+  },
 };
 
 export const EXPECTED_FUNCTIONS = {
-  competition_frozen_rules: [
-    "OLD.status",
-    "draft",
-    "NEW.rules",
-    "NEW.opens_at",
-    "NEW.closes_at",
-    "NEW.slug",
-  ],
-  competition_immutable_record: [
-    "RAISE EXCEPTION 'competition_record_immutable'",
-  ],
-  competition_evidence_frozen: [
-    "NEW.score_period_key",
-    "OLD.trace_hash",
-    "NEW.trace_hash",
-    "NEW.received_at",
-    "NEW.receipt",
-  ],
+  competition_evidence_frozen: {
+    sha256: "3b9d97af8dd19ea05ff762a6cf8ebb0e41094b2f3e304a7fe30711133b0fc2cd",
+    definition: `CREATE OR REPLACE FUNCTION public.competition_evidence_frozen()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+ IF NEW.round_id IS DISTINCT FROM OLD.round_id OR NEW.member_id IS DISTINCT FROM OLD.member_id OR NEW.provider_session_id IS DISTINCT FROM OLD.provider_session_id OR NEW.seed IS DISTINCT FROM OLD.seed OR NEW.game_id IS DISTINCT FROM OLD.game_id OR NEW.day_key IS DISTINCT FROM OLD.day_key OR NEW.score_period_key IS DISTINCT FROM OLD.score_period_key OR NEW.ordinal IS DISTINCT FROM OLD.ordinal OR NEW.issued_at IS DISTINCT FROM OLD.issued_at OR NEW.expires_at IS DISTINCT FROM OLD.expires_at OR NEW.idempotency_key IS DISTINCT FROM OLD.idempotency_key THEN RAISE EXCEPTION 'competition_attempt_identity_frozen'; END IF;
+ IF OLD.trace_hash IS NOT NULL AND (NEW.trace_hash IS DISTINCT FROM OLD.trace_hash OR NEW.trace IS DISTINCT FROM OLD.trace OR NEW.received_at IS DISTINCT FROM OLD.received_at OR NEW.receipt IS DISTINCT FROM OLD.receipt) THEN RAISE EXCEPTION 'competition_evidence_frozen'; END IF;
+ RETURN NEW;
+END $function$
+`,
+  },
+  competition_frozen_rules: {
+    sha256: "cb836db9446dc5dab3c0e01a8b4b61d12cb66fb4acd1889c8af0fd09bebc1a91",
+    definition: `CREATE OR REPLACE FUNCTION public.competition_frozen_rules()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+ IF OLD.status <> 'draft' AND (NEW.rules IS DISTINCT FROM OLD.rules OR NEW.opens_at IS DISTINCT FROM OLD.opens_at OR NEW.closes_at IS DISTINCT FROM OLD.closes_at OR NEW.slug IS DISTINCT FROM OLD.slug) THEN RAISE EXCEPTION 'competition_rules_frozen'; END IF;
+ RETURN NEW;
+END $function$
+`,
+  },
+  competition_immutable_record: {
+    sha256: "a4d6128d3c2e26452b4b688283af52ec3730d2497d6476b65f4ffaf23eed0a07",
+    definition: `CREATE OR REPLACE FUNCTION public.competition_immutable_record()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$ BEGIN RAISE EXCEPTION 'competition_record_immutable'; END $function$
+`,
+  },
 };
 
 const asString = (value) =>
   value === null || value === undefined ? "" : String(value);
 
-const includesAll = (definition, fragments) => {
-  const normalized = asString(definition).toLowerCase();
-  return fragments.every((fragment) =>
-    normalized.includes(String(fragment).toLowerCase()),
-  );
-};
+const sha256 = (value) =>
+  createHash("sha256").update(asString(value)).digest("hex");
 
 function normalizedCheck(definition) {
   return asString(definition)
@@ -250,10 +288,10 @@ export function assessSchemaProof(proof) {
   const indexByName = new Map(proof.indexes.map((row) => [row.name, row]));
   const missingIndexes = [];
   const mismatchedIndexes = [];
-  for (const [name, fragments] of Object.entries(EXPECTED_INDEXES)) {
+  for (const [name, expectedDefinition] of Object.entries(EXPECTED_INDEXES)) {
     const found = indexByName.get(name);
     if (!found) missingIndexes.push(name);
-    else if (!includesAll(found.definition, fragments))
+    else if (asString(found.definition) !== expectedDefinition)
       mismatchedIndexes.push(name);
   }
 
@@ -261,21 +299,29 @@ export function assessSchemaProof(proof) {
   const missingTriggers = [];
   const disabledTriggers = [];
   const mismatchedTriggers = [];
-  for (const [name, table] of Object.entries(EXPECTED_TRIGGERS)) {
+  for (const [name, expected] of Object.entries(EXPECTED_TRIGGERS)) {
     const found = triggerByName.get(name);
     if (!found) missingTriggers.push(name);
     else if (!new Set(["O", "A"]).has(found.enabled))
       disabledTriggers.push(name);
-    else if (found.table_name !== table) mismatchedTriggers.push(name);
+    else if (
+      found.table_name !== expected.table ||
+      found.function_name !== expected.function ||
+      found.function_schema !== "public" ||
+      Number(found.trigger_type) !== expected.type ||
+      found.predicate_free !== true ||
+      Number(found.argument_count) !== 0
+    )
+      mismatchedTriggers.push(name);
   }
 
   const functionByName = new Map(proof.functions.map((row) => [row.name, row]));
   const missingFunctions = [];
   const mismatchedFunctions = [];
-  for (const [name, fragments] of Object.entries(EXPECTED_FUNCTIONS)) {
+  for (const [name, expected] of Object.entries(EXPECTED_FUNCTIONS)) {
     const found = functionByName.get(name);
     if (!found) missingFunctions.push(name);
-    else if (!includesAll(found.definition, fragments))
+    else if (sha256(found.definition) !== expected.sha256)
       mismatchedFunctions.push(name);
   }
 
@@ -437,10 +483,15 @@ async function inspectSchema(client, migrationTablePresent) {
     [Object.keys(EXPECTED_INDEXES)],
   );
   const triggers = await client.query(
-    `SELECT t.tgname AS name,c.relname AS table_name,t.tgenabled AS enabled
+    `SELECT t.tgname AS name,c.relname AS table_name,t.tgenabled AS enabled,
+            t.tgtype::int AS trigger_type,f.proname AS function_name,
+            fn.nspname AS function_schema,(t.tgqual IS NULL) AS predicate_free,
+            t.tgnargs::int AS argument_count
            FROM pg_catalog.pg_trigger t
            JOIN pg_catalog.pg_class c ON c.oid=t.tgrelid
            JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+           JOIN pg_catalog.pg_proc f ON f.oid=t.tgfoid
+           JOIN pg_catalog.pg_namespace fn ON fn.oid=f.pronamespace
           WHERE n.nspname='public' AND NOT t.tgisinternal
             AND t.tgname=ANY($1::text[])
           ORDER BY t.tgname`,
@@ -555,3 +606,4 @@ export async function collectCompetitionPreflight(client, expectedDatabase) {
     throw error;
   }
 }
+import { createHash } from "node:crypto";

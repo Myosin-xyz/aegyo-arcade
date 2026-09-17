@@ -67,7 +67,9 @@ type Dashboard = {
       status: string;
       securityConfirmed: boolean;
       receiptDigest: string;
+      receivedAt: string;
     }[];
+    pendingNextCursor: { receivedAt: string; id: string } | null;
     candidate: null | {
       snapshotId: string;
       sourceDigest: string;
@@ -131,35 +133,79 @@ export function CompetitionOperatorPanel() {
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const operationKeys = useRef(new Map<string, string>());
 
-  const load = useCallback(async (roundId?: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const query = roundId ? `?roundId=${encodeURIComponent(roundId)}` : "";
-      const response = await fetch(`/api/competition/operator${query}`, {
-        cache: "no-store",
-      });
-      const body = (await response.json()) as Dashboard & { code?: string };
-      if (!response.ok) throw new Error(body.code ?? "operator_load_failed");
-      setDashboard(body);
-      setSelectedRoundId(body.selected?.round.id);
-      setTieRationales(
-        Object.fromEntries(
-          (body.selected?.tieDecisions ?? []).map((decision) => [
-            decision.exactTieKey,
-            decision.rationale,
-          ]),
-        ),
-      );
-      setAllocations([]);
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "operator_load_failed",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (
+      roundId?: string,
+      pendingCursor?: { receivedAt: string; id: string },
+      appendPending = false,
+    ) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const query = new URLSearchParams();
+        if (roundId) query.set("roundId", roundId);
+        if (pendingCursor) {
+          query.set("pendingAfterAt", pendingCursor.receivedAt);
+          query.set("pendingAfterId", pendingCursor.id);
+        }
+        const suffix = query.size ? `?${query}` : "";
+        const response = await fetch(`/api/competition/operator${suffix}`, {
+          cache: "no-store",
+        });
+        const body = (await response.json()) as Dashboard & { code?: string };
+        if (!response.ok) throw new Error(body.code ?? "operator_load_failed");
+        setDashboard((current) => {
+          if (
+            !appendPending ||
+            !current?.selected ||
+            !body.selected ||
+            current.selected.round.id !== body.selected.round.id
+          )
+            return body;
+          const attempts = new Map(
+            current.selected.attempts.map((attempt) => [attempt.id, attempt]),
+          );
+          for (const attempt of body.selected.attempts)
+            attempts.set(attempt.id, attempt);
+          const pending = new Map(
+            current.selected.pending.map((attempt) => [
+              attempt.attemptId,
+              attempt,
+            ]),
+          );
+          for (const attempt of body.selected.pending)
+            pending.set(attempt.attemptId, attempt);
+          return {
+            ...body,
+            selected: {
+              ...body.selected,
+              attempts: [...attempts.values()],
+              pending: [...pending.values()],
+            },
+          };
+        });
+        setSelectedRoundId(body.selected?.round.id);
+        if (!appendPending) {
+          setTieRationales(
+            Object.fromEntries(
+              (body.selected?.tieDecisions ?? []).map((decision) => [
+                decision.exactTieKey,
+                decision.rationale,
+              ]),
+            ),
+          );
+          setAllocations([]);
+        }
+      } catch (caught) {
+        setError(
+          caught instanceof Error ? caught.message : "operator_load_failed",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -260,7 +306,7 @@ export function CompetitionOperatorPanel() {
   const canFinalize =
     !!selected?.candidate &&
     selected.round.status === "review" &&
-    selected.pending.length === 0 &&
+    selected.round.pendingCount === 0 &&
     unresolvedTies.every((tie) => tieRationales[tie.exactTieKey]?.trim()) &&
     allocationReady;
   const canOpen = (selected?.round.launchBlockers.length ?? 0) === 0;
@@ -616,7 +662,9 @@ export function CompetitionOperatorPanel() {
                               if (!reason?.trim()) return;
                               if (
                                 !window.confirm(
-                                  "Disqualify this verified attempt and recompute the player’s weekly best and Full Arena bonus?",
+                                  selected.round.rulesVersion === 2
+                                    ? "Disqualify this verified attempt and recompute the player’s weekly best and Full Arena bonus?"
+                                    : "Disqualify this verified attempt and recompute the player’s daily best?",
                                 )
                               )
                                 return;
@@ -638,6 +686,22 @@ export function CompetitionOperatorPanel() {
                         ) : null}
                       </article>
                     ))}
+                    {selected.pendingNextCursor ? (
+                      <button
+                        type="button"
+                        className={styles.secondaryButton}
+                        disabled={loading || busy !== null}
+                        onClick={() =>
+                          void load(
+                            selected.round.id,
+                            selected.pendingNextCursor ?? undefined,
+                            true,
+                          )
+                        }
+                      >
+                        Load older pending attempts
+                      </button>
+                    ) : null}
                   </div>
                 ) : (
                   <p className={styles.empty}>

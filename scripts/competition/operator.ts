@@ -19,6 +19,33 @@ import { materialLaunchBlockers } from "../../src/competition/launch-readiness";
 
 type Args = Record<string, string>;
 
+function operatorDatabaseClientConfig(connectionString: string) {
+  let address: URL;
+  try {
+    address = new URL(connectionString);
+  } catch {
+    throw new Error(
+      "COMPETITION_OPERATOR_DATABASE_URL must be a PostgreSQL URL",
+    );
+  }
+  if (!["postgres:", "postgresql:"].includes(address.protocol))
+    throw new Error(
+      "COMPETITION_OPERATOR_DATABASE_URL must be a PostgreSQL URL",
+    );
+  const local = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]).has(
+    address.hostname,
+  );
+  const sslModes = address.searchParams.getAll("sslmode");
+  if (!local && (sslModes.length !== 1 || sslModes[0] !== "verify-full"))
+    throw new Error(
+      "Remote COMPETITION_OPERATOR_DATABASE_URL must use sslmode=verify-full",
+    );
+  return {
+    connectionString,
+    ...(local ? {} : { ssl: { rejectUnauthorized: true } }),
+  };
+}
+
 function parseArgs(argv: string[]): { command: string; args: Args } {
   const [command = "", ...rest] = argv;
   const args: Args = {};
@@ -80,7 +107,10 @@ async function main() {
       "ARCADE_COMPETITION_ENABLED must equal true for an operator rehearsal",
     );
   }
-  const pool = new Pool({ connectionString, max: 1 });
+  const pool = new Pool({
+    ...operatorDatabaseClientConfig(connectionString),
+    max: 1,
+  });
   try {
     const database = (
       await pool.query<{ name: string }>("SELECT current_database() AS name")

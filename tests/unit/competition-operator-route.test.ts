@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   fulfillAward: vi.fn(),
   rejectPendingAttempt: vi.fn(),
   settleAttempt: vi.fn(),
+  dashboard: vi.fn(),
 }));
 
 vi.mock("@/competition/http", () => ({
@@ -36,9 +37,13 @@ vi.mock("@/competition/operations-store", () => ({
   rejectPendingAttempt: mocks.rejectPendingAttempt,
   settleAttempt: mocks.settleAttempt,
 }));
+vi.mock("@/competition/operator-dashboard", () => ({
+  competitionOperatorDashboard: mocks.dashboard,
+}));
 
 import { competitionOperatorContext } from "@/competition/operator-auth";
 import { POST } from "@/app/api/competition/operator/actions/route";
+import { GET } from "@/app/api/competition/operator/route";
 
 const roundId = "10000000-0000-4000-8000-000000000001";
 const memberId = "20000000-0000-4000-8000-000000000001";
@@ -70,6 +75,39 @@ describe("competition operator actions", () => {
       repeated: false,
     });
     mocks.disqualifyAttempt.mockResolvedValue({ repeated: false });
+    mocks.dashboard.mockResolvedValue({ selected: null, rounds: [] });
+  });
+
+  it("rejects partial or malformed pending pagination cursors", async () => {
+    await expect(
+      GET(
+        new NextRequest(
+          "https://arcade.example.test/api/competition/operator?pendingAfterAt=2026-09-17T00%3A00%3A00.000001Z",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "invalid_pending_cursor", status: 400 });
+    await expect(
+      GET(
+        new NextRequest(
+          "https://arcade.example.test/api/competition/operator?pendingAfterAt=not-a-date&pendingAfterId=10000000-0000-4000-8000-000000000001",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "invalid_pending_cursor", status: 400 });
+    expect(mocks.dashboard).not.toHaveBeenCalled();
+  });
+
+  it("passes a complete pending cursor to the operator dashboard", async () => {
+    const receivedAt = "2026-09-17T00:00:00.000001Z";
+    const response = await GET(
+      new NextRequest(
+        `https://arcade.example.test/api/competition/operator?roundId=${roundId}&pendingAfterAt=${encodeURIComponent(receivedAt)}&pendingAfterId=${memberId}`,
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.dashboard).toHaveBeenCalledWith(mocks.context.db, roundId, {
+      receivedAt,
+      id: memberId,
+    });
   });
 
   it("opens a round only through the sensitive operator context", async () => {

@@ -13,6 +13,7 @@ import {
   validateDatabaseSelection,
 } from "../../scripts/competition/preflight-lib.mjs";
 import { main as preflightMain } from "../../scripts/competition/preflight.mjs";
+import { operatorDatabaseClientConfig } from "../../scripts/competition/preflight.mjs";
 
 function completeProof() {
   return {
@@ -33,18 +34,23 @@ function completeProof() {
     constraints: Object.entries(EXPECTED_CONSTRAINTS).map(
       ([name, definition]) => ({ name, validated: true, definition }),
     ),
-    indexes: Object.entries(EXPECTED_INDEXES).map(([name, fragments]) => ({
+    indexes: Object.entries(EXPECTED_INDEXES).map(([name, definition]) => ({
       name,
-      definition: fragments.join(" "),
+      definition,
     })),
-    triggers: Object.entries(EXPECTED_TRIGGERS).map(([name, table_name]) => ({
+    triggers: Object.entries(EXPECTED_TRIGGERS).map(([name, expected]) => ({
       name,
-      table_name,
+      table_name: expected.table,
+      function_name: expected.function,
+      function_schema: "public",
+      trigger_type: expected.type,
+      predicate_free: true,
+      argument_count: 0,
       enabled: "O",
     })),
-    functions: Object.entries(EXPECTED_FUNCTIONS).map(([name, fragments]) => ({
+    functions: Object.entries(EXPECTED_FUNCTIONS).map(([name, expected]) => ({
       name,
-      definition: fragments.join(" "),
+      definition: expected.definition,
     })),
   };
 }
@@ -75,6 +81,24 @@ describe("competition database preflight", () => {
         { NODE_ENV: "test" },
       ),
     ).rejects.toThrow("operator_database_url_required");
+  });
+
+  it("requires certificate-verified TLS for remote database URLs", () => {
+    expect(() =>
+      operatorDatabaseClientConfig(
+        "postgresql://operator:secret@database.example.com/arcade",
+      ),
+    ).toThrow("database_tls_verification_required");
+    expect(
+      operatorDatabaseClientConfig(
+        "postgresql://operator:secret@database.example.com/arcade?sslmode=verify-full",
+      ),
+    ).toMatchObject({ ssl: { rejectUnauthorized: true } });
+    expect(
+      operatorDatabaseClientConfig(
+        "postgresql://operator:secret@127.0.0.1:5432/arcade",
+      ),
+    ).not.toHaveProperty("ssl");
   });
 
   it("accepts a complete migration, schema, integrity, and game proof", () => {
@@ -124,6 +148,52 @@ describe("competition database preflight", () => {
     );
   });
 
+  it("refuses an integrity trigger bound to the wrong function", () => {
+    const proof = completeProof();
+    proof.triggers.find(
+      ({ name }) => name === "competition_evidence_frozen",
+    )!.function_name = "competition_immutable_record";
+    expect(assessSchemaProof(proof).objects.mismatchedTriggers).toContain(
+      "competition_evidence_frozen",
+    );
+  });
+
+  it("refuses an integrity trigger with weaker events or a foreign function schema", () => {
+    const wrongEvent = completeProof();
+    wrongEvent.triggers.find(
+      ({ name }) => name === "competition_ledger_immutable",
+    )!.trigger_type = 19;
+    expect(assessSchemaProof(wrongEvent).objects.mismatchedTriggers).toContain(
+      "competition_ledger_immutable",
+    );
+
+    const wrongSchema = completeProof();
+    wrongSchema.triggers.find(
+      ({ name }) => name === "competition_evidence_frozen",
+    )!.function_schema = "shadow";
+    expect(assessSchemaProof(wrongSchema).objects.mismatchedTriggers).toContain(
+      "competition_evidence_frozen",
+    );
+  });
+
+  it("refuses conditional integrity triggers or trigger arguments", () => {
+    const conditional = completeProof();
+    conditional.triggers.find(
+      ({ name }) => name === "competition_evidence_frozen",
+    )!.predicate_free = false;
+    expect(assessSchemaProof(conditional).objects.mismatchedTriggers).toContain(
+      "competition_evidence_frozen",
+    );
+
+    const withArguments = completeProof();
+    withArguments.triggers.find(
+      ({ name }) => name === "competition_ledger_immutable",
+    )!.argument_count = 1;
+    expect(
+      assessSchemaProof(withArguments).objects.mismatchedTriggers,
+    ).toContain("competition_ledger_immutable");
+  });
+
   it("refuses weaker point bounds that merely contain the expected number", () => {
     const proof = completeProof();
     proof.constraints.find(
@@ -132,6 +202,29 @@ describe("competition database preflight", () => {
     expect(assessSchemaProof(proof).objects.mismatchedConstraints).toContain(
       "competition_period_best_points",
     );
+  });
+
+  it("refuses partial indexes and inert integrity function bodies", () => {
+    const partialIndex = completeProof();
+    partialIndex.indexes.find(
+      ({ name }) => name === "competition_attempt_quota",
+    )!.definition += " WHERE false";
+    expect(assessSchemaProof(partialIndex).objects.mismatchedIndexes).toContain(
+      "competition_attempt_quota",
+    );
+
+    const inertFunction = completeProof();
+    inertFunction.functions.find(
+      ({ name }) => name === "competition_immutable_record",
+    )!.definition =
+      `CREATE OR REPLACE FUNCTION public.competition_immutable_record()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$ BEGIN IF false THEN RAISE EXCEPTION 'competition_record_immutable'; END IF; RETURN NEW; END $function$
+`;
+    expect(
+      assessSchemaProof(inertFunction).objects.mismatchedFunctions,
+    ).toContain("competition_immutable_record");
   });
 
   it("refuses a date constraint that mentions both columns but allows reversal", () => {

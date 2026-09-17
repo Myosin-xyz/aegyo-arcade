@@ -1,0 +1,539 @@
+.page {
+  width: min(100%, 88rem);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(2rem, env(safe-area-inset-top)) clamp(1rem, 3vw, 2rem)
+    max(4rem, env(safe-area-inset-bottom));
+}
+
+.header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.eyebrow,
+.kicker {
+  color: var(--accent);
+  font-family: var(--font-arcade), sans-serif;
+  font-size: 0.67rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  margin-top: 0.35rem;
+  font-family: var(--font-arcade), sans-serif;
+  font-size: clamp(1.45rem, 4vw, 2.25rem);
+}
+
+.intro {
+  max-width: 42rem;
+  margin-top: 0.65rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.headerActions,
+.lifecycleActions,
+.rowActions,
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.headerActions a,
+.headerActions button,
+.lifecycleActions button,
+.rowActions button,
+.allocationHeading button,
+.finalizeBar button,
+.awardList button {
+  min-height: 2.65rem;
+  padding: 0.65rem 0.9rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.roundRail,
+.card,
+.roundHeader,
+.accessCard {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: linear-gradient(155deg, rgb(43 17 70 / 92%), rgb(30 16 56 / 96%));
+  box-shadow: 0 18px 60px rgb(5 1 15 / 22%);
+}
+
+.roundRail {
+  position: sticky;
+  top: 1rem;
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.7rem;
+}
+
+.railHeading,
+.sectionHeading,
+.allocationHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.railHeading {
+  padding: 0.55rem 0.6rem 0.7rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.roundRail > button {
+  display: grid;
+  gap: 0.28rem;
+  width: 100%;
+  min-height: 4.4rem;
+  padding: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+}
+
+.roundRail > button:hover,
+.roundRail > button.activeRound {
+  border-color: var(--line);
+  background: rgb(20 10 38 / 68%);
+}
+
+.roundRail > button.activeRound {
+  border-color: var(--accent);
+}
+
+.roundRail button span,
+.roundRail button small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: capitalize;
+}
+
+.workspace {
+  min-width: 0;
+}
+
+.roundHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: clamp(1.15rem, 3vw, 1.6rem);
+}
+
+.roundHeader h2 {
+  margin-top: 0.6rem;
+  font-family: var(--font-arcade), sans-serif;
+  font-size: clamp(1.1rem, 3vw, 1.55rem);
+  text-transform: capitalize;
+}
+
+.roundHeader p {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.badges span {
+  padding: 0.28rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.badges span[data-status="final"] {
+  border-color: rgb(47 230 196 / 45%);
+  color: var(--accent);
+}
+
+.badges span[data-status="closing"] {
+  border-color: rgb(255 209 102 / 45%);
+  color: var(--gold);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.metrics article {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: rgb(20 10 38 / 72%);
+}
+
+.metrics article[data-alert="true"] {
+  border-color: rgb(255 209 102 / 50%);
+}
+
+.metrics span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.metrics strong {
+  color: var(--brand-soft);
+  font-family: var(--font-arcade), sans-serif;
+  font-size: 1.15rem;
+  text-transform: capitalize;
+}
+
+.card {
+  margin-top: 0.75rem;
+  padding: clamp(1.05rem, 3vw, 1.45rem);
+}
+
+.sectionHeading {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.sectionHeading h3 {
+  margin-top: 0.35rem;
+  font-size: 1rem;
+}
+
+.sectionHeading > span {
+  min-width: 2rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: rgb(20 10 38 / 72%);
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.attemptList,
+.awardList {
+  display: grid;
+}
+
+.attemptList article,
+.awardList article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.attemptList article:last-child,
+.awardList article:last-child {
+  border-bottom: 0;
+}
+
+.attemptList article > div:first-child,
+.awardList article > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.attemptList span,
+.attemptList small,
+.awardList span,
+.awardList small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.page .dangerButton {
+  border-color: rgb(255 104 140 / 45%);
+  color: #ffb2c7;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 0.7rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.tableWrap th {
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.field textarea,
+.allocationRow input,
+.allocationRow select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: rgb(20 10 38 / 76%);
+  color: var(--foreground);
+}
+
+.field textarea {
+  min-height: 5rem;
+  resize: vertical;
+  padding: 0.75rem;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.allocations {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.allocationHeading h4 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.allocationRow {
+  display: grid;
+  grid-template-columns: 1.15fr 0.8fr 1.4fr auto;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.allocationRow input,
+.allocationRow select {
+  min-height: 2.6rem;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.iconButton {
+  width: 2.6rem;
+  min-height: 2.6rem;
+  border-color: rgb(255 104 140 / 45%);
+  color: #ffb2c7;
+  font-size: 1.15rem;
+}
+
+.finalizeBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid rgb(255 209 102 / 35%);
+  border-radius: 0.75rem;
+  background: rgb(255 209 102 / 7%);
+}
+
+.finalizeBar p {
+  max-width: 38rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.auditList {
+  display: grid;
+  margin-top: 0.4rem;
+  list-style: none;
+}
+
+.auditList li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+
+.auditList li:last-child {
+  border-bottom: 0;
+}
+
+.auditList span,
+.auditList small {
+  color: var(--muted);
+}
+
+.auditList small {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+  font-size: 0.65rem;
+}
+
+.success,
+.error {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid;
+  border-radius: 0.75rem;
+  font-size: 0.78rem;
+}
+
+.success {
+  border-color: rgb(47 230 196 / 40%);
+  background: rgb(47 230 196 / 8%);
+  color: var(--accent);
+}
+
+.error {
+  border-color: rgb(255 104 140 / 45%);
+  background: rgb(255 104 140 / 8%);
+  color: #ffb2c7;
+}
+
+.empty,
+.loading,
+.accessCard p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.empty {
+  padding: 1rem 0;
+}
+
+.loading {
+  display: grid;
+  min-height: 70dvh;
+  place-items: center;
+}
+
+.accessCard {
+  max-width: 34rem;
+  margin: 12vh auto 0;
+  padding: 1.5rem;
+}
+
+.accessCard h1 {
+  margin: 0.45rem 0 0.75rem;
+  font-family: var(--font-arcade), sans-serif;
+  font-size: 1.35rem;
+}
+
+.accessCard a {
+  display: inline-flex;
+  min-height: 2.7rem;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 0.65rem 0.9rem;
+}
+
+.page .secondaryButton {
+  border-color: var(--line);
+  background: rgb(20 10 38 / 55%);
+  color: var(--foreground);
+}
+
+.page button,
+.page a {
+  border: 1px solid var(--brand);
+  border-radius: 0.65rem;
+  background: linear-gradient(180deg, var(--brand), var(--brand-deep));
+  color: white;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.page button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+@media (max-width: 780px) {
+  .header,
+  .roundHeader,
+  .finalizeBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .roundRail {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .railHeading {
+    grid-column: 1 / -1;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .allocationRow {
+    grid-template-columns: 1fr;
+  }
+
+  .iconButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .roundRail,
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .attemptList article,
+  .awardList article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

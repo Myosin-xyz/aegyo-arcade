@@ -10,6 +10,7 @@ The default championship selects the currently playable round, then the nearest 
 
 - `ARCADE_COMPETITION_ENABLED=true` enables competition routes and operations. Missing, `false`, or any other value keeps them unavailable.
 - A `material_prize` round additionally requires `ARCADE_MATERIAL_COMPETITION_ENABLED=true`. Its frozen rules must contain an HTTPS rules URL and non-empty sponsor, operator, eligibility, prizes, claims, and approval fields. No prize defaults are supplied.
+- `ARCADE_COMPETITION_OPERATOR_SUBJECTS` is a comma-separated allowlist of exact Accounts subjects. Missing, malformed, duplicate or empty entries fail closed. The private `/competition-admin` page and its APIs additionally require a verified email, a current Accounts security-state check and the configured Arcade origin on every mutation.
 - Issuance requires `ARCADE_COMPETITION_SEED_SECRET` with at least 32 characters.
 - Shared member authentication, verified email, username selection, and enrollment precede official play. Anonymous device play, history, streaks, and the existing cosmetic leaderboard remain separate and are not migrated into competition results.
 - Rules version 1 permits three attempts per member/game/UTC day and supports the frozen eligible-game calibration in the round. The trace verifier accepts version 1 Snake and Flappy traces at 60 ticks/second and recomputes scores from the seed and ordered inputs.
@@ -52,6 +53,24 @@ Content-Type: application/json
 ```
 
 The body accepts only those two fields. Ownership is checked against the authenticated member, the acceptance proof is private, and member reads expose only `{id, awardKey, status, rank}`. An exact retry remains idempotent even after fulfillment. Fulfillment only records an operator-supplied key and reason exactly once; this code does not send email, transfer money, ship goods, or call a prize provider.
+
+## Protected operator page
+
+`/competition-admin` is the visual counterpart to the operator CLI. It reads the
+same candidate snapshot and invokes the same open, close, settle, reject,
+finalize and fulfill functions; it does not implement a separate winner or
+scoring path. It shows round counts, the pending evidence queue, the immutable
+candidate standings, required shared-rank rationales, explicit award
+allocations, member claims, exact-once fulfillment controls and the append-only
+operation history.
+
+The page cannot create a round. The first draft remains deliberately blocked on
+the approved schedule, scoring, eligibility, prizes and public rules, then may
+be created through the reviewed CLI definition. Finalization warns that the
+snapshot is immutable, requires every exact tie to retain shared rank with a
+written rationale, and creates only the award rows explicitly listed. Claim
+deadlines, forfeiture, fallback allocation and post-snapshot correction remain
+outside the current state machine and must not be improvised through the UI.
 
 ## Operator commands
 

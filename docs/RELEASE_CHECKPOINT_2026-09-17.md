@@ -36,8 +36,7 @@ has sending access only; that is the intended least-privilege configuration.
 ## Remaining infrastructure gate
 
 `account.aegyoarena.com` still resolves through Cloudflare's proxy addresses.
-Railway therefore has not accepted the custom domain and returns its fallback
-404. Keep the existing CNAME target `d5d1smmz.up.railway.app`, but change this
+Railway therefore has not accepted the custom domain and returns its fallback 404. Keep the existing CNAME target `d5d1smmz.up.railway.app`, but change this
 single record to **DNS only** (gray cloud) with TTL Auto. Do not enable Accounts
 traffic or any product adapter until the public hostname serves the Accounts
 certificate and health endpoint without `x-railway-fallback`.

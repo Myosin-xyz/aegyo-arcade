@@ -5,6 +5,10 @@ import {
   type CompetitionAction,
   type CompetitionTraceV1,
 } from "@/competition/replay";
+import {
+  CompetitionTraceCaptureV2,
+  type CompetitionTraceV2,
+} from "@/competition/replay-v2";
 import { seededRandom } from "@/shell/rng";
 import {
   continueFromLevelBreak,
@@ -15,9 +19,15 @@ import {
   type Cell,
   type SnakeState,
 } from "@/games/snake/logic";
+import {
+  attemptToss,
+  createPerfectTossState,
+  markerPosition,
+  stepPerfectToss,
+} from "@/games/perfect-toss/logic";
 
 export interface CompetitionTraceFixture {
-  trace: CompetitionTraceV1;
+  trace: CompetitionTraceV1 | CompetitionTraceV2;
   expectedScore: number;
   durationMs: number;
 }
@@ -120,4 +130,39 @@ export function zeroScoreFlappyTraceFixture(): CompetitionTraceFixture {
   capture.record("flappy:cash-out");
   const trace = capture.finish("quit", "cashedOut");
   return { trace, expectedScore: 0, durationMs: 0 };
+}
+
+/** One verified catch followed by a miss, driven against the production core. */
+export function positivePerfectTossTraceFixture(): CompetitionTraceFixture {
+  const seed = "perfect-toss-one-catch";
+  const rng = seededRandom(seed);
+  const state = createPerfectTossState(rng);
+  const capture = new CompetitionTraceCaptureV2("perfect-toss", seed);
+
+  for (
+    let tick = 0;
+    tick < MAX_TRACE_TICKS && state.status !== "over";
+    tick++
+  ) {
+    if (state.status === "playing" && !state.thrown) {
+      const inside =
+        Math.abs(markerPosition(state) - state.zoneCenter) <= state.halfWidth;
+      const wantsSuccess = state.catches === 0;
+      if ((wantsSuccess && inside) || (!wantsSuccess && !inside)) {
+        capture.record("perfect-toss:throw");
+        if (!attemptToss(state, rng))
+          throw new Error("Perfect Toss fixture input was refused");
+      }
+    }
+    stepPerfectToss(state);
+    capture.advanceTick();
+  }
+  if (state.status !== "over" || state.catches !== 1)
+    throw new Error("Perfect Toss fixture did not reach its expected terminal");
+  const trace = capture.finish("lost", "over");
+  return {
+    trace,
+    expectedScore: state.catches,
+    durationMs: (trace.terminal.tick * 1000) / trace.tickRate,
+  };
 }

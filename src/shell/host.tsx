@@ -39,7 +39,7 @@ import {
   ChampionshipControls,
   type ChampionshipPhase,
 } from "./championship-controls";
-import type { CompetitionTraceV1 } from "@/competition/replay";
+import type { CompetitionTrace } from "@/competition/verify-replay";
 
 /** Counted-run UI state (M2): issuance → active → submit → receipt. */
 type CountedPhase =
@@ -121,7 +121,7 @@ export function GameHostInner({
   >(null);
   const [completionActive, setCompletionActive] = useState(false);
   const championshipRound =
-    championshipEnabled && ["snake", "flappy"].includes(gameId)
+    championshipEnabled && ["snake", "flappy", "perfect-toss"].includes(gameId)
       ? requestedChampionshipRound
       : null;
   const [hasOfficialRetry, setHasOfficialRetry] = useState(false);
@@ -135,7 +135,7 @@ export function GameHostInner({
   const officialKeyRef = useRef<string | null>(null);
   const officialPayloadRef = useRef<{
     attemptId: string;
-    trace: CompetitionTraceV1;
+    trace: CompetitionTrace;
   } | null>(null);
   const submitOfficial = useCallback(async () => {
     const payload = officialPayloadRef.current;

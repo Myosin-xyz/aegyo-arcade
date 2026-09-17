@@ -11,7 +11,7 @@ import {
   pointsForScore,
   type RoundRules,
 } from "./rules";
-import { verifyCompetitionTrace } from "./replay";
+import { verifyCompetitionTrace } from "./verify-replay";
 export type CompetitionTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export type Round = {
   id: string;

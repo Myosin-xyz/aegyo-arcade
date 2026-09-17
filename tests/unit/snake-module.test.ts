@@ -105,7 +105,7 @@ function mount() {
       // rather than letting it read as a normal reason.
       end: (e) => {
         ends.push(e?.reason ?? "<no-result>");
-        if (e?.competitionTrace) traces.push(e.competitionTrace);
+        if (e?.competitionTrace?.version === 1) traces.push(e.competitionTrace);
       },
     },
   };

@@ -93,7 +93,7 @@ function mount() {
       score: (n) => scores.push(n),
       end: (e) => {
         ends.push(e?.reason ?? "<no-result>");
-        if (e?.competitionTrace) traces.push(e.competitionTrace);
+        if (e?.competitionTrace?.version === 1) traces.push(e.competitionTrace);
       },
     },
   };

@@ -1,6 +1,13 @@
 /** Versioned championship rules. No default prizes or production round. */
-export type CompetitionGame = "snake" | "flappy";
+export type CompetitionGame = "snake" | "flappy" | "perfect-toss";
 export type CalibrationPoint = { score: number; points: number };
+const COMPETITION_GAMES = new Set<CompetitionGame>([
+  "snake",
+  "flappy",
+  "perfect-toss",
+]);
+const V1_COMPETITION_GAMES = new Set<CompetitionGame>(["snake", "flappy"]);
+const V2_TIER_POINTS = new Set([0, 5, 10, 20]);
 type CompetitionApproval = {
   sponsor: string;
   operator: string;
@@ -120,7 +127,7 @@ export function parseRules(input: unknown): RoundRules {
     rules.attemptTtlSeconds > 900 ||
     !Array.isArray(rules.games) ||
     !rules.games.length ||
-    rules.games.length > 2
+    rules.games.length > COMPETITION_GAMES.size
   )
     throw new CompetitionError("invalid_round_rules", 400);
   if (
@@ -141,9 +148,11 @@ export function parseRules(input: unknown): RoundRules {
     throw new CompetitionError("invalid_round_rules", 400);
   const seen = new Set<string>();
   for (const game of rules.games) {
+    const eligibleGames =
+      rules.version === 1 ? V1_COMPETITION_GAMES : COMPETITION_GAMES;
     if (
       !game ||
-      !["snake", "flappy"].includes(game.gameId) ||
+      !eligibleGames.has(game.gameId) ||
       seen.has(game.gameId) ||
       !Array.isArray(game.calibration) ||
       game.calibration.length < 2 ||
@@ -153,6 +162,7 @@ export function parseRules(input: unknown): RoundRules {
     seen.add(game.gameId);
     let score = -1,
       points = -1;
+    const publishedPoints = new Set<number>();
     for (const item of game.calibration) {
       if (
         !item ||
@@ -162,16 +172,21 @@ export function parseRules(input: unknown): RoundRules {
         !Number.isSafeInteger(item.points) ||
         item.points < 0 ||
         item.points > 1000 ||
-        item.points < points
+        item.points < points ||
+        (rules.version === 2 && !V2_TIER_POINTS.has(item.points))
       )
         throw new CompetitionError("invalid_calibration", 400);
       score = item.score;
       points = item.points;
+      publishedPoints.add(points);
     }
     if (
       game.calibration[0].score !== 0 ||
       game.calibration[0].points !== 0 ||
-      points !== 1000
+      (rules.version === 1
+        ? points !== 1000
+        : points !== 20 ||
+          [...V2_TIER_POINTS].some((value) => !publishedPoints.has(value)))
     )
       throw new CompetitionError("invalid_calibration", 400);
   }

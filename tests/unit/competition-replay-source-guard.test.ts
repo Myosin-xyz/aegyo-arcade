@@ -52,16 +52,19 @@ function dependencyClosure(entrypoint: string): string[] {
 }
 
 describe("competition replay source freeze", () => {
-  it("pins the complete local deterministic dependency closure for replay v1", () => {
-    const replayV1 = manifest.replayVersions["1"];
-    expect(Object.keys(replayV1.files).sort()).toEqual(
-      dependencyClosure(replayV1.entrypoint),
-    );
-    for (const [path, expected] of Object.entries(replayV1.files)) {
-      const actual = createHash("sha256")
-        .update(readFileSync(resolve(root, path)))
-        .digest("hex");
-      expect(actual, `${path} changed replay v1 semantics`).toBe(expected);
+  it("pins every complete deterministic dependency closure by replay version", () => {
+    for (const [version, replay] of Object.entries(manifest.replayVersions)) {
+      expect(Object.keys(replay.files).sort()).toEqual(
+        dependencyClosure(replay.entrypoint),
+      );
+      for (const [path, expected] of Object.entries(replay.files)) {
+        const actual = createHash("sha256")
+          .update(readFileSync(resolve(root, path)))
+          .digest("hex");
+        expect(actual, `${path} changed replay v${version} semantics`).toBe(
+          expected,
+        );
+      }
     }
   });
 });

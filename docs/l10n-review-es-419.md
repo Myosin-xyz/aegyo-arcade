@@ -1,6 +1,6 @@
 # es-419 Native Review Pack (EXT-LOCALE gate)
 
-> Generated from src/i18n/locales (339 strings) by
+> Generated from src/i18n/locales (359 strings) by
 > scripts/ops/generate-l10n-review.mjs — regenerate after ANY copy
 > change; a unit test pins this document to the JSON values.
 > LOCALE-1 requires a native/fan-fluent review before es-419 is
@@ -221,6 +221,26 @@
 | `game.jumper.intro.5`                     | Climb from chart rank #100 all the way to #1. You have 3 lives.                        | Sube del puesto #100 del chart hasta el #1. Tienes 3 vidas.                                              |
 | `game.jumper.tagline`                     | Bounce up the charts. Don't flop off the top 100.                                      | Rebota hasta la cima del chart. No te caigas del top 100.                                                |
 | `game.jumper.title`                       | Comeback Climb                                                                         | Comeback Climb                                                                                           |
+| `game.perfect-toss.controls`              | Tap anywhere (or press Space) when the marker is inside the gold zone.                 | Toca en cualquier lugar (o presiona Espacio) cuando el marcador esté dentro de la zona dorada.           |
+| `game.perfect-toss.end.title`             | MISSED!                                                                                | ¡FALLASTE!                                                                                               |
+| `game.perfect-toss.hud.best`              | Best                                                                                   | Récord                                                                                                   |
+| `game.perfect-toss.hud.catches`           | Catches                                                                                | Atrapadas                                                                                                |
+| `game.perfect-toss.hud.score`             | Score                                                                                  | Puntaje                                                                                                  |
+| `game.perfect-toss.intro.1`               | Watch the glowing marker slide across the timing bar.                                  | Mira cómo el marcador brillante recorre la barra de tiempo.                                              |
+| `game.perfect-toss.intro.2`               | Tap when the marker is inside the gold zone to toss the lightstick.                    | Toca cuando el marcador esté dentro de la zona dorada para lanzar el lightstick.                         |
+| `game.perfect-toss.intro.3`               | Hit the white center for a PERFECT catch that keeps the zone wide.                     | Acierta en el centro blanco para una atrapada PERFECTA que mantiene amplia la zona.                      |
+| `game.perfect-toss.intro.4`               | The target starts jumping after four catches, then drifts while you aim.               | El objetivo empieza a saltar después de cuatro atrapadas y luego se mueve mientras apuntas.              |
+| `game.perfect-toss.intro.5`               | Catch the tiny green bonus tick for 50 extra points. One miss ends the run.            | Atrapa la pequeña marca verde para sumar 50 puntos. Un fallo termina la partida.                         |
+| `game.perfect-toss.intro.subtitle`        | Feed the fandom!                                                                       | ¡Alimenta al fandom!                                                                                     |
+| `game.perfect-toss.intro.title`           | Perfect Toss                                                                           | Perfect Toss                                                                                             |
+| `game.perfect-toss.tagline`               | Time the lightstick toss. Keep the catch streak alive.                                 | Calcula el lanzamiento del lightstick y mantén viva la racha.                                            |
+| `game.perfect-toss.tapHint`               | TAP TO THROW                                                                           | TOCA PARA LANZAR                                                                                         |
+| `game.perfect-toss.title`                 | Perfect Toss                                                                           | Perfect Toss                                                                                             |
+| `game.perfect-toss.toast.bonusGood`       | ✦ BONUS CAUGHT! +{points}                                                              | ✦ ¡BONO ATRAPADO! +{points}                                                                              |
+| `game.perfect-toss.toast.bonusPerfect`    | ✦ BONUS PERFECT! +{points}                                                             | ✦ ¡BONO PERFECTO! +{points}                                                                              |
+| `game.perfect-toss.toast.good`            | CAUGHT!                                                                                | ¡ATRAPADO!                                                                                               |
+| `game.perfect-toss.toast.miss`            | MISSED!                                                                                | ¡FALLASTE!                                                                                               |
+| `game.perfect-toss.toast.perfect`         | PERFECT! ✦                                                                             | ¡PERFECTO! ✦                                                                                             |
 | `game.photocard-stack.controls`           | Tap anywhere (or press Space) to drop the moving photocard.                            | Toca en cualquier lugar (o presiona Espacio) para soltar la photocard.                                   |
 | `game.photocard-stack.end.title`          | TOPPLED!                                                                               | ¡SE CAYÓ!                                                                                                |
 | `game.photocard-stack.hud.best`           | Best                                                                                   | Récord                                                                                                   |

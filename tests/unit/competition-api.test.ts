@@ -103,6 +103,12 @@ describe("published calibration and activation", () => {
       },
     ],
   };
+  const tierCalibration = [
+    { score: 0, points: 0 },
+    { score: 1, points: 5 },
+    { score: 8, points: 10 },
+    { score: 15, points: 20 },
+  ];
   it("uses explicit point steps, caps at 1000, and rejects unapproved games", () => {
     const rules = parseRules(draft);
     expect(
@@ -191,6 +197,7 @@ describe("published calibration and activation", () => {
       dailyAttempts: 2,
       cadence: "monthly",
       winnerCount: 3,
+      games: [{ gameId: "snake", calibration: tierCalibration }],
       scoring: {
         bestPerGame: "week",
         timeZone: "America/New_York",
@@ -214,6 +221,44 @@ describe("published calibration and activation", () => {
         fullArenaBonusPoints: 20,
       },
     });
+  });
+  it("accepts fixed tier points and more than two eligible games in v2 only", () => {
+    const rules = parseRules({
+      ...draft,
+      version: 2,
+      dailyAttempts: 2,
+      cadence: "monthly",
+      winnerCount: 3,
+      games: [
+        { gameId: "snake", calibration: tierCalibration },
+        { gameId: "flappy", calibration: tierCalibration },
+        { gameId: "perfect-toss", calibration: tierCalibration },
+      ],
+      scoring: {
+        bestPerGame: "week",
+        timeZone: "America/New_York",
+        fullArenaBonusPoints: 20,
+      },
+    });
+
+    expect(rules.games).toHaveLength(3);
+    expect(
+      [0, 1, 7, 8, 14, 15, 100].map((score) =>
+        pointsForScore(rules, "perfect-toss", score),
+      ),
+    ).toEqual([0, 5, 5, 10, 10, 20, 20]);
+    expect(() =>
+      parseRules({
+        ...draft,
+        games: [{ gameId: "perfect-toss", calibration: tierCalibration }],
+      }),
+    ).toThrow("invalid_calibration");
+    expect(() =>
+      parseRules({
+        ...rules,
+        games: draft.games,
+      }),
+    ).toThrow("invalid_calibration");
   });
   it("rejects malformed monthly scoring configuration", () => {
     for (const scoring of [
@@ -240,6 +285,7 @@ describe("published calibration and activation", () => {
           dailyAttempts: 2,
           cadence: "monthly",
           winnerCount: 3,
+          games: [{ gameId: "snake", calibration: tierCalibration }],
           scoring,
         }),
       ).toThrow("invalid_round_rules");

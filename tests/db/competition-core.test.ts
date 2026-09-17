@@ -58,6 +58,15 @@ const monthlyRules = {
   ...rules,
   version: 2 as const,
   dailyAttempts: 2 as const,
+  games: rules.games.map((game) => ({
+    gameId: game.gameId,
+    calibration: [
+      { score: 0, points: 0 },
+      { score: 1, points: 5 },
+      { score: 50, points: 10 },
+      { score: 100, points: 20 },
+    ],
+  })),
   cadence: "monthly" as const,
   winnerCount: 3 as const,
   scoring: {

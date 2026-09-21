@@ -4,6 +4,7 @@ import {
   PERFECT_FRAC,
   bonusCenter,
   markerPosition,
+  type ActiveThrow,
   type PerfectTossState,
   type TossResult,
 } from "./logic";
@@ -37,10 +38,20 @@ export interface TossToast {
   ticksRemaining: number;
 }
 
+export interface TossStickPose {
+  x: number;
+  y: number;
+  angle: number;
+  /** An overthrown stick passes on the far side of the fan. */
+  behindFan: boolean;
+}
+
 export interface TossEffects {
   particles: readonly TossParticle[];
   toast: TossToast | null;
   shakeTicks: number;
+  /** A missed lightstick stays where it fell through the sad reaction. */
+  restingStick: TossStickPose | null;
 }
 
 type Translate = (
@@ -53,6 +64,26 @@ const BAR_Y = DESIGN_H * 0.3;
 const BAR_X0 = DESIGN_W * 0.12;
 const BAR_X1 = DESIGN_W * 0.88;
 const BAR_LENGTH = BAR_X1 - BAR_X0;
+
+const SCALE = DESIGN_W * 0.09;
+const CHARACTER_HEIGHT = SCALE * 3.6;
+const LIGHTSTICK_WIDTH = SCALE * 0.55;
+const IDOL_X = DESIGN_W * 0.16;
+const FAN_X = DESIGN_W * 0.84;
+const GROUND_Y = DESIGN_H * 0.72;
+const ARC_HEIGHT = DESIGN_H * 0.22;
+
+// Hand anchors are fractions of the delivered sprites' own width and height.
+// CATCH_HAND is where the stick's centre sits so its handle rests in
+// girl_catch's cupped hands; re-measure both if either sprite is redrawn.
+const RELEASE_HAND = { x: 0.995, y: 0.322 };
+const CATCH_HAND = { x: 0.159, y: 0.1 };
+
+// The stick arrives this many ticks early so the catch or drop is seen.
+const ARRIVAL_HOLD_TICKS = 3;
+const SHORT_MISS_MIN_X = DESIGN_W * 0.36;
+const SHORT_MISS_GAP = 18;
+const LONG_MISS_GAP = 6;
 
 function roundedPath(
   g: CanvasRenderingContext2D,
@@ -247,52 +278,104 @@ function resultColor(result: TossResult): string {
   return "#ff5a7a";
 }
 
-function drawFlyingLightstick(
-  g: CanvasRenderingContext2D,
-  state: PerfectTossState,
-  images: PerfectTossImages,
-): void {
-  const active = state.thrown;
-  if (!active) return;
-  const scale = DESIGN_W * 0.09;
-  const characterHeight = scale * 3.6;
-  const idolX = DESIGN_W * 0.16;
-  const idolY = DESIGN_H * 0.72;
-  const fanX = DESIGN_W * 0.84;
-  const fanY = DESIGN_H * 0.72;
-  const idolWidth =
-    characterHeight *
-    (images.boy_throw.naturalWidth / images.boy_throw.naturalHeight);
-  const fanWidth =
-    characterHeight *
-    (images.girl_catch.naturalWidth / images.girl_catch.naturalHeight);
-  const releaseX = idolX + idolWidth * (0.995 - 0.5);
-  const releaseY = idolY - characterHeight * (1 - 0.322);
-  const landX = fanX + fanWidth * (0.159 - 0.5);
-  const landY = fanY;
-  const progress = Math.min(1, active.ageTicks / active.durationTicks);
-  const missPenalty =
-    active.result === "miss" ? active.offset * DESIGN_W * 0.5 : 0;
-  const x =
-    releaseX +
-    (landX - releaseX) * progress +
-    missPenalty * Math.max(0, progress - 0.5) * 2;
-  const y =
-    releaseY +
-    (landY - releaseY) * progress -
-    Math.sin(Math.PI * progress) * DESIGN_H * 0.22;
+function spriteWidth(image: HTMLImageElement): number {
+  return CHARACTER_HEIGHT * (image.naturalWidth / image.naturalHeight);
+}
 
+/**
+ * Where the lightstick is at `progress` (0 release, 1 arrival). A catch ends
+ * upright in the fan's hands. A miss ends flat on the ground: thrown before
+ * the sweet spot it falls short in front of her, thrown after it sails over
+ * her head and drops behind, and a wider miss lands further off or flies
+ * higher. Presentation only, so it never draws from the run's seeded random.
+ */
+export function tossStickPose(
+  images: PerfectTossImages,
+  thrown: Pick<ActiveThrow, "offset" | "result">,
+  progress: number,
+): TossStickPose {
+  const releaseX =
+    IDOL_X + spriteWidth(images.boy_throw) * (RELEASE_HAND.x - 0.5);
+  const releaseY = GROUND_Y - CHARACTER_HEIGHT * (1 - RELEASE_HAND.y);
+  const fanWidth = spriteWidth(images.girl_catch);
+  const handX = FAN_X + fanWidth * (CATCH_HAND.x - 0.5);
+
+  let landX = handX;
+  let landY = GROUND_Y - CHARACTER_HEIGHT * (1 - CATCH_HAND.y);
+  let arcHeight = ARC_HEIGHT;
+  let spin = Math.PI * 4;
+  let behindFan = false;
+  if (thrown.result === "miss") {
+    landY = GROUND_Y - LIGHTSTICK_WIDTH / 2;
+    spin = Math.PI * 4.5;
+    if (thrown.offset > 0) {
+      const severity = Math.min(1, thrown.offset / 0.6);
+      landX = FAN_X + fanWidth / 2 + LONG_MISS_GAP;
+      arcHeight = ARC_HEIGHT * (1.1 + 0.25 * severity);
+      behindFan = true;
+    } else {
+      landX = Math.max(
+        SHORT_MISS_MIN_X,
+        Math.min(
+          handX - SHORT_MISS_GAP,
+          handX + thrown.offset * DESIGN_W * 0.5,
+        ),
+      );
+    }
+  }
+
+  return {
+    x: releaseX + (landX - releaseX) * progress,
+    y:
+      releaseY +
+      (landY - releaseY) * progress -
+      Math.sin(Math.PI * progress) * arcHeight,
+    angle: progress * spin,
+    behindFan,
+  };
+}
+
+function drawLightstick(
+  g: CanvasRenderingContext2D,
+  images: PerfectTossImages,
+  pose: TossStickPose,
+  glow: string,
+): void {
   const image = images.lightstick;
   if (!image.complete || image.naturalWidth === 0) return;
-  const width = scale * 0.55;
-  const height = width * (image.naturalHeight / image.naturalWidth);
+  const height = LIGHTSTICK_WIDTH * (image.naturalHeight / image.naturalWidth);
   g.save();
-  g.translate(x, y);
-  g.rotate(progress * Math.PI * 4);
-  g.shadowColor = resultColor(active.result);
+  g.translate(pose.x, pose.y);
+  g.rotate(pose.angle);
+  g.shadowColor = glow;
   g.shadowBlur = 10;
-  g.drawImage(image, -width / 2, -height / 2, width, height);
+  g.drawImage(
+    image,
+    -LIGHTSTICK_WIDTH / 2,
+    -height / 2,
+    LIGHTSTICK_WIDTH,
+    height,
+  );
   g.restore();
+}
+
+function visibleStick(
+  state: PerfectTossState,
+  images: PerfectTossImages,
+  effects: TossEffects,
+): { pose: TossStickPose; glow: string } | null {
+  const active = state.thrown;
+  if (active) {
+    const flightTicks = Math.max(1, active.durationTicks - ARRIVAL_HOLD_TICKS);
+    const progress = Math.min(1, active.ageTicks / flightTicks);
+    return {
+      pose: tossStickPose(images, active, progress),
+      glow: resultColor(active.result),
+    };
+  }
+  return effects.restingStick
+    ? { pose: effects.restingStick, glow: resultColor("miss") }
+    : null;
 }
 
 function drawEnd(
@@ -349,22 +432,25 @@ export function renderPerfectToss(
   drawHud(g, state, t);
   drawTimingBar(g, state);
 
-  const scale = DESIGN_W * 0.09;
+  const stick = visibleStick(state, images, effects);
   drawSprite(
     g,
     images[poseFor("boy", state)],
-    DESIGN_W * 0.16,
-    DESIGN_H * 0.72,
-    scale * 3.6,
+    IDOL_X,
+    GROUND_Y,
+    CHARACTER_HEIGHT,
   );
+  if (stick?.pose.behindFan) drawLightstick(g, images, stick.pose, stick.glow);
   drawSprite(
     g,
     images[poseFor("girl", state)],
-    DESIGN_W * 0.84,
-    DESIGN_H * 0.72,
-    scale * 3.6,
+    FAN_X,
+    GROUND_Y,
+    CHARACTER_HEIGHT,
   );
-  drawFlyingLightstick(g, state, images);
+  if (stick && !stick.pose.behindFan) {
+    drawLightstick(g, images, stick.pose, stick.glow);
+  }
 
   for (const particle of effects.particles) {
     g.globalAlpha = Math.max(0, particle.lifeTicks / 42);

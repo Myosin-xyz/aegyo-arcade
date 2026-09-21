@@ -1,34 +1,28 @@
+import { PALETTE } from "@/shell/palette";
+
 /**
- * Aegyo Arena bunny mark, traced as stroke-based SVG from the brand
- * reference (render-checked against it over 4 iterations; final 5% is
- * Mateo's art-direction call on the live preview). Inline so it sizes
- * via className; color fixed to brand pink.
+ * Aegyo Arena bunny mark, Dai Dai's pixel-art redraw (2026-09-21). Rebuilt
+ * from the delivered PNG as one rectilinear path on the art's own edge
+ * coordinates, which are not a uniform grid, so it stays sharp at any size
+ * instead of shipping a 553 KB raster. The delivery's wordmark is left out:
+ * the hero's live h1 already reads "Aegyo Arena". Inline so it sizes via
+ * className; colour comes from the brand token, not the file's lighter pink.
  */
 
 export function AegyoLogo({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 96 96"
-      fill="none"
+      viewBox="0 0 780 723"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-hidden="true"
+      shapeRendering="crispEdges"
     >
       <path
-        d="M20 47 C21.5 36 25.5 24 30 18.5 C32 15.4 38.5 15.4 40.5 18.5 C43 22.8 45.5 33 46.8 41.5 C47.4 44.5 48 46.8 48 46.8 C48 46.8 48.6 44.5 49.2 41.5 C50.5 33 53 22.8 55.5 18.5 C57.5 15.4 64 15.4 66 18.5 C70.5 24 74.5 36 76 47 C77.3 55.5 78 65.5 77.4 71.5 C76.6 79.8 71.5 83.8 62.5 84.9 C53 86 43 86 33.5 84.9 C24.5 83.8 19.4 79.8 18.6 71.5 C18 65.5 18.7 55.5 20 47 Z"
-        stroke="#ff4f8b"
-        strokeWidth="7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        fillRule="evenodd"
+        fill={PALETTE.brand}
+        d="M197 0H283V21H302V41H324V83H350V124H364V170H381V227H396V170H414V124H437V83H454V41H477V21H494V0H582V21H603V41H624V83H645V124H665V182H686V246H706V311H726V378H743V457H763V536H780V618H763V643H743V664H719V685H698V704H671V722H518V723H454V722H167V723H107V704H81V685H61V664H36V643H17V618H0V536H17V457H36V378H54V311H73V246H93V182H114V124H135V83H156V41H177V21H197ZM218 41V62H197V102H177V147H156V200H135V227H350V200H324V147H302V102H283V62H264V41ZM518 41V62H494V102H477V147H454V200H437V227H645V200H624V147H603V102H582V62H561V41ZM120 266V311H100V378H81V457H61V536H46V604H61V630H81V650H107V672H671V650H698V630H719V604H734V536H719V457H698V378H679V311H658V266H428V311H414V350H364V311H350V266ZM207 398H283V418H302V438H324V516H302V536H283V556H207V536H188V516H167V438H188V418H207ZM494 398H570V418H590V438H610V516H590V536H570V556H494V536H477V516H454V438H477V418H494ZM264 438H226V457H207V497H226V516H264V497H283V457H264ZM512 438V457H494V497H512V516H551V497H570V457H551V438Z"
       />
-      <path
-        d="M22.5 46.5 H44.5 M51.5 46.5 H73.5"
-        stroke="#ff4f8b"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
-      <circle cx="38" cy="64" r="5.5" stroke="#ff4f8b" strokeWidth="5" />
-      <circle cx="58" cy="64" r="5.5" stroke="#ff4f8b" strokeWidth="5" />
     </svg>
   );
 }

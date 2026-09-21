@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type {
   GameContext,
@@ -276,6 +276,17 @@ describe("registry integrity", () => {
           ).toBe(true);
         }
       }
+    }
+  });
+
+  it("every music track exists and stays a short loop, not a full song", () => {
+    for (const entry of listGames()) {
+      if (!entry.musicTrack) continue;
+      const file = join(process.cwd(), "public", entry.musicTrack.slice(1));
+      expect(existsSync(file), entry.musicTrack).toBe(true);
+      // 112kbps is 14 KB/s: the 30-second originals are 411 KB and a raw
+      // 3-minute delivery is 4.2 MB (docs/game-music.md).
+      expect(statSync(file).size, entry.musicTrack).toBeLessThan(560 * 1024);
     }
   });
 

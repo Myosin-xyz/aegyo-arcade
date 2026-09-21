@@ -47,6 +47,10 @@
   A tap before the sweet spot falls short in front of the fan, further away
   the wider the miss. A tap after it flies a higher arc, passes on her far
   side, and lands behind her. The particle burst follows the landing spot.
+- Background music is the lazy loop `perfect-toss.mp3`, cut from Dai Dai's
+  2026-09-21 "Pixel Hearts" (see `docs/game-music.md`). The game shipped
+  silent apart from its synthesized SFX. Music is host presentation, so the
+  replay version 2 closure is untouched.
 - Flight lives in `render.ts` and `module.ts`, outside the replay version 2
   closure. It reads the throw's recorded offset and never draws from the
   seeded random, so stored traces replay unchanged.

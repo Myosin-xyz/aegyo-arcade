@@ -41,8 +41,9 @@
   are localized in English and Latin American Spanish.
 - The game-authored result keeps height, rank, score, and best height on
   screen while the host owns restart, sharing, and counted-run receipts.
-- Background music reuses the existing lazy Freebie Frenzy catalogue track;
-  no duplicate audio asset is shipped.
+- Background music is its own lazy loop, `photocard-stack.mp3`, cut from Dai
+  Dai's 2026-09-21 "Pixel Quest Horizon" (see `docs/game-music.md`). Until
+  then it borrowed the Freebie Frenzy catalogue track.
 
 ## Required vectors (implemented)
 

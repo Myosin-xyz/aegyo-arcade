@@ -183,7 +183,7 @@ const entries: RegistryEntry[] = [
     preview: landingPreview("photocard-stack"),
     scorePresentation: "authored",
     endPresentation: "game-authored",
-    musicTrack: "/games/music/freebie.mp3",
+    musicTrack: "/games/music/photocard-stack.mp3",
     introKeys: [
       "game.photocard-stack.intro.1",
       "game.photocard-stack.intro.2",
@@ -206,6 +206,7 @@ const entries: RegistryEntry[] = [
     preview: landingPreview("perfect-toss"),
     scorePresentation: "authored",
     endPresentation: "game-authored",
+    musicTrack: "/games/music/perfect-toss.mp3",
     introKeys: [
       "game.perfect-toss.intro.1",
       "game.perfect-toss.intro.2",
@@ -247,9 +248,7 @@ const entries: RegistryEntry[] = [
     preview: landingPreview("bias-match"),
     scorePresentation: "authored",
     endPresentation: "game-authored",
-    // Reuse the slower puzzle track from Guess the Slang: it fits a
-    // memory game and avoids shipping a ninth near-duplicate catalog MP3.
-    musicTrack: "/games/music/hangman.mp3",
+    musicTrack: "/games/music/bias-match.mp3",
     introKeys: [
       "game.bias-match.intro.1",
       "game.bias-match.intro.2",
@@ -271,7 +270,7 @@ const entries: RegistryEntry[] = [
     preview: landingPreview("aegyo-pop"),
     scorePresentation: "authored",
     endPresentation: "game-authored",
-    musicTrack: "/games/music/freebie.mp3",
+    musicTrack: "/games/music/aegyo-pop.mp3",
     introKeys: [
       "game.aegyo-pop.intro.1",
       "game.aegyo-pop.intro.2",

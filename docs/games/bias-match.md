@@ -42,8 +42,9 @@
 - The landing card uses a localized 3-second capture of the deterministic
   `bias-match-preview-0` board: peek, flip-down, and a gold double-point match.
   The MP4 is attached only when the shared preview activation rules allow it.
-- Background music reuses the existing lazy Guess the Slang puzzle track;
-  no ninth catalogue audio file is shipped.
+- Background music is its own lazy loop, `bias-match.mp3`, cut from Dai Dai's
+  2026-09-21 "Pixel Puzzle Peace" (see `docs/game-music.md`). Until then it
+  borrowed the Guess the Slang puzzle track.
 - English and Latin American Spanish cover the ready card, HUD, card state,
   feedback, transitions, and results.
 

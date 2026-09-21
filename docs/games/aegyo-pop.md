@@ -59,8 +59,9 @@
 - Five 200x200 source PNG badges are metadata-stripped and exported to 48 KB of
   runtime WebP. The delivery identifies them as generic fictional fan badges
   with no real group, brand, logo, or likeness.
-- Background music reuses the existing lazy Freebie Frenzy action track. Eight
-  synthesized shell-owned SFX cover shots, matches, bombs, danger, waves,
+- Background music is its own lazy loop, `aegyo-pop.mp3`, cut from Dai Dai's
+  2026-09-21 "Pixel Heist" (see `docs/game-music.md`). Until then it borrowed
+  the Freebie Frenzy action track. Eight synthesized shell-owned SFX cover shots, matches, bombs, danger, waves,
   level clears, losses, and the final clear.
 - The landing card uses localized deterministic `aegyo-pop-preview-v1`
   captures: 360x360 WebP posters and 3-second muted H.264 clips, loaded under

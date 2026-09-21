@@ -40,6 +40,16 @@
 - The nine source PNGs are exported as lossless, metadata-stripped WebPs.
   Character-hand anchor fractions remain tied to the delivered
   `boy_throw` and `girl_catch` pixel geometry.
+- A catch ends with the lightstick upright and its handle in `girl_catch`'s
+  cupped hands. The stick arrives three ticks before the 33-tick flight ends,
+  so the catch is on screen before the happy pose replaces it.
+- A miss lands flat on the ground and stays there through the sad reaction.
+  A tap before the sweet spot falls short in front of the fan, further away
+  the wider the miss. A tap after it flies a higher arc, passes on her far
+  side, and lands behind her. The particle burst follows the landing spot.
+- Flight lives in `render.ts` and `module.ts`, outside the replay version 2
+  closure. It reads the throw's recorded offset and never draws from the
+  seeded random, so stored traces replay unchanged.
 
 ## Required vectors
 

@@ -19,9 +19,11 @@ import {
 import { perfectTossMeta } from "./meta";
 import {
   renderPerfectToss,
+  tossStickPose,
   type PerfectTossAsset,
   type PerfectTossImages,
   type TossParticle,
+  type TossStickPose,
   type TossToast,
 } from "./render";
 
@@ -74,6 +76,8 @@ class PerfectTossGame implements ShellLoopGame {
   private particles: TossParticle[] = [];
   private toast: TossToast | null = null;
   private shakeTicks = 0;
+  private landing: TossStickPose | null = null;
+  private restingStick: TossStickPose | null = null;
   private bestScore = 0;
   private paused = false;
   private endedReported = false;
@@ -116,6 +120,8 @@ class PerfectTossGame implements ShellLoopGame {
     this.particles = [];
     this.toast = null;
     this.shakeTicks = 0;
+    this.landing = null;
+    this.restingStick = null;
     this.paused = false;
     this.endedReported = false;
     this.competitionTrace = run.competition?.captureTrace
@@ -139,7 +145,10 @@ class PerfectTossGame implements ShellLoopGame {
     const event = stepPerfectToss(this.state);
     this.competitionTrace?.advanceTick();
     this.updateEffects();
-    if (event?.kind === "landed") this.burstFor(event.result);
+    if (event?.kind === "landed") {
+      this.burstFor(event.result);
+      if (event.result === "miss") this.restingStick = this.landing;
+    }
     if (event?.kind === "ended") this.endRun();
   }
 
@@ -155,6 +164,7 @@ class PerfectTossGame implements ShellLoopGame {
         particles: this.particles,
         toast: this.toast,
         shakeTicks: this.shakeTicks,
+        restingStick: this.restingStick,
       },
       this.ctx.t,
     );
@@ -169,6 +179,8 @@ class PerfectTossGame implements ShellLoopGame {
     this.competitionTrace = null;
     this.particles = [];
     this.toast = null;
+    this.landing = null;
+    this.restingStick = null;
   }
 
   private onPointer(pointer: NormalizedPointer): void {
@@ -179,6 +191,10 @@ class PerfectTossGame implements ShellLoopGame {
     if (!this.state || !this.rng || this.paused || this.endedReported) return;
     const event = attemptToss(this.state, this.rng);
     if (!event) return;
+    this.landing =
+      this.images && this.state.thrown
+        ? tossStickPose(this.images, this.state.thrown, 1)
+        : null;
     this.competitionTrace?.record("perfect-toss:throw");
     this.ctx.audio.play("toss-flight");
     this.presentAttempt(event);
@@ -235,8 +251,8 @@ class PerfectTossGame implements ShellLoopGame {
         : result === "good"
           ? "#4ff0ff"
           : "#ff5a7a";
-    const x = result === "miss" ? 310 : 294;
-    const y = result === "miss" ? 420 : 345;
+    const x = this.landing?.x ?? (result === "miss" ? 310 : 294);
+    const y = this.landing?.y ?? (result === "miss" ? 420 : 345);
     for (let index = 0; index < count; index += 1) {
       this.particles.push({
         x,

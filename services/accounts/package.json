@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs tests/runtime-unit.test.mjs tests/mailjet-preflight.test.mjs tests/mail.test.mjs ui/*.test.mjs",
+    "test:production-cutover": "node scripts/check-runtime.mjs && node --test tests/production-cutover.test.mjs",
     "proof": "node scripts/prove.mjs",
     "start": "node src/server.mjs",
     "migrate": "node scripts/migrate.mjs",

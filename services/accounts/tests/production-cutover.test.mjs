@@ -17,7 +17,10 @@ import {
   validateRecoveryEvidence,
 } from "../scripts/production-cutover-lib.mjs";
 import { productionCutoverConfig } from "../scripts/production-cutover-config.mjs";
-import { REQUIRED_USER_OWNERSHIP_EDGES } from "../scripts/production-cutover-db.mjs";
+import {
+  LOGICAL_USER_OWNERSHIP_EDGES,
+  REQUIRED_USER_OWNERSHIP_EDGES,
+} from "../scripts/production-cutover-db.mjs";
 
 const reviewedRevision = "c".repeat(40);
 const base = (phase = "inspect") => ({
@@ -389,6 +392,15 @@ test("the complete live User FK inventory is mandatory", () => {
     "SuggestedEdit.reviewedById",
   ])
     assert.ok(REQUIRED_USER_OWNERSHIP_EDGES.includes(edge));
+});
+
+test("runtime user-id columns without legacy foreign keys remain ownership edges", () => {
+  assert.deepEqual(LOGICAL_USER_OWNERSHIP_EDGES, [
+    { table: "Follow", column: "followerId" },
+    { table: "SlangVote", column: "userId" },
+  ]);
+  for (const { table, column } of LOGICAL_USER_OWNERSHIP_EDGES)
+    assert.ok(REQUIRED_USER_OWNERSHIP_EDGES.includes(`${table}.${column}`));
 });
 
 test("restart status resumes committed import and mapping states without reimport", () => {

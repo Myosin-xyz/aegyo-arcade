@@ -136,6 +136,17 @@ for (const source of accountFiles)
 const aegyoFiles = ["scripts/shared-auth/reconciliation-lib.mjs"];
 for (const source of aegyoFiles)
   await copyTracked(aegyo, reviewedAegyoRevision, source, `aegyo/${source}`);
+const operator = `#!/bin/sh
+set -eu
+exec node /operator/accounts/scripts/production-cutover.mjs ${liveAttestation.phase}
+`;
+hashes["operator.sh"] = createHash("sha256").update(operator).digest("hex");
+const operatorFile = await open(join(output, "operator.sh"), "wx", 0o600);
+try {
+  await operatorFile.writeFile(operator);
+} finally {
+  await operatorFile.close();
+}
 const sourceManifest = {
   version: 1,
   accountCommit,
@@ -163,9 +174,10 @@ RUN npm ci && npm cache clean --force
 COPY accounts/ ./
 COPY aegyo/ /operator/aegyo/
 COPY production-source-manifest.json /operator/production-source-manifest.json
+COPY --chmod=500 operator.sh /operator/operator.sh
 RUN mkdir -p /operator/accounts/.proof/production-cutover /operator/aegyo/.proof && chown -R node:node /operator
 USER node
-ENTRYPOINT ["node", "/operator/accounts/scripts/production-cutover.mjs"]
+ENTRYPOINT ["/operator/operator.sh"]
 `;
 const docker = await open(join(output, "Dockerfile"), "wx", 0o600);
 try {

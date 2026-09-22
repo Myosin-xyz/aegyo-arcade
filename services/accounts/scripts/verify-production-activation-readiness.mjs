@@ -213,9 +213,7 @@ try {
     typeof authorizePayload.url === "string"
       ? authorizePayload.url
       : "https://invalid.invalid");
-  const callback = new URL(
-    redirectURL,
-  );
+  const callback = new URL(redirectURL);
   const code = callback.searchParams.get("code");
   if (callback.origin + callback.pathname !== client.redirectUri || !code)
     fail("production_authorization_code_failed");

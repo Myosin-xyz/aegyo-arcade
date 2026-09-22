@@ -244,8 +244,16 @@ export const REQUIRED_USER_OWNERSHIP_EDGES = Object.freeze([
   "SuggestedEdit.userId",
 ]);
 
+// These runtime-created tables predate database-level foreign keys, but their
+// columns still carry Aegyo user ids. Treat them as ownership edges and verify
+// both their catalog shape and their row ownership during the cutover.
+export const LOGICAL_USER_OWNERSHIP_EDGES = Object.freeze([
+  Object.freeze({ table: "Follow", column: "followerId" }),
+  Object.freeze({ table: "SlangVote", column: "userId" }),
+]);
+
 async function captureOwnershipRows(client) {
-  const edges = (
+  const foreignKeyEdges = (
     await client.query(`SELECT src.relname AS table_name, source_col.attname AS column_name
       FROM pg_constraint fk
       JOIN pg_class src ON src.oid=fk.conrelid
@@ -260,6 +268,31 @@ async function captureOwnershipRows(client) {
         AND src.relname <> 'SharedAuthIdentity'
       ORDER BY src.relname, source_col.attname`)
   ).rows.map((row) => ({ table: row.table_name, column: row.column_name }));
+  const logicalEdges = (
+    await client.query(`SELECT c.relname AS table_name, a.attname AS column_name
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid=c.relnamespace
+      JOIN pg_attribute a ON a.attrelid=c.oid
+      WHERE n.nspname='public' AND c.relkind IN ('r','p')
+        AND a.attnum > 0 AND NOT a.attisdropped
+        AND ((c.relname='Follow' AND a.attname='followerId')
+          OR (c.relname='SlangVote' AND a.attname='userId'))
+      ORDER BY c.relname, a.attname`)
+  ).rows.map((row) => ({ table: row.table_name, column: row.column_name }));
+  if (logicalEdges.length !== LOGICAL_USER_OWNERSHIP_EDGES.length)
+    refuse("required_logical_user_ownership_edge_missing");
+  const edges = [
+    ...new Map(
+      [...foreignKeyEdges, ...logicalEdges].map((edge) => [
+        `${edge.table}.${edge.column}`,
+        edge,
+      ]),
+    ).values(),
+  ].sort(
+    (left, right) =>
+      left.table.localeCompare(right.table) ||
+      left.column.localeCompare(right.column),
+  );
   const edgeNames = new Set(
     edges.map((edge) => `${edge.table}.${edge.column}`),
   );

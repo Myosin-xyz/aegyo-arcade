@@ -201,9 +201,19 @@ try {
     redirect: "manual",
     signal: AbortSignal.timeout(10_000),
   });
-  const callback = new URL(
-    authorize.headers.get("location") || "https://invalid.invalid",
-  );
+  const authorizePayload = authorize.headers
+    .get("content-type")
+    ?.includes("application/json")
+    ? await authorize.json()
+    : null;
+  const redirectURL =
+    authorize.headers.get("location") ||
+    (authorize.ok &&
+    authorizePayload?.redirect === true &&
+    typeof authorizePayload.url === "string"
+      ? authorizePayload.url
+      : "https://invalid.invalid");
+  const callback = new URL(redirectURL);
   const code = callback.searchParams.get("code");
   if (callback.origin + callback.pathname !== client.redirectUri || !code)
     fail("production_authorization_code_failed");

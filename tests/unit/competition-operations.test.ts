@@ -9,7 +9,7 @@ import {
 const at = (value: string) => new Date(value);
 
 describe("competition candidate standings", () => {
-  it("uses positive totals, maximum UTC daily total, then receipt reaching the final total", () => {
+  it("uses total points, most top-tier game results, then receipt reaching the final total", () => {
     const rows: StandingContribution[] = [
       {
         memberId: "later",
@@ -21,6 +21,7 @@ describe("competition candidate standings", () => {
         memberId: "later",
         dayKey: "2026-09-02",
         points: 60,
+        topTierResults: 1,
         receivedAt: at("2026-09-03T01:00:00Z"),
       },
       {
@@ -33,6 +34,7 @@ describe("competition candidate standings", () => {
         memberId: "earlier",
         dayKey: "2026-09-02",
         points: 60,
+        topTierResults: 1,
         receivedAt: at("2026-09-02T02:00:00Z"),
       },
       {
@@ -56,10 +58,13 @@ describe("competition candidate standings", () => {
     ];
 
     expect(rankCandidateStandings(rows).map((row) => row.memberId)).toEqual([
-      "daily",
       "earlier",
       "later",
+      "daily",
     ]);
+    expect(
+      rankCandidateStandings(rows, "legacy_daily").map((row) => row.memberId),
+    ).toEqual(["daily", "earlier", "later"]);
   });
 
   it("keeps an exact tie shared and provisional instead of using member identity", () => {
@@ -115,6 +120,7 @@ describe("competition candidate standings", () => {
   it("fails closed on prize-position ties and incomplete monthly allocations", () => {
     const base = {
       totalPoints: 20,
+      topTierResults: 0,
       maxUtcDailyPoints: 20,
       reachedFinalTotalAt: "2026-09-01T01:00:00.000Z",
       requiresReview: false,

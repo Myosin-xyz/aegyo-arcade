@@ -12,6 +12,7 @@ type Standing = {
   username: string;
   rank: number;
   totalPoints: number;
+  topTierResults?: number;
   maxDailyPoints: number;
   maxPeriodPoints?: number;
 };
@@ -122,6 +123,7 @@ const translations = {
     points: "Points",
     bestDay: "Best day",
     bestWeek: "Best week",
+    topTiers: "Top tiers",
     empty: "No verified scores yet.",
     yourRound: "Your round",
     signedOut: "Sign in to enroll and play official attempts.",
@@ -175,6 +177,8 @@ const translations = {
       `Complete all ${games} active game${games === 1 ? "" : "s"} in the same week to earn a ${points}-point Full Arena bonus.`,
     monthlyWinners: (count: number) =>
       `The top ${count} players are selected when the monthly round closes.`,
+    tieOrder:
+      "Ties are ranked by top-tier game results, then by who reached the point total first.",
     localReset: (timeZone: string) =>
       `Daily limits reset at midnight in ${timeZone}.`,
     game: "Game",
@@ -211,6 +215,7 @@ const translations = {
     points: "Puntos",
     bestDay: "Mejor día",
     bestWeek: "Mejor semana",
+    topTiers: "Niveles máximos",
     empty: "Aún no hay puntajes verificados.",
     yourRound: "Tu ronda",
     signedOut: "Inicia sesión para inscribirte y jugar intentos oficiales.",
@@ -267,6 +272,8 @@ const translations = {
       `Completa ${games === 1 ? "el" : "los"} ${games} juego${games === 1 ? "" : "s"} activo${games === 1 ? "" : "s"} en la misma semana para ganar un bono Full Arena de ${points} puntos.`,
     monthlyWinners: (count: number) =>
       `Los ${count} mejores jugadores se seleccionan cuando termina la ronda mensual.`,
+    tieOrder:
+      "Los empates se ordenan por resultados en el nivel máximo y luego por quién alcanzó antes el total de puntos.",
     localReset: (timeZone: string) =>
       `Los límites diarios se reinician a medianoche en ${timeZone}.`,
     game: "Juego",
@@ -819,6 +826,7 @@ function Rules({
               </li>
             ) : null}
             <li>{text.monthlyWinners(round.rules.winnerCount)}</li>
+            <li>{text.tieOrder}</li>
           </>
         ) : null}
       </ul>
@@ -869,6 +877,9 @@ function Standings({
                 <th scope="col">#</th>
                 <th scope="col">{text.player}</th>
                 <th scope="col">{text.points}</th>
+                {round.rules.version === 2 ? (
+                  <th scope="col">{text.topTiers}</th>
+                ) : null}
                 <th scope="col">
                   {round.rules.version === 2 ? text.bestWeek : text.bestDay}
                 </th>
@@ -880,6 +891,9 @@ function Standings({
                   <td>{row.rank}</td>
                   <th scope="row">@{row.username}</th>
                   <td>{row.totalPoints}</td>
+                  {round.rules.version === 2 ? (
+                    <td>{row.topTierResults ?? 0}</td>
+                  ) : null}
                   <td>
                     {round.rules.version === 2
                       ? (row.maxPeriodPoints ?? row.maxDailyPoints)

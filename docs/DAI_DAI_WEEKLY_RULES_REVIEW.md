@@ -4,6 +4,8 @@
 **Source:** the `aegyo_arena_leaderboard` handoff supplied by Mateo  
 **Status:** source review retained for game mappings. Simon's September 17
 decision changed the prize cadence to monthly and the top three receive prizes.
+Dai Dai's September 22 reply specifies monthly summation, source caps, and a
+proposed tie order; Simon has not yet confirmed the final prize and Claw rules.
 The current implementation record is
 [`MONTHLY_LEADERBOARD_FOUNDATION_2026-09-17.md`](./MONTHLY_LEADERBOARD_FOUNDATION_2026-09-17.md).
 Prize competition remains disabled until the remaining point, tie, prize, and
@@ -29,8 +31,8 @@ foundation.
 - The weekly round resets Monday at 00:00 in `America/New_York`. The service
   computes those boundaries with the IANA time zone and stores exact UTC
   instants, including across daylight-saving changes.
-- Ranking order is total points, best weekly point total, then the receipt time
-  at which the final total was reached. Receipt time, rather than asynchronous
+- Ranking order is total points, most top-tier verified game results, then the
+  receipt time at which the final total was reached. Receipt time, rather than asynchronous
   verification completion time, is used. A remaining exact tie keeps a shared
   rank and requires the published award-allocation rule.
 - Instant quits and verified zero results earn no tier.
@@ -84,6 +86,30 @@ The monthly round's exact opening and closing instants resolve partial weeks at
 month boundaries. Public copy must state those instants and the New York daily
 and weekly boundaries before launch.
 
+Dai Dai's September 22 proposal is recorded without enabling unverified sources:
+
+- Claw: approximately one win in five, with only one awarded grab per member
+  each week. A/E would award 20 points, D/B/K 30, and `!` 50. Simon's earlier
+  suggested 10-point minimum plus 100-point vowel bonus conflicts with this
+  proposal; Simon must settle the values before publication. The existing
+  Claw server records only `win`, `miss`, or `drop` against a guest device. It
+  does not prove the plush letter or attach the win to an Accounts member, so
+  it cannot yet award prize points.
+- Polls: 10 points per distinct eligible vote, at most five votes and 50
+  points per member per week, limited to polls in the five most recent homepage
+  articles. Aegyo currently stores poll votes in its own database. A trusted
+  member mapping and a frozen eligible-poll list are required before these can
+  enter the Arcade ledger; browser-submitted claims cannot be accepted.
+- Slang Memory: the weekly best would use the same frozen tier calibration as
+  other games. The game and prize-verifiable score source are not in either
+  current Arcade or upstream Aegyo code, so it remains ineligible until built.
+
+The new tie order is implemented for current verified games. Only a weekly
+game best at that game's highest frozen tier counts as a top-tier result;
+Full Arena and engagement points do not increase that count. An exact tie after
+all three rules retains a shared rank and blocks material prize allocation
+until its published handling is approved.
+
 ## Identity and existing users
 
 - Entry is for a signed-in Accounts member with a verified email and unique
@@ -118,8 +144,9 @@ and weekly boundaries before launch.
    deadline and fulfillment owner.
 3. Approve the three currently material-verifiable games for the first public
    round, or move the date to allow more verifiers to be completed and rehearsed.
-4. Confirm poll and slang-memory point values, caps, attribution, reversal and
-   abuse handling, or explicitly exclude engagement points from the first round.
+4. Confirm the final Claw values, source attribution, and source-verification
+   policy, and either allow a verified-games-only first round or wait for Claw,
+   polls, and Slang Memory to be fully connected.
 
 ## Launch acceptance
 

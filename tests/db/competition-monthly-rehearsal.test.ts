@@ -325,6 +325,7 @@ integration("three-game prize-free monthly rehearsal", () => {
       expect.objectContaining({
         memberId: MEMBER,
         totalPoints: 50,
+        topTierResults: 1,
         provisionalRank: 1,
         requiresReview: false,
       }),

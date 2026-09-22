@@ -8,6 +8,9 @@
 - A contest round can run for a calendar month.
 - Each eligible game's best verified result counts once per local competition week.
 - The monthly total is the sum of those weekly game contributions.
+- When totals tie, verified top-tier weekly game results rank next, followed by
+  the first receipt time at which the final total was reached. Engagement and
+  Full Arena bonuses never count as top-tier game results.
 - The public rules declare three winners.
 - Full Arena uses the number of games frozen into that round. It is never hardcoded to ten.
 - The Full Arena bonus can be changed in the round definition without changing application code.
@@ -36,13 +39,15 @@ Round closure snapshots both game contributions and Full Arena bonuses. Existing
 
 ## Deliberately pending product input
 
-The following values are not guessed in code and can be supplied through the
-reviewed round definition:
+The following values are not guessed in code and require the reviewed round
+definition or a trusted source integration:
 
 - final Full Arena bonus amount;
-- the points and caps for polls and the slang memory game;
-- the exact claw-machine weights beyond the stated `+10` successful-grab minimum and `+100` vowel-plush bonus;
-- the final leaderboard tie rule and how a tie crossing third place affects prize allocation;
+- the final Claw values and verified plush-letter evidence (Dai Dai's September
+  22 proposal conflicts with Simon's earlier `+10`/`+100` suggestion);
+- the trusted Aegyo poll-vote feed, eligible-poll snapshot and member mapping;
+- the Slang Memory game and verifiable score source, which are not yet present;
+- how an exact tie crossing third place affects prize allocation;
 - exact prize-to-rank assignments, eligibility, claim deadline, and fulfillment copy.
 
 These values belong in a frozen version-2 round definition or a reviewed engagement-source policy. A material-prize round cannot open until its public HTTPS rules and approval fields are complete and `ARCADE_MATERIAL_COMPETITION_ENABLED` is enabled.
@@ -51,7 +56,9 @@ These values belong in a frozen version-2 round definition or a reviewed engagem
 
 1. Record the approved score tables and Full Arena value in a new version-2
    definition together with their decision references.
-2. Add the approved tie order to the candidate snapshot calculation and show the same order in public rules.
-3. Add idempotent signed ingestion for poll and slang events using the approved point values and per-member caps.
-4. Add the claw scoring adapter after the authoritative chute and plush-letter evidence is identified in the existing claw result.
+2. Freeze the proposed tie order in the published rules once Simon approves it;
+   the candidate snapshot calculation and operator view now implement it.
+3. Add a trusted poll source after the Aegyo vote/member mapping is proven.
+4. Add the Claw scoring adapter after the server records the awarded plush
+   letter and links the play to a verified Accounts member.
 5. Create the first monthly round as a draft, assign rank-one through rank-three prize keys in the operator dashboard, and run the full staging lifecycle before opening it.

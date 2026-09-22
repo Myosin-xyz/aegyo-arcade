@@ -25,6 +25,7 @@ type Standing = {
   username: string | null;
   totalPoints: number;
   maxUtcDailyPoints: number;
+  topTierResults: number;
   reachedFinalTotalAt: string;
   provisionalRank: number;
   exactTieKey: string | null;
@@ -728,11 +729,7 @@ export function CompetitionOperatorPanel() {
                           <th>Rank</th>
                           <th>Player</th>
                           <th>Points</th>
-                          <th>
-                            {selected.round.rulesVersion === 2
-                              ? "Best week"
-                              : "Best day"}
-                          </th>
+                          <th>Top tiers</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -741,7 +738,7 @@ export function CompetitionOperatorPanel() {
                             <td>#{standing.provisionalRank}</td>
                             <td>@{standing.username ?? "unavailable"}</td>
                             <td>{standing.totalPoints}</td>
-                            <td>{standing.maxUtcDailyPoints}</td>
+                            <td>{standing.topTierResults}</td>
                           </tr>
                         ))}
                       </tbody>

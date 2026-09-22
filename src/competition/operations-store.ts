@@ -15,6 +15,7 @@ import {
   assertRoundAvailable,
   CompetitionError,
   competitionEnabled,
+  isTopTierResult,
   parseRules,
   type RoundRules,
 } from "./rules";
@@ -299,19 +300,20 @@ export async function closeRound(
 
     const source = rows<{
       member_id: string;
+      game_id: string | null;
       day_key: string;
       points: number;
       received_at: Date;
       attempt_id: string | null;
     }>(
       await tx.execute(sql`
-        SELECT b.member_id, b.period_key AS day_key, b.points, b.received_at, b.attempt_id
+        SELECT b.member_id, b.game_id, b.period_key AS day_key, b.points, b.received_at, b.attempt_id
           FROM competition_period_best b
           JOIN competition_attempts a ON a.id = b.attempt_id
          WHERE b.round_id = ${input.roundId}
            AND b.points > 0 AND a.status = 'verified'
         UNION ALL
-        SELECT b.member_id, b.period_key AS day_key, b.points, b.earned_at AS received_at,
+        SELECT b.member_id, NULL::text AS game_id, b.period_key AS day_key, b.points, b.earned_at AS received_at,
                NULL::uuid AS attempt_id
           FROM competition_period_bonuses b
          WHERE b.round_id = ${input.roundId} AND b.points > 0
@@ -324,7 +326,13 @@ export async function closeRound(
         dayKey: item.day_key,
         points: item.points,
         receivedAt: asDate(item.received_at),
+        topTierResults:
+          item.game_id &&
+          isTopTierResult(round.rules, item.game_id, item.points)
+            ? 1
+            : 0,
       })),
+      round.rules.version === 1 ? "legacy_daily" : "top_tier",
     );
     const gameHighScores = rows<{
       member_id: string;

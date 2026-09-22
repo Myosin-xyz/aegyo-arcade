@@ -23,7 +23,7 @@ An authenticated member accepts the exact rules digest and enrolls. Issuance res
 
 If the identity provider is unavailable at submission, the receipt remains `pending` with `security_confirmed=false`. There is no background identity retry worker. After identity service recovery, the same signed-in member must retry the same `PUT /api/competition/attempts/{attemptId}` with the identical trace. That confirms identity state and permits verification. The operator `settle` command only replays evidence already marked `security_confirmed=true`; it never grants identity confirmation. A still-unresolved receipt requires individual human review and the audited `reject-pending` command below. There is no blanket rejection command.
 
-Verification replays the trace, enforces size/event/time bounds, and converts the recomputed score through the round's fixed calibration table. The serialized daily-best update writes only the point difference to the immutable ledger. Public cumulative standings include positive totals only. Their tie order is total points, maximum combined points on one UTC day, then the earlier receipt that reached the final total. A remaining exact tie retains a shared rank and requires explicit review; member identity is never a hidden tie-breaker. Public per-game high scores are display-only and do not alter prize rank.
+Verification replays the trace, enforces size/event/time bounds, and converts the recomputed score through the round's fixed calibration table. The serialized scoring-best update writes only the point difference to the immutable ledger. Public cumulative standings include positive totals only. Version-2 monthly rounds rank by total points, the count of weekly game bests at the highest frozen tier, then the earlier receipt that reached the final total. Version-1 rounds retain their original maximum-UTC-day tie rule. A remaining exact tie retains a shared rank and requires explicit review; member identity is never a hidden tie-breaker. Public per-game high scores are display-only and do not alter prize rank.
 
 The [replay source freeze](DECISIONS/0008-replay-source-freeze.md) pins the complete local dependency closure of verifier v1 with source hashes and a guard test. Do not refresh those hashes to make a changed game pass: preserve the old verifier and introduce a new trace version. The database freezes rules, dates, slug, evidence, ledger, candidate snapshot, final result, and operation audit at the relevant lifecycle stages, but does not pin a verifier build hash itself. Run the guard before every release; the deployment process must enforce this policy through final review and claims.
 
@@ -180,7 +180,7 @@ The finalization file has this shape:
 {
   "tieDecisions": [
     {
-      "exactTieKey": "POINTS:MAX_DAILY:REACHED_AT",
+      "exactTieKey": "POINTS:TOP_TIER_RESULTS:REACHED_AT",
       "resolution": "shared_rank",
       "memberIds": ["MEMBER_UUID_A", "MEMBER_UUID_B"],
       "rationale": "Published shared-placement rule reference"

@@ -264,6 +264,17 @@ export function pointsForScore(
       ?.points ?? 0
   );
 }
+/** Highest frozen tier for a verified game best; bonuses and engagement never qualify. */
+export function isTopTierResult(
+  rules: RoundRules,
+  gameId: string,
+  points: number,
+): boolean {
+  const game = rules.games.find((item) => item.gameId === gameId);
+  return Boolean(
+    game && points > 0 && points === game.calibration.at(-1)?.points,
+  );
+}
 export function utcDay(now: Date): string {
   return now.toISOString().slice(0, 10);
 }

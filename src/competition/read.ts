@@ -11,28 +11,37 @@ import {
   assertRoundAvailable,
   competitionAttemptDayKey,
   competitionScorePeriodKey,
+  isTopTierResult,
   parseRules,
   publicRules,
+  type RoundRules,
 } from "./rules";
-export async function roundStandings(db: Db, roundId: string) {
+export async function roundStandings(
+  db: Db,
+  roundId: string,
+  rules: RoundRules,
+) {
   const contributions = (
     await db.execute(sql`
-      SELECT member_id AS "memberId",points,period_key AS "dayKey",received_at AS "receivedAt"
+      SELECT member_id AS "memberId",game_id AS "gameId",points,period_key AS "dayKey",received_at AS "receivedAt"
         FROM competition_period_best WHERE round_id=${roundId}::uuid
       UNION ALL
-      SELECT member_id AS "memberId",points,period_key AS "dayKey",earned_at AS "receivedAt"
+      SELECT member_id AS "memberId",NULL::text AS "gameId",points,period_key AS "dayKey",earned_at AS "receivedAt"
         FROM competition_period_bonuses WHERE round_id=${roundId}::uuid
       ORDER BY "memberId","dayKey"
     `)
-  ).rows as unknown as StandingContribution[];
+  ).rows as unknown as (StandingContribution & { gameId: string | null })[];
   const ranked = rankCandidateStandings(
     contributions.map((row) => ({
       ...row,
+      topTierResults:
+        row.gameId && isTopTierResult(rules, row.gameId, row.points) ? 1 : 0,
       receivedAt:
         row.receivedAt instanceof Date
           ? row.receivedAt
           : new Date(row.receivedAt),
     })),
+    rules.version === 1 ? "legacy_daily" : "top_tier",
   );
   const names = (
     await db.execute(
@@ -50,6 +59,7 @@ export async function roundStandings(db: Db, roundId: string) {
         username: byId.get(row.memberId)!,
         rank: row.provisionalRank,
         totalPoints: row.totalPoints,
+        topTierResults: row.topTierResults,
         maxDailyPoints: row.maxUtcDailyPoints,
         maxPeriodPoints: row.maxUtcDailyPoints,
       })),
@@ -109,6 +119,7 @@ async function finalPublishedRound(db: Db, roundId: string) {
       username: byId.get(row.memberId)!,
       rank: row.finalRank,
       totalPoints: row.totalPoints,
+      topTierResults: row.topTierResults,
       maxDailyPoints: row.maxUtcDailyPoints,
       maxPeriodPoints: row.maxUtcDailyPoints,
     }));
@@ -155,7 +166,9 @@ export async function publicRound(db: Db, slug?: string) {
   assertRoundAvailable(row.rules);
   const finalized =
     row.status === "final" ? await finalPublishedRound(db, row.id) : null;
-  const standing = finalized ? null : await roundStandings(db, row.id);
+  const standing = finalized
+    ? null
+    : await roundStandings(db, row.id, row.rules);
   const gameHighScores = finalized
     ? finalized.gameHighScores
     : await liveGameHighScores(db, row.id);
@@ -187,7 +200,7 @@ export async function memberRound(
   emailVerified: boolean,
   roundId: string,
 ) {
-  const [roundResult, enrollment, profile, attempts, board, awards] =
+  const [roundResult, enrollment, profile, attempts, awards] =
     await Promise.all([
       db.execute(
         sql`SELECT rules,status,opens_at,closes_at,statement_timestamp() AS server_now FROM competition_rounds WHERE id=${roundId}::uuid`,
@@ -201,7 +214,6 @@ export async function memberRound(
       db.execute(
         sql`SELECT id,game_id AS "gameId",day_key AS "dayKey",score_period_key AS "scorePeriodKey",status,score,points FROM competition_attempts WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid ORDER BY issued_at DESC LIMIT 200`,
       ),
-      roundStandings(db, roundId),
       db.execute(
         sql`SELECT c.id,c.award_key AS "awardKey",c.status,c.final_rank AS rank
             FROM competition_award_claims c
@@ -211,6 +223,7 @@ export async function memberRound(
       ),
     ]);
   const roundRules = parseRules(roundResult.rows[0]?.rules);
+  const board = await roundStandings(db, roundId, roundRules);
   const serverNow = new Date(roundResult.rows[0]?.server_now as Date | string);
   const roundRow = roundResult.rows[0];
   const roundCanPlay =

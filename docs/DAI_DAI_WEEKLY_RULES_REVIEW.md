@@ -94,7 +94,8 @@ Dai Dai's September 22 proposal is recorded without enabling unverified sources:
   proposal; Simon must settle the values before publication. The existing
   Claw server records only `win`, `miss`, or `drop` against a guest device. It
   does not prove the plush letter or attach the win to an Accounts member, so
-  it cannot yet award prize points.
+  it cannot yet award prize points. The current aimable plush set is
+  `D/A/E/B/K/A2`; there is no `!` plush in the game manifest or aim grid yet.
 - Polls: 10 points per distinct eligible vote, at most five votes and 50
   points per member per week, limited to polls in the five most recent homepage
   articles. Aegyo currently stores poll votes in its own database. A trusted

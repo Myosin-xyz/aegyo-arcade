@@ -31,6 +31,7 @@ const copy = {
     home: "Back to games",
     verified: "Email verified",
     unverified: "Verify your email before choosing a competition username.",
+    verifyEmail: "Verify email",
     verifiedAgain: "Already verified it? Sign in again to refresh your status.",
     username: "Competition username",
     usernameHelp:
@@ -59,6 +60,7 @@ const copy = {
     home: "Volver a los juegos",
     verified: "Correo verificado",
     unverified: "Verifica tu correo antes de elegir un nombre de competencia.",
+    verifyEmail: "Verificar correo",
     verifiedAgain:
       "¿Ya lo verificaste? Inicia sesión de nuevo para actualizar tu estado.",
     username: "Nombre de competencia",
@@ -217,13 +219,22 @@ export function AccountPanel() {
               {view.profile.emailVerified ? text.verified : text.unverified}
             </div>
             {!view.profile.emailVerified && (
-              <Link
-                className={styles.refreshVerification}
-                href="/api/accounts/login?returnTo=%2Faccount"
-                prefetch={false}
-              >
-                {text.verifiedAgain}
-              </Link>
+              <>
+                <Link
+                  className={styles.refreshVerification}
+                  href="/api/accounts/verify-email"
+                  prefetch={false}
+                >
+                  {text.verifyEmail}
+                </Link>
+                <Link
+                  className={styles.refreshVerification}
+                  href="/api/accounts/login?returnTo=%2Faccount"
+                  prefetch={false}
+                >
+                  {text.verifiedAgain}
+                </Link>
+              </>
             )}
             <div>
               <h2>{text.username}</h2>

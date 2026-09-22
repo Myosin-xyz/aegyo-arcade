@@ -30,7 +30,7 @@ export const PRODUCTION = Object.freeze({
   aegyoStartCommand: "npm start",
   aegyoPredeployCommand: "none",
   accountsImageDigest:
-    "sha256:324869c98dd05b91be542bebd94896303b0586ec76808df92c9bd1b7294bfc8a",
+    "sha256:e9c92fa70a9cd250d470f73894ac8474e9d48b64b4afb52a39b3c4f30814ce69",
 });
 
 const confirmations = Object.freeze({

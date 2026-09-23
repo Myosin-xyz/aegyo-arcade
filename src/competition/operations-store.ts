@@ -404,6 +404,8 @@ export async function finalizeRound(
   return db.transaction(async (tx) => {
     const lockedRound = await lockRound(tx, input.roundId);
     assertRoundAvailable(lockedRound.rules);
+    if (lockedRound.rules.mode === "community" && input.awards.length > 0)
+      throw new CompetitionError("community_round_has_no_prizes", 409);
     if (materialLaunchBlockers(lockedRound.rules).length > 0)
       throw new CompetitionError("material_launch_not_ready", 409);
     const requestedReview = {

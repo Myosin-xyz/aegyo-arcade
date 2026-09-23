@@ -14,6 +14,10 @@ import {
 } from "../../scripts/competition/preflight-lib.mjs";
 import { main as preflightMain } from "../../scripts/competition/preflight.mjs";
 import { operatorDatabaseClientConfig } from "../../scripts/competition/preflight.mjs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { X509Certificate } from "node:crypto";
 
 function completeProof() {
   return {
@@ -99,6 +103,67 @@ describe("competition database preflight", () => {
         "postgresql://operator:secret@127.0.0.1:5432/arcade",
       ),
     ).not.toHaveProperty("ssl");
+  });
+
+  it("supports remote TLS with a pinned CA and explicit certificate name", () => {
+    const directory = mkdtempSync(join(tmpdir(), "arcade-operator-ca-"));
+    const caFile = join(directory, "root.crt");
+    writeFileSync(caFile, "-----BEGIN CERTIFICATE-----\nfixture\n");
+    const env = {
+      NODE_ENV: "test" as const,
+      COMPETITION_OPERATOR_DATABASE_CA_FILE: caFile,
+      COMPETITION_OPERATOR_DATABASE_TLS_SERVER_NAME: "localhost",
+    };
+    try {
+      const config = operatorDatabaseClientConfig(
+        "postgresql://operator:secret@proxy.rlwy.net/arcade",
+        env,
+      );
+      expect(config.ssl).toMatchObject({
+        ca: expect.any(Buffer),
+        rejectUnauthorized: true,
+        checkServerIdentity: expect.any(Function),
+      });
+      const identityCheck = config.ssl!.checkServerIdentity!;
+      expect(
+        identityCheck("proxy.rlwy.net", {
+          subjectaltname: "DNS:localhost",
+          subject: {},
+        } as unknown as X509Certificate),
+      ).toBeUndefined();
+      expect(
+        identityCheck("proxy.rlwy.net", {
+          subjectaltname: "DNS:proxy.rlwy.net",
+          subject: {},
+        } as unknown as X509Certificate),
+      ).toBeInstanceOf(Error);
+      expect(() =>
+        operatorDatabaseClientConfig(
+          "postgresql://operator:secret@proxy.rlwy.net/arcade?sslmode=verify-full",
+          env,
+        ),
+      ).toThrow("database_pinned_tls_must_omit_sslmode");
+      expect(() =>
+        operatorDatabaseClientConfig(
+          "postgresql://operator:secret@proxy.rlwy.net/arcade",
+          {
+            NODE_ENV: "test" as const,
+            COMPETITION_OPERATOR_DATABASE_CA_FILE: caFile,
+          },
+        ),
+      ).toThrow("database_pinned_tls_configuration_required");
+      expect(() =>
+        operatorDatabaseClientConfig(
+          "postgresql://operator:secret@proxy.rlwy.net/arcade",
+          {
+            ...env,
+            COMPETITION_OPERATOR_DATABASE_TLS_SERVER_NAME: "",
+          },
+        ),
+      ).toThrow("database_pinned_tls_configuration_required");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("accepts a complete migration, schema, integrity, and game proof", () => {

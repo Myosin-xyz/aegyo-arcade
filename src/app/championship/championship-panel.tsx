@@ -22,7 +22,7 @@ type Round = {
   status: string;
   opensAt: string;
   closesAt: string;
-  mode: "synthetic" | "material_prize";
+  mode: "synthetic" | "community" | "material_prize";
   rules: PublicRoundRules;
   rulesDigest: string;
 };
@@ -101,6 +101,8 @@ const translations = {
     intro:
       "Practice the games and follow verified monthly standings when a published round is active.",
     test: "Test round · no prizes",
+    communityNoPrizes:
+      "No prizes this round; scores do not transfer to future prize contests.",
     materialPending: "Prize terms pending · enrollment closed",
     materialPendingBody:
       "No material contest is open. Practice play remains available while the official rules and operating terms are completed.",
@@ -192,6 +194,8 @@ const translations = {
     intro:
       "Practica los juegos y consulta la tabla mensual verificada cuando haya una ronda publicada activa.",
     test: "Ronda de prueba · sin premios",
+    communityNoPrizes:
+      "Esta ronda no tiene premios; los puntajes no se transfieren a futuros concursos con premios.",
     materialPending: "Términos del premio pendientes · inscripción cerrada",
     materialPendingBody:
       "No hay un concurso con premios abierto. Las partidas de práctica siguen disponibles mientras se completan las reglas y condiciones operativas.",
@@ -431,6 +435,9 @@ export function ChampionshipPanel({
               <div>
                 {round.mode === "synthetic" && (
                   <p className={styles.testBadge}>{text.test}</p>
+                )}
+                {round.mode === "community" && (
+                  <p className={styles.testBadge}>{text.communityNoPrizes}</p>
                 )}
                 {materialBlocked && (
                   <p className={styles.testBadge}>{text.materialPending}</p>
@@ -825,7 +832,9 @@ function Rules({
                 )}
               </li>
             ) : null}
-            <li>{text.monthlyWinners(round.rules.winnerCount)}</li>
+            {round.mode !== "community" ? (
+              <li>{text.monthlyWinners(round.rules.winnerCount)}</li>
+            ) : null}
             <li>{text.tieOrder}</li>
           </>
         ) : null}

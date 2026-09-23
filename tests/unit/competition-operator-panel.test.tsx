@@ -343,4 +343,68 @@ describe("competition operator panel", () => {
     expect(container?.textContent).toContain("@first_fan");
     expect(container?.textContent).toContain("@second_fan");
   });
+
+  it("ignores an older round load that resolves after a newer selection", async () => {
+    const secondRound = {
+      ...round,
+      id: "10000000-0000-4000-8000-000000000002",
+      slug: "older-round",
+    };
+    const initialResponse = new Response(
+      JSON.stringify({
+        serverNow: "2026-09-21T04:00:01.000Z",
+        rounds: [round, secondRound],
+        selected: {
+          round,
+          pending: [],
+          pendingNextCursor: null,
+          candidate: null,
+          tieDecisions: [],
+          attempts: [],
+          awards: [],
+          audit: [],
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+    let resolveOlder!: (value: Response) => void;
+    let resolveNewer!: (value: Response) => void;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(initialResponse)
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveOlder = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveNewer = resolve;
+          }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => root?.render(<CompetitionOperatorPanel />));
+
+    const roundButtons = [
+      ...container.querySelectorAll<HTMLButtonElement>("aside button"),
+    ];
+    await act(async () => roundButtons[1]?.click());
+    await act(async () => roundButtons[0]?.click());
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+
+    await act(async () =>
+      resolveNewer(response({ round: { status: "review" } })),
+    );
+    await act(async () =>
+      resolveOlder(response({ round: { ...secondRound, status: "draft" } })),
+    );
+
+    expect(container.querySelector("h2")?.textContent).toBe(round.slug);
+    expect(container.textContent).toContain("review");
+  });
 });

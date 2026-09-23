@@ -139,9 +139,12 @@ export async function publicRound(db: Db, slug?: string) {
   const row = (
     await db.execute(
       slug
-        ? sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds WHERE slug=${slug} AND status<>'draft' LIMIT 1`
+        ? sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds
+              WHERE slug=${slug} AND status<>'draft'
+                AND (rules->>'mode' IN ('synthetic','community') OR ${materialVisible})
+              LIMIT 1`
         : sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds
-              WHERE status<>'draft' AND (rules->>'mode'='synthetic' OR ${materialVisible})
+              WHERE status<>'draft' AND (rules->>'mode' IN ('synthetic','community') OR ${materialVisible})
               ORDER BY CASE
                 WHEN status='open' AND opens_at<=statement_timestamp() AND closes_at>statement_timestamp() THEN 0
                 WHEN status='open' AND opens_at>statement_timestamp() THEN 1
@@ -153,7 +156,7 @@ export async function publicRound(db: Db, slug?: string) {
   ).rows[0] as unknown as (Round & { server_now: Date | string }) | undefined;
   const rounds = (
     await db.execute(sql`SELECT slug,status,opens_at,closes_at FROM competition_rounds
-      WHERE status<>'draft' AND (rules->>'mode'='synthetic' OR ${materialVisible})
+      WHERE status<>'draft' AND (rules->>'mode' IN ('synthetic','community') OR ${materialVisible})
       ORDER BY opens_at DESC LIMIT 12`)
   ).rows.map((item) => ({
     slug: String(item.slug),

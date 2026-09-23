@@ -9,6 +9,7 @@ The default championship selects the currently playable round, then the nearest 
 ## Runtime boundaries
 
 - `ARCADE_COMPETITION_ENABLED=true` enables competition routes and operations. Missing, `false`, or any other value keeps them unavailable.
+- A version-2 `community` round is a public, no-prize monthly leaderboard for verified Snake, Bias Flap and Perfect Toss scores. It does not require the material flag, cannot create awards, and does not carry scores into a later prize round. See the [September release record](COMMUNITY_LEADERBOARD_RELEASE_2026-09-23.md).
 - A `material_prize` round additionally requires `ARCADE_MATERIAL_COMPETITION_ENABLED=true`. Its frozen rules must contain an HTTPS rules URL and non-empty sponsor, operator, eligibility, prizes, claims, and approval fields. No prize defaults are supplied.
 - `ARCADE_COMPETITION_OPERATOR_SUBJECTS` is a comma-separated allowlist of exact Accounts subjects. Missing, malformed, duplicate or empty entries fail closed. The private `/competition-admin` page and its APIs additionally require a verified email, a current Accounts security-state check and the configured Arcade origin on every mutation.
 - Issuance requires `ARCADE_COMPETITION_SEED_SECRET` with at least 32 characters.
@@ -87,6 +88,27 @@ pnpm competition:preflight -- \
   --expected-database EXACT_DATABASE_NAME \
   --confirm-database EXACT_DATABASE_NAME
 ```
+
+For a Railway public proxy whose service certificate is issued for an internal
+name (for example, `localhost`), use the pinned-CA mode. Supply the verified
+root CA file and the exact certificate name separately. The database URL must
+omit all `sslmode` parameters in this mode because `pg` would otherwise replace
+the explicit TLS settings. Certificate verification remains enabled:
+
+```sh
+export COMPETITION_OPERATOR_DATABASE_URL='postgresql://user:password@proxy.rlwy.net/db'
+export COMPETITION_OPERATOR_DATABASE_CA_FILE='/secure/path/postgres-root.crt'
+export COMPETITION_OPERATOR_DATABASE_TLS_SERVER_NAME='localhost'
+
+pnpm competition:preflight -- \
+  --expected-database EXACT_DATABASE_NAME \
+  --confirm-database EXACT_DATABASE_NAME
+```
+
+Use the same three environment variables for `scripts/competition/operator.ts`.
+The root CA must be obtained and verified through the database provider's
+authenticated channel; neither variable has a permissive fallback. Remote URLs
+without this pair still require exactly one `sslmode=verify-full` parameter.
 
 Validate a completed round file before touching a database. This command is
 offline and reports every unresolved launch approval:

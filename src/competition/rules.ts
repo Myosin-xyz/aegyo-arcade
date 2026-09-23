@@ -13,6 +13,11 @@ const V2_MATERIAL_COMPETITION_GAMES = new Set<CompetitionGame>([
   "flappy",
   "perfect-toss",
 ]);
+const V2_COMMUNITY_COMPETITION_GAMES = new Set<CompetitionGame>([
+  "snake",
+  "flappy",
+  "perfect-toss",
+]);
 const MAX_CONFIGURED_POINTS = 1000;
 type CompetitionScoringApproval = {
   /** Reviewed source for every game's frozen score-to-points table. */
@@ -37,7 +42,7 @@ type CompetitionApproval = {
   scoring?: CompetitionScoringApproval;
 };
 type CommonRoundRules = {
-  mode: "synthetic" | "material_prize";
+  mode: "synthetic" | "community" | "material_prize";
   dailyAttempts: number;
   attemptTtlSeconds: number;
   games: { gameId: CompetitionGame; calibration: CalibrationPoint[] }[];
@@ -151,7 +156,7 @@ export function parseRules(input: unknown): RoundRules {
   if (
     !rules ||
     ![1, 2].includes(rules.version) ||
-    !["synthetic", "material_prize"].includes(rules.mode) ||
+    !["synthetic", "community", "material_prize"].includes(rules.mode) ||
     !Number.isInteger(rules.attemptTtlSeconds) ||
     rules.attemptTtlSeconds < 60 ||
     rules.attemptTtlSeconds > 900 ||
@@ -162,7 +167,8 @@ export function parseRules(input: unknown): RoundRules {
     throw new CompetitionError("invalid_round_rules", 400);
   if (
     (rules.version === 1 && rules.dailyAttempts !== 3) ||
-    (rules.version === 2 && rules.dailyAttempts !== 2)
+    (rules.version === 2 && rules.dailyAttempts !== 2) ||
+    (rules.mode === "community" && rules.version !== 2)
   )
     throw new CompetitionError("invalid_round_rules", 400);
   if (
@@ -183,7 +189,9 @@ export function parseRules(input: unknown): RoundRules {
         ? V1_COMPETITION_GAMES
         : rules.mode === "material_prize"
           ? V2_MATERIAL_COMPETITION_GAMES
-          : COMPETITION_GAMES;
+          : rules.mode === "community"
+            ? V2_COMMUNITY_COMPETITION_GAMES
+            : COMPETITION_GAMES;
     if (
       !game ||
       !eligibleGames.has(game.gameId) ||

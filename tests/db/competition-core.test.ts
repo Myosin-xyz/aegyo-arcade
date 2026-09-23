@@ -77,6 +77,21 @@ const monthlyRules = {
     fullArenaBonusPoints: 25,
   },
 };
+const communityRules = {
+  ...monthlyRules,
+  mode: "community" as const,
+  games: [
+    ...monthlyRules.games,
+    {
+      gameId: "perfect-toss" as const,
+      calibration: [
+        { score: 0, points: 0 },
+        { score: 1, points: 20 },
+      ],
+    },
+  ],
+  scoring: { ...monthlyRules.scoring, fullArenaBonusPoints: 0 },
+};
 
 let pool: Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
@@ -178,6 +193,31 @@ it("a scheduled next month cannot hide the currently playable round", async () =
   expect((await publicRound(db)).round?.id).toBe(near);
   expect((await publicRound(db, "synthetic")).round?.id).toBe(ROUND);
 });
+it("selects a public community round and marks it as no-prize", async () => {
+  await pool.query(
+    "UPDATE competition_rounds SET status='closing' WHERE id=$1",
+    [ROUND],
+  );
+  const communityId = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+     VALUES ($1,'community-monthly',$2,'open',now()-interval '1 hour',now()+interval '1 day')`,
+    [communityId, communityRules],
+  );
+  const published = await publicRound(db);
+  expect(published.round?.id).toBe(communityId);
+  expect(published.round?.mode).toBe("community");
+  expect(published.round?.rules.mode).toBe("community");
+});
+it("does not expose a disabled material round through an explicit slug", async () => {
+  const hiddenId = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+     VALUES ($1,'hidden-prize-round',$2,'open',now()-interval '1 hour',now()+interval '1 day')`,
+    [hiddenId, { ...monthlyRules, mode: "material_prize" }],
+  );
+  expect((await publicRound(db, "hidden-prize-round")).round).toBeNull();
+});
 beforeEach(async () => {
   await pool.query(
     `ALTER TABLE competition_ledger DISABLE TRIGGER competition_ledger_no_truncate;
@@ -194,6 +234,29 @@ beforeEach(async () => {
 });
 
 describe("competition store on PostgreSQL", () => {
+  it("refuses awards for a public community round", async () => {
+    const communityId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+       VALUES ($1,'community-award-guard',$2,'review',now()-interval '2 days',now()-interval '1 day')`,
+      [communityId, communityRules],
+    );
+    await expect(
+      finalizeRound(db, {
+        roundId: communityId,
+        approvedBy: "operator",
+        idempotencyKey: "community-award-guard-01",
+        tieDecisions: [],
+        awards: [
+          {
+            memberId: A,
+            awardKey: "rank-1",
+            allocationRationale: "Should be rejected",
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "community_round_has_no_prizes" });
+  });
   it("caps 25 concurrent issue requests at three and makes a shared daily challenge", async () => {
     await enrollActor(A);
     await enrollActor(B);

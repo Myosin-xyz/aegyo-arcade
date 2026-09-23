@@ -92,6 +92,43 @@ describe("championship journey", () => {
     expect(container?.textContent?.toLowerCase()).not.toContain("win a prize");
   });
 
+  it("labels a public community round as prize-free without suggesting winners are selected", async () => {
+    const communityRound = {
+      ...round,
+      mode: "community",
+      rules: {
+        version: 2,
+        mode: "community",
+        dailyAttempts: 2,
+        attemptTtlSeconds: 900,
+        games: round.rules.games,
+        cadence: "monthly",
+        winnerCount: 3,
+        scoring: {
+          bestPerGame: "week",
+          timeZone: "America/Bogota",
+          fullArenaBonusPoints: 0,
+        },
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({ round: communityRound, standings: [], provisional: true }),
+        )
+        .mockResolvedValueOnce(response({ authenticated: false }, 401)),
+    );
+    await renderPanel();
+    await vi.waitFor(() =>
+      expect(container?.textContent).toContain(
+        "No prizes this round; scores do not transfer to future prize contests.",
+      ),
+    );
+    expect(container?.textContent).not.toContain("players are selected");
+  });
+
   it("shows only official game links and remaining attempts to an enrolled member", async () => {
     vi.stubGlobal(
       "fetch",

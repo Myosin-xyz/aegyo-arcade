@@ -118,6 +118,54 @@ describe("published calibration and activation", () => {
     ).toEqual([0, 0, 500, 500, 1000, 1000]);
     expect(() => pointsForScore(rules, "flappy", 50)).toThrow();
   });
+  it("accepts a public community monthly round with only verified games", () => {
+    const community = parseRules({
+      ...draft,
+      version: 2,
+      mode: "community",
+      dailyAttempts: 2,
+      games: [
+        ...draft.games,
+        {
+          gameId: "flappy",
+          calibration: [
+            { score: 0, points: 0 },
+            { score: 1, points: 10 },
+          ],
+        },
+        {
+          gameId: "perfect-toss",
+          calibration: [
+            { score: 0, points: 0 },
+            { score: 1, points: 10 },
+          ],
+        },
+      ],
+      cadence: "monthly",
+      winnerCount: 3,
+      scoring: {
+        bestPerGame: "week",
+        timeZone: "America/Bogota",
+        fullArenaBonusPoints: 0,
+      },
+    });
+    expect(community.mode).toBe("community");
+    expect(() =>
+      parseRules({
+        ...community,
+        games: [
+          ...community.games,
+          {
+            gameId: "hangman",
+            calibration: [
+              { score: 0, points: 0 },
+              { score: 1, points: 10 },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("invalid_calibration");
+  });
   it("refuses nonmonotonic score tables and altered quota", () => {
     expect(() => parseRules({ ...draft, dailyAttempts: 4 })).toThrow();
     expect(() =>

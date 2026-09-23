@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import pg from "pg";
+import { operatorDatabaseClientConfig } from "./operator-db-config.mjs";
 import {
   collectCompetitionPreflight,
   CompetitionPreflightError,
@@ -27,26 +28,7 @@ function argumentsFrom(argv) {
   };
 }
 
-export function operatorDatabaseClientConfig(connectionString) {
-  let address;
-  try {
-    address = new URL(connectionString);
-  } catch {
-    throw new CompetitionPreflightError("invalid_operator_database_url");
-  }
-  if (!["postgres:", "postgresql:"].includes(address.protocol))
-    throw new CompetitionPreflightError("invalid_operator_database_url");
-  const local = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]).has(
-    address.hostname,
-  );
-  const sslModes = address.searchParams.getAll("sslmode");
-  if (!local && (sslModes.length !== 1 || sslModes[0] !== "verify-full"))
-    throw new CompetitionPreflightError("database_tls_verification_required");
-  return {
-    connectionString,
-    ...(local ? {} : { ssl: { rejectUnauthorized: true } }),
-  };
-}
+export { operatorDatabaseClientConfig };
 
 export async function main(argv = process.argv.slice(2), env = process.env) {
   const { expectedDatabase } = argumentsFrom(argv);

@@ -89,29 +89,30 @@ export async function competitionOperatorDashboard(
   if (!rounds.some((round) => round.id === roundId))
     throw new CompetitionError("round_not_found", 404);
 
-  const pendingCursorSql = pendingCursor
-    ? sql`AND (received_at,id)>(${pendingCursor.receivedAt}::timestamptz,${pendingCursor.id}::uuid)`
-    : sql``;
-  const [review, attemptsResult, awardsResult, auditResult] = await Promise.all(
-    [
-      operatorReviewBundle(db, roundId, {
-        pendingLimit: PENDING_PAGE_SIZE + 1,
-        pendingAfter: pendingCursor,
-      }),
-      db.execute(sql`
+  const review = await operatorReviewBundle(db, roundId, {
+    pendingLimit: PENDING_PAGE_SIZE + 1,
+    pendingAfter: pendingCursor,
+  });
+  const pendingPage = review.pending.slice(0, PENDING_PAGE_SIZE);
+  const pendingIds = pendingPage.map((attempt) => attempt.attemptId);
+  const pendingIdsSql = pendingIds.length
+    ? sql`id IN (${sql.join(
+        pendingIds.map((id) => sql`${id}::uuid`),
+        sql`,`,
+      )})`
+    : sql`FALSE`;
+  const [attemptsResult, awardsResult, auditResult] = await Promise.all([
+    db.execute(sql`
       WITH visible_attempts AS (
         (SELECT * FROM competition_attempts
-         WHERE round_id=${roundId}::uuid AND status='pending'
-           AND received_at < (
-             SELECT closes_at FROM competition_rounds WHERE id=${roundId}::uuid
-           )
-           ${pendingCursorSql}
+         WHERE round_id=${roundId}::uuid AND ${pendingIdsSql}
          ORDER BY received_at,id
          LIMIT ${PENDING_PAGE_SIZE})
         UNION ALL
         (SELECT * FROM competition_attempts
           WHERE round_id=${roundId}::uuid
             AND status IN ('verified','rejected','void')
+            AND NOT (${pendingIdsSql})
           ORDER BY received_at DESC NULLS LAST,issued_at DESC,id DESC
           LIMIT 200)
       )
@@ -124,7 +125,7 @@ export async function competitionOperatorDashboard(
                 CASE WHEN a.status<>'pending' THEN a.received_at END DESC NULLS LAST,
                 a.issued_at DESC,a.id DESC
     `),
-      db.execute(sql`
+    db.execute(sql`
       SELECT c.id,c.member_id,c.final_rank,c.award_key,c.status,c.claimed_at,
              c.fulfilled_at,p.username
         FROM competition_award_claims c
@@ -132,17 +133,15 @@ export async function competitionOperatorDashboard(
        WHERE c.round_id=${roundId}::uuid
        ORDER BY c.final_rank,c.award_key,c.id
     `),
-      db.execute(sql`
+    db.execute(sql`
       SELECT id,operation,actor,created_at
         FROM competition_operation_audit
        WHERE round_id=${roundId}::uuid
        ORDER BY created_at DESC,id DESC
        LIMIT 100
     `),
-    ],
-  );
+  ]);
 
-  const pendingPage = review.pending.slice(0, PENDING_PAGE_SIZE);
   const lastPending = pendingPage.at(-1);
   const pendingNextCursor =
     review.pending.length > PENDING_PAGE_SIZE && lastPending

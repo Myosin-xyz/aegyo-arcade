@@ -118,6 +118,54 @@ describe("published calibration and activation", () => {
     ).toEqual([0, 0, 500, 500, 1000, 1000]);
     expect(() => pointsForScore(rules, "flappy", 50)).toThrow();
   });
+  it("accepts a public community monthly round with only verified games", () => {
+    const community = parseRules({
+      ...draft,
+      version: 2,
+      mode: "community",
+      dailyAttempts: 2,
+      games: [
+        ...draft.games,
+        {
+          gameId: "flappy",
+          calibration: [
+            { score: 0, points: 0 },
+            { score: 1, points: 10 },
+          ],
+        },
+        {
+          gameId: "perfect-toss",
+          calibration: [
+            { score: 0, points: 0 },
+            { score: 1, points: 10 },
+          ],
+        },
+      ],
+      cadence: "monthly",
+      winnerCount: 3,
+      scoring: {
+        bestPerGame: "week",
+        timeZone: "America/Bogota",
+        fullArenaBonusPoints: 0,
+      },
+    });
+    expect(community.mode).toBe("community");
+    expect(() =>
+      parseRules({
+        ...community,
+        games: [
+          ...community.games,
+          {
+            gameId: "hangman",
+            calibration: [
+              { score: 0, points: 0 },
+              { score: 1, points: 10 },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("invalid_calibration");
+  });
   it("refuses nonmonotonic score tables and altered quota", () => {
     expect(() => parseRules({ ...draft, dailyAttempts: 4 })).toThrow();
     expect(() =>
@@ -236,7 +284,13 @@ describe("published calibration and activation", () => {
       },
     });
   });
-  it("accepts fixed tier points and more than two eligible games in v2 only", () => {
+  it("accepts frozen monotonic point tables and more than two eligible games in v2 only", () => {
+    const approvedCalibration = [
+      { score: 0, points: 0 },
+      { score: 1, points: 7 },
+      { score: 8, points: 19 },
+      { score: 15, points: 31 },
+    ];
     const rules = parseRules({
       ...draft,
       version: 2,
@@ -244,14 +298,14 @@ describe("published calibration and activation", () => {
       cadence: "monthly",
       winnerCount: 3,
       games: [
-        { gameId: "snake", calibration: tierCalibration },
-        { gameId: "flappy", calibration: tierCalibration },
-        { gameId: "perfect-toss", calibration: tierCalibration },
+        { gameId: "snake", calibration: approvedCalibration },
+        { gameId: "flappy", calibration: approvedCalibration },
+        { gameId: "perfect-toss", calibration: approvedCalibration },
       ],
       scoring: {
         bestPerGame: "week",
         timeZone: "America/New_York",
-        fullArenaBonusPoints: 20,
+        fullArenaBonusPoints: 47,
       },
     });
 
@@ -260,19 +314,19 @@ describe("published calibration and activation", () => {
       [0, 1, 7, 8, 14, 15, 100].map((score) =>
         pointsForScore(rules, "perfect-toss", score),
       ),
-    ).toEqual([0, 5, 5, 10, 10, 20, 20]);
+    ).toEqual([0, 7, 7, 19, 19, 31, 31]);
     expect(() =>
       parseRules({
         ...draft,
         games: [{ gameId: "perfect-toss", calibration: tierCalibration }],
       }),
     ).toThrow("invalid_calibration");
-    expect(() =>
+    expect(
       parseRules({
         ...rules,
         games: draft.games,
-      }),
-    ).toThrow("invalid_calibration");
+      }).games[0]?.calibration.at(-1)?.points,
+    ).toBe(1000);
 
     expect(
       parseRules({
@@ -280,6 +334,51 @@ describe("published calibration and activation", () => {
         games: [{ gameId: "hangman", calibration: tierCalibration }],
       }).games[0]?.gameId,
     ).toBe("hangman");
+    expect(() =>
+      parseRules({
+        ...rules,
+        games: [
+          {
+            gameId: "snake",
+            calibration: [
+              { score: 0, points: 0 },
+              { score: 5, points: 0 },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("invalid_calibration");
+    for (const points of [-1, 7.5, 1001]) {
+      expect(() =>
+        parseRules({
+          ...rules,
+          games: [
+            {
+              gameId: "snake",
+              calibration: [
+                { score: 0, points: 0 },
+                { score: 5, points },
+              ],
+            },
+          ],
+        }),
+      ).toThrow("invalid_calibration");
+    }
+    expect(() =>
+      parseRules({
+        ...rules,
+        games: [
+          {
+            gameId: "snake",
+            calibration: [
+              { score: 0, points: 0 },
+              { score: 5, points: 20 },
+              { score: 10, points: 19 },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("invalid_calibration");
     expect(() =>
       parseRules({
         ...rules,
@@ -314,6 +413,16 @@ describe("published calibration and activation", () => {
         timeZone: "America/New_York",
         fullArenaBonusPoints: 1001,
       },
+      {
+        bestPerGame: "week",
+        timeZone: "America/New_York",
+        fullArenaBonusPoints: -1,
+      },
+      {
+        bestPerGame: "week",
+        timeZone: "America/New_York",
+        fullArenaBonusPoints: 1.5,
+      },
     ]) {
       expect(() =>
         parseRules({
@@ -327,5 +436,34 @@ describe("published calibration and activation", () => {
         }),
       ).toThrow("invalid_round_rules");
     }
+  });
+
+  it("rejects malformed structured scoring approvals", () => {
+    expect(() =>
+      parseRules({
+        ...draft,
+        version: 2,
+        mode: "material_prize",
+        dailyAttempts: 2,
+        cadence: "monthly",
+        winnerCount: 3,
+        games: [{ gameId: "snake", calibration: tierCalibration }],
+        scoring: {
+          bestPerGame: "week",
+          timeZone: "America/New_York",
+          fullArenaBonusPoints: 0,
+        },
+        rulesUrl: "https://example.test/rules",
+        approval: {
+          sponsor: "Fixture sponsor",
+          operator: "Fixture operator",
+          eligibility: "Adults in an approved region",
+          prizes: "Three prizes allocated by rank",
+          claims: "Claim within seven days",
+          scoring: "not-structured",
+          approvedBy: "Fixture approver",
+        },
+      }),
+    ).toThrow("promotion_approval_missing");
   });
 });

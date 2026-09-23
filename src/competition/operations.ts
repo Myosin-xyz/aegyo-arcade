@@ -3,11 +3,14 @@ export type StandingContribution = {
   points: number;
   dayKey: string;
   receivedAt: Date;
+  /** One only for a weekly game best at its frozen highest tier. */
+  topTierResults?: number;
 };
 
 export type CandidateStanding = {
   memberId: string;
   totalPoints: number;
+  topTierResults: number;
   maxUtcDailyPoints: number;
   reachedFinalTotalAt: string;
   provisionalRank: number;
@@ -78,18 +81,31 @@ function assertContribution(value: StandingContribution): void {
   if (Number.isNaN(value.receivedAt.getTime())) {
     throw new Error("Competition receipt time is invalid");
   }
+  if (
+    value.topTierResults !== undefined &&
+    value.topTierResults !== 0 &&
+    value.topTierResults !== 1
+  ) {
+    throw new Error("Competition top-tier count must be zero or one");
+  }
 }
 
 /**
- * Build the immutable candidate order from current daily-best contributions.
+ * Build the immutable candidate order from current scoring contributions.
  * Zero-point members are intentionally absent. memberId is never a tie-breaker.
  */
 export function rankCandidateStandings(
   contributions: readonly StandingContribution[],
+  tiePolicy: "legacy_daily" | "top_tier" = "top_tier",
 ): CandidateStanding[] {
   const members = new Map<
     string,
-    { total: number; days: Map<string, number>; reachedAt: Date }
+    {
+      total: number;
+      topTierResults: number;
+      days: Map<string, number>;
+      reachedAt: Date;
+    }
   >();
 
   for (const value of contributions) {
@@ -97,10 +113,12 @@ export function rankCandidateStandings(
     if (value.points === 0) continue;
     const current = members.get(value.memberId) ?? {
       total: 0,
+      topTierResults: 0,
       days: new Map<string, number>(),
       reachedAt: value.receivedAt,
     };
     current.total += value.points;
+    current.topTierResults += value.topTierResults ?? 0;
     if (!Number.isSafeInteger(current.total)) {
       throw new Error("Competition point total exceeds the safe integer range");
     }
@@ -117,6 +135,7 @@ export function rankCandidateStandings(
     ([memberId, value]) => ({
       memberId,
       totalPoints: value.total,
+      topTierResults: value.topTierResults,
       maxUtcDailyPoints: Math.max(...value.days.values()),
       // The final positive daily-best contribution is when the member reaches
       // the total represented by this snapshot.
@@ -127,7 +146,9 @@ export function rankCandidateStandings(
   aggregates.sort(
     (a, b) =>
       b.totalPoints - a.totalPoints ||
-      b.maxUtcDailyPoints - a.maxUtcDailyPoints ||
+      (tiePolicy === "legacy_daily"
+        ? b.maxUtcDailyPoints - a.maxUtcDailyPoints
+        : b.topTierResults - a.topTierResults) ||
       Date.parse(a.reachedFinalTotalAt) - Date.parse(b.reachedFinalTotalAt),
   );
 
@@ -138,14 +159,16 @@ export function rankCandidateStandings(
     while (
       end < aggregates.length &&
       aggregates[end].totalPoints === first.totalPoints &&
-      aggregates[end].maxUtcDailyPoints === first.maxUtcDailyPoints &&
+      (tiePolicy === "legacy_daily"
+        ? aggregates[end].maxUtcDailyPoints === first.maxUtcDailyPoints
+        : aggregates[end].topTierResults === first.topTierResults) &&
       aggregates[end].reachedFinalTotalAt === first.reachedFinalTotalAt
     ) {
       end += 1;
     }
     const tied = end - index > 1;
     const tieKey = tied
-      ? `${first.totalPoints}:${first.maxUtcDailyPoints}:${first.reachedFinalTotalAt}`
+      ? `${first.totalPoints}:${tiePolicy === "legacy_daily" ? first.maxUtcDailyPoints : first.topTierResults}:${first.reachedFinalTotalAt}`
       : null;
     for (let cursor = index; cursor < end; cursor += 1) {
       result.push({

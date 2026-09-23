@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./operator.module.css";
 
 type Round = {
@@ -25,6 +25,7 @@ type Standing = {
   username: string | null;
   totalPoints: number;
   maxUtcDailyPoints: number;
+  topTierResults: number;
   reachedFinalTotalAt: string;
   provisionalRank: number;
   exactTieKey: string | null;
@@ -67,7 +68,9 @@ type Dashboard = {
       status: string;
       securityConfirmed: boolean;
       receiptDigest: string;
+      receivedAt: string;
     }[];
+    pendingNextCursor: { receivedAt: string; id: string } | null;
     candidate: null | {
       snapshotId: string;
       sourceDigest: string;
@@ -100,7 +103,8 @@ const readinessLabel: Record<string, string> = {
   prize_allocation: "Approve prizes by rank",
   claim_deadline_fulfillment:
     "Approve the claim deadline and fulfillment terms",
-  full_arena_bonus: "Set the Full Arena bonus to the approved 20 points",
+  game_point_tables: "Approve the frozen score-to-points tables",
+  full_arena_bonus: "Approve the configured Full Arena bonus",
   schedule: "Approve the complete schedule and time zone",
   exact_tie_policy: "Approve exact-tie and prize-boundary handling",
   engagement_sources: "Approve engagement sources, caps, and verification",
@@ -128,36 +132,85 @@ export function CompetitionOperatorPanel() {
     {},
   );
   const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const operationKeys = useRef(new Map<string, string>());
+  const loadRequestId = useRef(0);
 
-  const load = useCallback(async (roundId?: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const query = roundId ? `?roundId=${encodeURIComponent(roundId)}` : "";
-      const response = await fetch(`/api/competition/operator${query}`, {
-        cache: "no-store",
-      });
-      const body = (await response.json()) as Dashboard & { code?: string };
-      if (!response.ok) throw new Error(body.code ?? "operator_load_failed");
-      setDashboard(body);
-      setSelectedRoundId(body.selected?.round.id);
-      setTieRationales(
-        Object.fromEntries(
-          (body.selected?.tieDecisions ?? []).map((decision) => [
-            decision.exactTieKey,
-            decision.rationale,
-          ]),
-        ),
-      );
-      setAllocations([]);
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "operator_load_failed",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (
+      roundId?: string,
+      pendingCursor?: { receivedAt: string; id: string },
+      appendPending = false,
+    ) => {
+      const requestId = ++loadRequestId.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const query = new URLSearchParams();
+        if (roundId) query.set("roundId", roundId);
+        if (pendingCursor) {
+          query.set("pendingAfterAt", pendingCursor.receivedAt);
+          query.set("pendingAfterId", pendingCursor.id);
+        }
+        const suffix = query.size ? `?${query}` : "";
+        const response = await fetch(`/api/competition/operator${suffix}`, {
+          cache: "no-store",
+        });
+        const body = (await response.json()) as Dashboard & { code?: string };
+        if (!response.ok) throw new Error(body.code ?? "operator_load_failed");
+        if (requestId !== loadRequestId.current) return;
+        setDashboard((current) => {
+          if (
+            !appendPending ||
+            !current?.selected ||
+            !body.selected ||
+            current.selected.round.id !== body.selected.round.id
+          )
+            return body;
+          const attempts = new Map(
+            current.selected.attempts.map((attempt) => [attempt.id, attempt]),
+          );
+          for (const attempt of body.selected.attempts)
+            attempts.set(attempt.id, attempt);
+          const pending = new Map(
+            current.selected.pending.map((attempt) => [
+              attempt.attemptId,
+              attempt,
+            ]),
+          );
+          for (const attempt of body.selected.pending)
+            pending.set(attempt.attemptId, attempt);
+          return {
+            ...body,
+            selected: {
+              ...body.selected,
+              attempts: [...attempts.values()],
+              pending: [...pending.values()],
+            },
+          };
+        });
+        setSelectedRoundId(body.selected?.round.id);
+        if (!appendPending) {
+          setTieRationales(
+            Object.fromEntries(
+              (body.selected?.tieDecisions ?? []).map((decision) => [
+                decision.exactTieKey,
+                decision.rationale,
+              ]),
+            ),
+          );
+          setAllocations([]);
+        }
+      } catch (caught) {
+        if (requestId === loadRequestId.current)
+          setError(
+            caught instanceof Error ? caught.message : "operator_load_failed",
+          );
+      } finally {
+        if (requestId === loadRequestId.current) setLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -193,6 +246,8 @@ export function CompetitionOperatorPanel() {
 
   const act = useCallback(
     async (key: string, body: Record<string, unknown>, success: string) => {
+      const requestKey = operationKeys.current.get(key) ?? idempotencyKey();
+      operationKeys.current.set(key, requestKey);
       setBusy(key);
       setError(null);
       setNotice(null);
@@ -200,10 +255,15 @@ export function CompetitionOperatorPanel() {
         const response = await fetch("/api/competition/operator/actions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...body, idempotencyKey: idempotencyKey() }),
+          body: JSON.stringify({ ...body, idempotencyKey: requestKey }),
         });
         const result = (await response.json()) as { code?: string };
-        if (!response.ok) throw new Error(result.code ?? "operation_failed");
+        if (!response.ok) {
+          if (response.status >= 400 && response.status < 500)
+            operationKeys.current.delete(key);
+          throw new Error(result.code ?? "operation_failed");
+        }
+        operationKeys.current.delete(key);
         setNotice(success);
         await load(selectedRoundId);
       } catch (caught) {
@@ -220,6 +280,7 @@ export function CompetitionOperatorPanel() {
   const materialMonthly =
     selected?.round.mode === "material_prize" &&
     selected.round.rulesVersion === 2;
+  const communityNoPrizes = selected?.round.mode === "community";
   const winnerCount = selected?.round.winnerCount ?? 0;
   const expectedWinners =
     selected?.candidate?.standings.filter(
@@ -251,7 +312,7 @@ export function CompetitionOperatorPanel() {
   const canFinalize =
     !!selected?.candidate &&
     selected.round.status === "review" &&
-    selected.pending.length === 0 &&
+    selected.round.pendingCount === 0 &&
     unresolvedTies.every((tie) => tieRationales[tie.exactTieKey]?.trim()) &&
     allocationReady;
   const canOpen = (selected?.round.launchBlockers.length ?? 0) === 0;
@@ -262,12 +323,17 @@ export function CompetitionOperatorPanel() {
     ? ["open", "closing"].includes(selected.round.status) &&
       serverNow >= Date.parse(selected.round.closesAt)
     : false;
+  const canDisqualify = selected
+    ? ["open", "closing"].includes(selected.round.status) &&
+      !selected.round.hasCandidateSnapshot
+    : false;
   const candidateOptions = useMemo(
     () => selected?.candidate?.standings ?? [],
     [selected?.candidate?.standings],
   );
 
   function chooseRound(roundId: string) {
+    operationKeys.current.clear();
     setSelectedRoundId(roundId);
     void load(roundId);
   }
@@ -328,8 +394,11 @@ export function CompetitionOperatorPanel() {
           <button
             type="button"
             className={styles.secondaryButton}
-            disabled={loading}
-            onClick={() => void load(selectedRoundId)}
+            disabled={loading || busy !== null}
+            onClick={() => {
+              operationKeys.current.clear();
+              void load(selectedRoundId);
+            }}
           >
             Refresh
           </button>
@@ -390,6 +459,12 @@ export function CompetitionOperatorPanel() {
                     {displayTime(selected.round.opensAt)} →{" "}
                     {displayTime(selected.round.closesAt)}
                   </p>
+                  {communityNoPrizes ? (
+                    <p>
+                      No prizes this round; scores do not transfer to future
+                      prize contests.
+                    </p>
+                  ) : null}
                 </div>
                 <div className={styles.lifecycleActions}>
                   {selected.round.status === "draft" ? (
@@ -521,7 +596,7 @@ export function CompetitionOperatorPanel() {
                 <div className={styles.sectionHeading}>
                   <div>
                     <p className={styles.kicker}>Evidence queue</p>
-                    <h3>Pending and rejected attempts</h3>
+                    <h3>Verified and reviewed attempts</h3>
                   </div>
                   <span>{selected.attempts.length}</span>
                 </div>
@@ -587,12 +662,62 @@ export function CompetitionOperatorPanel() {
                             </button>
                           </div>
                         ) : null}
+                        {attempt.status === "verified" && canDisqualify ? (
+                          <button
+                            type="button"
+                            className={styles.dangerButton}
+                            disabled={busy !== null}
+                            onClick={() => {
+                              const reason = window.prompt(
+                                "Published disqualification reason recorded in the audit trail",
+                              );
+                              if (!reason?.trim()) return;
+                              if (
+                                !window.confirm(
+                                  selected.round.rulesVersion === 2
+                                    ? "Disqualify this verified attempt and recompute the player’s weekly best and Full Arena bonus?"
+                                    : "Disqualify this verified attempt and recompute the player’s daily best?",
+                                )
+                              )
+                                return;
+                              void act(
+                                `disqualify:${attempt.id}`,
+                                {
+                                  action: "disqualify",
+                                  roundId: selected.round.id,
+                                  attemptId: attempt.id,
+                                  reason,
+                                  confirmation: `disqualify:${attempt.id}`,
+                                },
+                                "Attempt disqualified and standings recomputed.",
+                              );
+                            }}
+                          >
+                            Disqualify
+                          </button>
+                        ) : null}
                       </article>
                     ))}
+                    {selected.pendingNextCursor ? (
+                      <button
+                        type="button"
+                        className={styles.secondaryButton}
+                        disabled={loading || busy !== null}
+                        onClick={() =>
+                          void load(
+                            selected.round.id,
+                            selected.pendingNextCursor ?? undefined,
+                            true,
+                          )
+                        }
+                      >
+                        Load older pending attempts
+                      </button>
+                    ) : null}
                   </div>
                 ) : (
                   <p className={styles.empty}>
-                    No attempts require operator review.
+                    No verified or reviewed attempts are available.
                   </p>
                 )}
               </section>
@@ -604,7 +729,17 @@ export function CompetitionOperatorPanel() {
                       <p className={styles.kicker}>
                         Immutable candidate snapshot
                       </p>
-                      <h3>Standings and award allocation</h3>
+                      <h3>
+                        {communityNoPrizes
+                          ? "Public standings · no prizes this round"
+                          : "Standings and award allocation"}
+                      </h3>
+                      {communityNoPrizes ? (
+                        <p>
+                          No prizes this round; scores do not transfer to future
+                          prize contests.
+                        </p>
+                      ) : null}
                     </div>
                     <span>{selected.candidate.standings.length}</span>
                   </div>
@@ -616,9 +751,9 @@ export function CompetitionOperatorPanel() {
                           <th>Player</th>
                           <th>Points</th>
                           <th>
-                            {selected.round.rulesVersion === 2
-                              ? "Best week"
-                              : "Best day"}
+                            {selected.round.rulesVersion === 1
+                              ? "Best daily points"
+                              : "Top tiers"}
                           </th>
                         </tr>
                       </thead>
@@ -628,7 +763,7 @@ export function CompetitionOperatorPanel() {
                             <td>#{standing.provisionalRank}</td>
                             <td>@{standing.username ?? "unavailable"}</td>
                             <td>{standing.totalPoints}</td>
-                            <td>{standing.maxUtcDailyPoints}</td>
+                            <td>{standing.topTierResults}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -652,113 +787,116 @@ export function CompetitionOperatorPanel() {
                     </label>
                   ))}
 
-                  <div className={styles.allocations}>
-                    <div className={styles.allocationHeading}>
-                      <h4>Awards</h4>
-                      <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        disabled={!candidateOptions.length}
-                        onClick={addAllocation}
-                      >
-                        Add award
-                      </button>
-                    </div>
-                    {allocations.map((allocation, index) => (
-                      <div className={styles.allocationRow} key={index}>
-                        <select
-                          aria-label={`Award ${index + 1} recipient`}
-                          value={allocation.memberId}
-                          onChange={(event) =>
-                            setAllocations((current) =>
-                              current.map((item, cursor) =>
-                                cursor === index
-                                  ? { ...item, memberId: event.target.value }
-                                  : item,
-                              ),
-                            )
-                          }
-                        >
-                          {candidateOptions.map((standing) => (
-                            <option
-                              key={standing.memberId}
-                              value={standing.memberId}
-                            >
-                              #{standing.provisionalRank} @
-                              {standing.username ?? "unavailable"}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          aria-label={`Award ${index + 1} key`}
-                          value={allocation.awardKey}
-                          maxLength={80}
-                          placeholder="Award key"
-                          onChange={(event) =>
-                            setAllocations((current) =>
-                              current.map((item, cursor) =>
-                                cursor === index
-                                  ? { ...item, awardKey: event.target.value }
-                                  : item,
-                              ),
-                            )
-                          }
-                        />
-                        <input
-                          aria-label={`Award ${index + 1} rationale`}
-                          value={allocation.allocationRationale}
-                          maxLength={1000}
-                          placeholder="Allocation rationale"
-                          onChange={(event) =>
-                            setAllocations((current) =>
-                              current.map((item, cursor) =>
-                                cursor === index
-                                  ? {
-                                      ...item,
-                                      allocationRationale: event.target.value,
-                                    }
-                                  : item,
-                              ),
-                            )
-                          }
-                        />
+                  {!communityNoPrizes ? (
+                    <div className={styles.allocations}>
+                      <div className={styles.allocationHeading}>
+                        <h4>Awards</h4>
                         <button
                           type="button"
-                          className={styles.iconButton}
-                          aria-label={`Remove award ${index + 1}`}
-                          onClick={() =>
-                            setAllocations((current) =>
-                              current.filter((_, cursor) => cursor !== index),
-                            )
-                          }
+                          className={styles.secondaryButton}
+                          disabled={!candidateOptions.length}
+                          onClick={addAllocation}
                         >
-                          ×
+                          Add award
                         </button>
                       </div>
-                    ))}
-                    {!allocations.length ? (
-                      <p className={styles.empty}>
-                        {materialMonthly
-                          ? requiredAwardCount > 0
-                            ? `Assign one award to each of the ${requiredAwardCount} eligible winner${requiredAwardCount === 1 ? "" : "s"} before finalizing.`
-                            : "No eligible finisher earned positive points; no award will be created."
-                          : "No awards assigned. Finalizing publishes standings without an award."}
-                      </p>
-                    ) : null}
-                    {prizeTiePending ? (
-                      <p className={styles.error} role="alert">
-                        A prize position has an exact tie. Finalization remains
-                        blocked until the published allocation policy is
-                        implemented.
-                      </p>
-                    ) : null}
-                  </div>
+                      {allocations.map((allocation, index) => (
+                        <div className={styles.allocationRow} key={index}>
+                          <select
+                            aria-label={`Award ${index + 1} recipient`}
+                            value={allocation.memberId}
+                            onChange={(event) =>
+                              setAllocations((current) =>
+                                current.map((item, cursor) =>
+                                  cursor === index
+                                    ? { ...item, memberId: event.target.value }
+                                    : item,
+                                ),
+                              )
+                            }
+                          >
+                            {candidateOptions.map((standing) => (
+                              <option
+                                key={standing.memberId}
+                                value={standing.memberId}
+                              >
+                                #{standing.provisionalRank} @
+                                {standing.username ?? "unavailable"}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            aria-label={`Award ${index + 1} key`}
+                            value={allocation.awardKey}
+                            maxLength={80}
+                            placeholder="Award key"
+                            onChange={(event) =>
+                              setAllocations((current) =>
+                                current.map((item, cursor) =>
+                                  cursor === index
+                                    ? { ...item, awardKey: event.target.value }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                          <input
+                            aria-label={`Award ${index + 1} rationale`}
+                            value={allocation.allocationRationale}
+                            maxLength={1000}
+                            placeholder="Allocation rationale"
+                            onChange={(event) =>
+                              setAllocations((current) =>
+                                current.map((item, cursor) =>
+                                  cursor === index
+                                    ? {
+                                        ...item,
+                                        allocationRationale: event.target.value,
+                                      }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            className={styles.iconButton}
+                            aria-label={`Remove award ${index + 1}`}
+                            onClick={() =>
+                              setAllocations((current) =>
+                                current.filter((_, cursor) => cursor !== index),
+                              )
+                            }
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      {!allocations.length ? (
+                        <p className={styles.empty}>
+                          {materialMonthly
+                            ? requiredAwardCount > 0
+                              ? `Assign one award to each of the ${requiredAwardCount} eligible winner${requiredAwardCount === 1 ? "" : "s"} before finalizing.`
+                              : "No eligible finisher earned positive points; no award will be created."
+                            : "No awards assigned. Finalizing publishes standings without an award."}
+                        </p>
+                      ) : null}
+                      {prizeTiePending ? (
+                        <p className={styles.error} role="alert">
+                          A prize position has an exact tie. Finalization
+                          remains blocked until the published allocation policy
+                          is implemented.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {selected.round.status === "review" ? (
                     <div className={styles.finalizeBar}>
                       <p>
-                        Finalization permanently locks the standings and creates
-                        the award offers shown above.
+                        {communityNoPrizes
+                          ? "Finalization permanently locks and publishes the standings. No prizes are awarded; scores do not transfer to future prize contests."
+                          : "Finalization permanently locks the standings and creates the award offers shown above."}
                       </p>
                       <button
                         type="button"
@@ -783,7 +921,7 @@ export function CompetitionOperatorPanel() {
                                     tieRationales[tie.exactTieKey] ?? "",
                                 }),
                               ),
-                              awards: allocations,
+                              awards: communityNoPrizes ? [] : allocations,
                             },
                             "Final standings published.",
                           );

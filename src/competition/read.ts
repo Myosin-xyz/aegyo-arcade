@@ -10,28 +10,38 @@ import type { GameHighScore } from "./operations-store";
 import {
   assertRoundAvailable,
   competitionAttemptDayKey,
+  competitionScorePeriodKey,
+  isTopTierResult,
   parseRules,
   publicRules,
+  type RoundRules,
 } from "./rules";
-export async function roundStandings(db: Db, roundId: string) {
+export async function roundStandings(
+  db: Db,
+  roundId: string,
+  rules: RoundRules,
+) {
   const contributions = (
     await db.execute(sql`
-      SELECT member_id AS "memberId",points,period_key AS "dayKey",received_at AS "receivedAt"
+      SELECT member_id AS "memberId",game_id AS "gameId",points,period_key AS "dayKey",received_at AS "receivedAt"
         FROM competition_period_best WHERE round_id=${roundId}::uuid
       UNION ALL
-      SELECT member_id AS "memberId",points,period_key AS "dayKey",earned_at AS "receivedAt"
+      SELECT member_id AS "memberId",NULL::text AS "gameId",points,period_key AS "dayKey",earned_at AS "receivedAt"
         FROM competition_period_bonuses WHERE round_id=${roundId}::uuid
       ORDER BY "memberId","dayKey"
     `)
-  ).rows as unknown as StandingContribution[];
+  ).rows as unknown as (StandingContribution & { gameId: string | null })[];
   const ranked = rankCandidateStandings(
     contributions.map((row) => ({
       ...row,
+      topTierResults:
+        row.gameId && isTopTierResult(rules, row.gameId, row.points) ? 1 : 0,
       receivedAt:
         row.receivedAt instanceof Date
           ? row.receivedAt
           : new Date(row.receivedAt),
     })),
+    rules.version === 1 ? "legacy_daily" : "top_tier",
   );
   const names = (
     await db.execute(
@@ -49,6 +59,7 @@ export async function roundStandings(db: Db, roundId: string) {
         username: byId.get(row.memberId)!,
         rank: row.provisionalRank,
         totalPoints: row.totalPoints,
+        topTierResults: row.topTierResults,
         maxDailyPoints: row.maxUtcDailyPoints,
         maxPeriodPoints: row.maxUtcDailyPoints,
       })),
@@ -108,6 +119,7 @@ async function finalPublishedRound(db: Db, roundId: string) {
       username: byId.get(row.memberId)!,
       rank: row.finalRank,
       totalPoints: row.totalPoints,
+      topTierResults: row.topTierResults,
       maxDailyPoints: row.maxUtcDailyPoints,
       maxPeriodPoints: row.maxUtcDailyPoints,
     }));
@@ -127,9 +139,12 @@ export async function publicRound(db: Db, slug?: string) {
   const row = (
     await db.execute(
       slug
-        ? sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds WHERE slug=${slug} AND status<>'draft' LIMIT 1`
+        ? sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds
+              WHERE slug=${slug} AND status<>'draft'
+                AND (rules->>'mode' IN ('synthetic','community') OR ${materialVisible})
+              LIMIT 1`
         : sql`SELECT *,statement_timestamp() AS server_now FROM competition_rounds
-              WHERE status<>'draft' AND (rules->>'mode'='synthetic' OR ${materialVisible})
+              WHERE status<>'draft' AND (rules->>'mode' IN ('synthetic','community') OR ${materialVisible})
               ORDER BY CASE
                 WHEN status='open' AND opens_at<=statement_timestamp() AND closes_at>statement_timestamp() THEN 0
                 WHEN status='open' AND opens_at>statement_timestamp() THEN 1
@@ -141,7 +156,7 @@ export async function publicRound(db: Db, slug?: string) {
   ).rows[0] as unknown as (Round & { server_now: Date | string }) | undefined;
   const rounds = (
     await db.execute(sql`SELECT slug,status,opens_at,closes_at FROM competition_rounds
-      WHERE status<>'draft' AND (rules->>'mode'='synthetic' OR ${materialVisible})
+      WHERE status<>'draft' AND (rules->>'mode' IN ('synthetic','community') OR ${materialVisible})
       ORDER BY opens_at DESC LIMIT 12`)
   ).rows.map((item) => ({
     slug: String(item.slug),
@@ -154,7 +169,9 @@ export async function publicRound(db: Db, slug?: string) {
   assertRoundAvailable(row.rules);
   const finalized =
     row.status === "final" ? await finalPublishedRound(db, row.id) : null;
-  const standing = finalized ? null : await roundStandings(db, row.id);
+  const standing = finalized
+    ? null
+    : await roundStandings(db, row.id, row.rules);
   const gameHighScores = finalized
     ? finalized.gameHighScores
     : await liveGameHighScores(db, row.id);
@@ -186,10 +203,10 @@ export async function memberRound(
   emailVerified: boolean,
   roundId: string,
 ) {
-  const [roundResult, enrollment, profile, attempts, board, awards] =
+  const [roundResult, enrollment, profile, attempts, awards] =
     await Promise.all([
       db.execute(
-        sql`SELECT rules FROM competition_rounds WHERE id=${roundId}::uuid`,
+        sql`SELECT rules,status,opens_at,closes_at,statement_timestamp() AS server_now FROM competition_rounds WHERE id=${roundId}::uuid`,
       ),
       db.execute(
         sql`SELECT 1 FROM competition_enrollments WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid`,
@@ -200,7 +217,6 @@ export async function memberRound(
       db.execute(
         sql`SELECT id,game_id AS "gameId",day_key AS "dayKey",score_period_key AS "scorePeriodKey",status,score,points FROM competition_attempts WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid ORDER BY issued_at DESC LIMIT 200`,
       ),
-      roundStandings(db, roundId),
       db.execute(
         sql`SELECT c.id,c.award_key AS "awardKey",c.status,c.final_rank AS rank
             FROM competition_award_claims c
@@ -210,9 +226,27 @@ export async function memberRound(
       ),
     ]);
   const roundRules = parseRules(roundResult.rows[0]?.rules);
-  const today = competitionAttemptDayKey(roundRules, new Date());
+  const board = await roundStandings(db, roundId, roundRules);
+  const serverNow = new Date(roundResult.rows[0]?.server_now as Date | string);
+  const roundRow = roundResult.rows[0];
+  const roundCanPlay =
+    roundRow?.status === "open" &&
+    new Date(roundRow.opens_at as Date | string) <= serverNow &&
+    new Date(roundRow.closes_at as Date | string) > serverNow;
+  const today = competitionAttemptDayKey(roundRules, serverNow);
+  const periodKey = competitionScorePeriodKey(roundRules, serverNow);
   const all = attempts.rows;
   const mine = board.ranked.find((row) => row.memberId === memberId);
+  const currentPeriod =
+    roundRules.version === 2 && roundCanPlay
+      ? await currentPeriodProgress(
+          db,
+          roundId,
+          memberId,
+          periodKey,
+          roundRules,
+        )
+      : null;
   return {
     enrolled: !!enrollment.rows.length,
     username: profile.rows[0]?.username ?? null,
@@ -233,6 +267,50 @@ export async function memberRound(
     ),
     totalPoints: mine?.totalPoints ?? 0,
     rank: mine?.provisionalRank ?? null,
+    currentPeriod,
     awards: awards.rows,
+  };
+}
+
+async function currentPeriodProgress(
+  db: Db,
+  roundId: string,
+  memberId: string,
+  periodKey: string,
+  rules: Extract<ReturnType<typeof parseRules>, { version: 2 }>,
+) {
+  const [bests, bonus] = await Promise.all([
+    db.execute(sql`
+      SELECT game_id AS "gameId",points
+        FROM competition_period_best
+       WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid
+         AND period_key=${periodKey}
+    `),
+    db.execute(sql`
+      SELECT points
+        FROM competition_period_bonuses
+       WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid
+         AND period_key=${periodKey}
+    `),
+  ]);
+  const byGame = new Map(
+    bests.rows.map((row) => [String(row.gameId), Number(row.points)]),
+  );
+  const games = rules.games.map(({ gameId }) => ({
+    gameId,
+    points: byGame.get(gameId) ?? 0,
+    completed: (byGame.get(gameId) ?? 0) > 0,
+  }));
+  const earnedBonus = Number(bonus.rows[0]?.points ?? 0);
+  return {
+    periodKey,
+    completedGames: games.filter((game) => game.completed).length,
+    eligibleGames: games.length,
+    games,
+    fullArena: {
+      configuredPoints: rules.scoring.fullArenaBonusPoints,
+      earned: earnedBonus > 0,
+      earnedPoints: earnedBonus,
+    },
   };
 }

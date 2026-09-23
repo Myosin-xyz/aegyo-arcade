@@ -9,6 +9,7 @@ The default championship selects the currently playable round, then the nearest 
 ## Runtime boundaries
 
 - `ARCADE_COMPETITION_ENABLED=true` enables competition routes and operations. Missing, `false`, or any other value keeps them unavailable.
+- A version-2 `community` round is a public, no-prize monthly leaderboard for verified Snake, Bias Flap and Perfect Toss scores. It does not require the material flag, cannot create awards, and does not carry scores into a later prize round. See the [September release record](COMMUNITY_LEADERBOARD_RELEASE_2026-09-23.md).
 - A `material_prize` round additionally requires `ARCADE_MATERIAL_COMPETITION_ENABLED=true`. Its frozen rules must contain an HTTPS rules URL and non-empty sponsor, operator, eligibility, prizes, claims, and approval fields. No prize defaults are supplied.
 - `ARCADE_COMPETITION_OPERATOR_SUBJECTS` is a comma-separated allowlist of exact Accounts subjects. Missing, malformed, duplicate or empty entries fail closed. The private `/competition-admin` page and its APIs additionally require a verified email, a current Accounts security-state check and the configured Arcade origin on every mutation.
 - Issuance requires `ARCADE_COMPETITION_SEED_SECRET` with at least 32 characters.
@@ -23,7 +24,7 @@ An authenticated member accepts the exact rules digest and enrolls. Issuance res
 
 If the identity provider is unavailable at submission, the receipt remains `pending` with `security_confirmed=false`. There is no background identity retry worker. After identity service recovery, the same signed-in member must retry the same `PUT /api/competition/attempts/{attemptId}` with the identical trace. That confirms identity state and permits verification. The operator `settle` command only replays evidence already marked `security_confirmed=true`; it never grants identity confirmation. A still-unresolved receipt requires individual human review and the audited `reject-pending` command below. There is no blanket rejection command.
 
-Verification replays the trace, enforces size/event/time bounds, and converts the recomputed score through the round's fixed calibration table. The serialized daily-best update writes only the point difference to the immutable ledger. Public cumulative standings include positive totals only. Their tie order is total points, maximum combined points on one UTC day, then the earlier receipt that reached the final total. A remaining exact tie retains a shared rank and requires explicit review; member identity is never a hidden tie-breaker. Public per-game high scores are display-only and do not alter prize rank.
+Verification replays the trace, enforces size/event/time bounds, and converts the recomputed score through the round's fixed calibration table. The serialized scoring-best update writes only the point difference to the immutable ledger. Public cumulative standings include positive totals only. Version-2 monthly rounds rank by total points, the count of weekly game bests at the highest frozen tier, then the earlier receipt that reached the final total. Version-1 rounds retain their original maximum-UTC-day tie rule. A remaining exact tie retains a shared rank and requires explicit review; member identity is never a hidden tie-breaker. Public per-game high scores are display-only and do not alter prize rank.
 
 The [replay source freeze](DECISIONS/0008-replay-source-freeze.md) pins the complete local dependency closure of verifier v1 with source hashes and a guard test. Do not refresh those hashes to make a changed game pass: preserve the old verifier and introduce a new trace version. The database freezes rules, dates, slug, evidence, ledger, candidate snapshot, final result, and operation audit at the relevant lifecycle stages, but does not pin a verifier build hash itself. Run the guard before every release; the deployment process must enforce this policy through final review and claims.
 
@@ -76,8 +77,49 @@ outside the current state machine and must not be improvised through the UI.
 
 The operator CLI never reads ordinary `DATABASE_URL` and never accepts a database URL on the command line. Put the credential in the dedicated environment variable so it is not exposed in the process argument list. Every command connects, reads `current_database()`, and refuses to proceed unless both database-name arguments match it exactly.
 
+Before a rehearsal or launch, verify the selected database without reading user
+records. The preflight checks migration hashes and required schema protections,
+then reports aggregate competition health from a rolled-back read-only
+transaction:
+
 ```sh
-export COMPETITION_OPERATOR_DATABASE_URL='postgresql://...'
+COMPETITION_OPERATOR_DATABASE_URL='postgresql://user:password@database.example.com/db?sslmode=verify-full' \
+pnpm competition:preflight -- \
+  --expected-database EXACT_DATABASE_NAME \
+  --confirm-database EXACT_DATABASE_NAME
+```
+
+For a Railway public proxy whose service certificate is issued for an internal
+name (for example, `localhost`), use the pinned-CA mode. Supply the verified
+root CA file and the exact certificate name separately. The database URL must
+omit all `sslmode` parameters in this mode because `pg` would otherwise replace
+the explicit TLS settings. Certificate verification remains enabled:
+
+```sh
+export COMPETITION_OPERATOR_DATABASE_URL='postgresql://user:password@proxy.rlwy.net/db'
+export COMPETITION_OPERATOR_DATABASE_CA_FILE='/secure/path/postgres-root.crt'
+export COMPETITION_OPERATOR_DATABASE_TLS_SERVER_NAME='localhost'
+
+pnpm competition:preflight -- \
+  --expected-database EXACT_DATABASE_NAME \
+  --confirm-database EXACT_DATABASE_NAME
+```
+
+Use the same three environment variables for `scripts/competition/operator.ts`.
+The root CA must be obtained and verified through the database provider's
+authenticated channel; neither variable has a permissive fallback. Remote URLs
+without this pair still require exactly one `sslmode=verify-full` parameter.
+
+Validate a completed round file before touching a database. This command is
+offline and reports every unresolved launch approval:
+
+```sh
+./scripts/competition/operator.ts validate-definition \
+  --definition-file /absolute/path/to/completed-round.json
+```
+
+```sh
+export COMPETITION_OPERATOR_DATABASE_URL='postgresql://user:password@database.example.com/db?sslmode=verify-full'
 export ARCADE_COMPETITION_ENABLED=true
 export ARCADE_SHARED_AUTH_ENABLED=true
 # Required as well for an approved material_prize round:
@@ -111,7 +153,10 @@ export ARCADE_SHARED_AUTH_ENABLED=true
   --confirm-database EXACT_DATABASE_NAME
 
 ./scripts/competition/operator.ts settle \
+  --round-id ROUND_UUID \
   --attempt-id ATTEMPT_UUID \
+  --actor OPERATOR_ID \
+  --idempotency-key settle-ATTEMPT_UUID-v1 \
   --expected-database EXACT_DATABASE_NAME \
   --confirm-database EXACT_DATABASE_NAME
 
@@ -157,7 +202,7 @@ The finalization file has this shape:
 {
   "tieDecisions": [
     {
-      "exactTieKey": "POINTS:MAX_DAILY:REACHED_AT",
+      "exactTieKey": "POINTS:TOP_TIER_RESULTS:REACHED_AT",
       "resolution": "shared_rank",
       "memberIds": ["MEMBER_UUID_A", "MEMBER_UUID_B"],
       "rationale": "Published shared-placement rule reference"

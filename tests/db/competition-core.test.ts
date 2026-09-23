@@ -13,7 +13,8 @@ import {
 } from "@/competition/store";
 import type { RoundRules } from "@/competition/rules";
 import { publicRound } from "@/competition/read";
-import { finalizeRound } from "@/competition/operations-store";
+import { finalizeRound, settleAttempt } from "@/competition/operations-store";
+import { competitionOperatorDashboard } from "@/competition/operator-dashboard";
 import {
   positiveSnakeTraceFixture,
   zeroScoreFlappyTraceFixture,
@@ -75,6 +76,21 @@ const monthlyRules = {
     timeZone: "America/New_York",
     fullArenaBonusPoints: 25,
   },
+};
+const communityRules = {
+  ...monthlyRules,
+  mode: "community" as const,
+  games: [
+    ...monthlyRules.games,
+    {
+      gameId: "perfect-toss" as const,
+      calibration: [
+        { score: 0, points: 0 },
+        { score: 1, points: 20 },
+      ],
+    },
+  ],
+  scoring: { ...monthlyRules.scoring, fullArenaBonusPoints: 0 },
 };
 
 let pool: Pool;
@@ -177,6 +193,31 @@ it("a scheduled next month cannot hide the currently playable round", async () =
   expect((await publicRound(db)).round?.id).toBe(near);
   expect((await publicRound(db, "synthetic")).round?.id).toBe(ROUND);
 });
+it("selects a public community round and marks it as no-prize", async () => {
+  await pool.query(
+    "UPDATE competition_rounds SET status='closing' WHERE id=$1",
+    [ROUND],
+  );
+  const communityId = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+     VALUES ($1,'community-monthly',$2,'open',now()-interval '1 hour',now()+interval '1 day')`,
+    [communityId, communityRules],
+  );
+  const published = await publicRound(db);
+  expect(published.round?.id).toBe(communityId);
+  expect(published.round?.mode).toBe("community");
+  expect(published.round?.rules.mode).toBe("community");
+});
+it("does not expose a disabled material round through an explicit slug", async () => {
+  const hiddenId = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+     VALUES ($1,'hidden-prize-round',$2,'open',now()-interval '1 hour',now()+interval '1 day')`,
+    [hiddenId, { ...monthlyRules, mode: "material_prize" }],
+  );
+  expect((await publicRound(db, "hidden-prize-round")).round).toBeNull();
+});
 beforeEach(async () => {
   await pool.query(
     `ALTER TABLE competition_ledger DISABLE TRIGGER competition_ledger_no_truncate;
@@ -193,6 +234,29 @@ beforeEach(async () => {
 });
 
 describe("competition store on PostgreSQL", () => {
+  it("refuses awards for a public community round", async () => {
+    const communityId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+       VALUES ($1,'community-award-guard',$2,'review',now()-interval '2 days',now()-interval '1 day')`,
+      [communityId, communityRules],
+    );
+    await expect(
+      finalizeRound(db, {
+        roundId: communityId,
+        approvedBy: "operator",
+        idempotencyKey: "community-award-guard-01",
+        tieDecisions: [],
+        awards: [
+          {
+            memberId: A,
+            awardKey: "rank-1",
+            allocationRationale: "Should be rejected",
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "community_round_has_no_prizes" });
+  });
   it("caps 25 concurrent issue requests at three and makes a shared daily challenge", async () => {
     await enrollActor(A);
     await enrollActor(B);
@@ -292,6 +356,19 @@ describe("competition store on PostgreSQL", () => {
     await receiveTrace(db, actor(), id, fixture.trace, false);
     expect(await verifyAttempt(db, id)).toMatchObject({ status: "pending" });
     expect(await scalar("SELECT count(*) n FROM competition_ledger")).toBe(0);
+    await expect(
+      settleAttempt(db, {
+        roundId: ROUND,
+        attemptId: id,
+        actor: "accounts:operator",
+        idempotencyKey: "settle-unconfirmed-0001",
+      }),
+    ).rejects.toMatchObject({ code: "security_confirmation_required" });
+    expect(
+      await scalar(
+        "SELECT count(*) n FROM competition_operation_audit WHERE operation='settle'",
+      ),
+    ).toBe(0);
     const changed = structuredClone(fixture.trace);
     changed.terminal.reason = "quit";
     await expect(
@@ -312,6 +389,140 @@ describe("competition store on PostgreSQL", () => {
     expect(publicJson).not.toContain(A);
     expect(publicJson).not.toContain(actor().providerSessionId);
     expect(publicJson).not.toContain("evidenceHash");
+  });
+
+  it("settles confirmed evidence and its operator audit atomically", async () => {
+    await enrollActor();
+    const fixture = positiveSnakeTraceFixture();
+    const attemptId = await manualAttempt(
+      A,
+      actor().providerSessionId,
+      fixture,
+    );
+    await receiveTrace(db, actor(), attemptId, fixture.trace, true);
+    const input = {
+      roundId: ROUND,
+      attemptId,
+      actor: "accounts:operator",
+      idempotencyKey: "settle-confirmed-0001",
+    };
+    await expect(settleAttempt(db, input)).resolves.toMatchObject({
+      attemptId,
+      status: "verified",
+      repeated: false,
+    });
+    await expect(settleAttempt(db, input)).resolves.toMatchObject({
+      attemptId,
+      status: "verified",
+      repeated: true,
+    });
+    const audit = await pool.query(
+      `SELECT actor,payload FROM competition_operation_audit
+        WHERE round_id=$1 AND operation='settle'`,
+      [ROUND],
+    );
+    expect(audit.rows).toEqual([
+      expect.objectContaining({
+        actor: "accounts:operator",
+        payload: expect.objectContaining({ attemptId }),
+      }),
+    ]);
+    expect(JSON.stringify(audit.rows)).not.toContain("evidenceHash");
+    const dashboard = await competitionOperatorDashboard(db, ROUND);
+    expect(dashboard.selected?.attempts).toContainEqual(
+      expect.objectContaining({ id: attemptId, status: "verified" }),
+    );
+
+    const otherAttempt = await manualAttempt(
+      A,
+      actor().providerSessionId,
+      zeroScoreFlappyTraceFixture(),
+      2,
+    );
+    const otherFixture = zeroScoreFlappyTraceFixture();
+    await receiveTrace(db, actor(), otherAttempt, otherFixture.trace, true);
+    await expect(
+      settleAttempt(db, { ...input, attemptId: otherAttempt }),
+    ).rejects.toThrow("Settlement idempotency conflict");
+    expect(
+      (
+        await pool.query(
+          "SELECT status FROM competition_attempts WHERE id=$1",
+          [otherAttempt],
+        )
+      ).rows[0].status,
+    ).toBe("pending");
+  });
+
+  it("never hides pending evidence behind the verified-attempt review limit", async () => {
+    const pendingBefore = Number(
+      (
+        await pool.query(
+          "SELECT count(*)::int AS n FROM competition_attempts WHERE round_id=$1 AND status='pending'",
+          [ROUND],
+        )
+      ).rows[0].n,
+    );
+    await pool.query(
+      `INSERT INTO competition_attempts
+         (id,round_id,member_id,provider_session_id,game_id,day_key,
+          score_period_key,ordinal,idempotency_key,seed,status,score,points,
+          issued_at,expires_at,received_at)
+       SELECT md5('verified-history-' || series)::uuid,$1,$2,'sid-history',
+              'snake',to_char(current_date-series,'YYYY-MM-DD'),
+              to_char(current_date-series,'YYYY-MM-DD'),1,
+              'verified-history-' || series,'seed','verified',1,1,
+              now()-series*interval '1 day',now()+interval '1 day',
+              now()+series*interval '1 second'
+         FROM generate_series(1,201) AS series`,
+      [ROUND, A],
+    );
+    await pool.query(
+      `INSERT INTO competition_attempts
+         (id,round_id,member_id,provider_session_id,game_id,day_key,
+          score_period_key,ordinal,idempotency_key,seed,status,issued_at,
+          expires_at,received_at)
+       SELECT md5('pending-history-' || series)::uuid,$1,$2,'sid-pending',
+              'snake',to_char(date '2024-01-01'+series,'YYYY-MM-DD'),
+              to_char(date '2024-01-01'+series,'YYYY-MM-DD'),2,
+              'pending-history-' || series,'seed','pending',
+              now()-interval '2 years'+series*interval '1 second',
+              now()+interval '1 day',
+              now()-interval '2 years'+series*interval '1 second'
+         FROM generate_series(1,101) AS series`,
+      [ROUND, B],
+    );
+
+    const first = await competitionOperatorDashboard(db, ROUND);
+    expect(first.selected?.attempts).toHaveLength(300);
+    expect(
+      first.selected?.attempts.filter(
+        (attempt) => attempt.status === "pending",
+      ),
+    ).toHaveLength(100);
+    expect(first.selected?.pendingNextCursor).not.toBeNull();
+
+    const second = await competitionOperatorDashboard(
+      db,
+      ROUND,
+      first.selected?.pendingNextCursor ?? undefined,
+    );
+    expect(
+      second.selected?.attempts.filter(
+        (attempt) => attempt.status === "pending",
+      ),
+    ).toHaveLength(pendingBefore + 1);
+    expect(second.selected?.pendingNextCursor).toBeNull();
+    expect(
+      new Set(
+        [
+          ...(first.selected?.attempts ?? []),
+          ...(second.selected?.attempts ?? []),
+        ]
+          .filter((attempt) => attempt.status === "pending")
+          .map((attempt) => attempt.id),
+      ).size,
+    ).toBe(pendingBefore + 101);
   });
 
   it("recomputes the daily best by delta when a higher result is disqualified", async () => {

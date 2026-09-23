@@ -12,6 +12,7 @@ type Standing = {
   username: string;
   rank: number;
   totalPoints: number;
+  topTierResults?: number;
   maxDailyPoints: number;
   maxPeriodPoints?: number;
 };
@@ -21,7 +22,7 @@ type Round = {
   status: string;
   opensAt: string;
   closesAt: string;
-  mode: "synthetic" | "material_prize";
+  mode: "synthetic" | "community" | "material_prize";
   rules: PublicRoundRules;
   rulesDigest: string;
 };
@@ -54,6 +55,17 @@ type MemberState = {
   remaining: Record<string, number>;
   totalPoints: number;
   rank: number | null;
+  currentPeriod?: {
+    periodKey: string;
+    completedGames: number;
+    eligibleGames: number;
+    games: { gameId: string; points: number; completed: boolean }[];
+    fullArena: {
+      configuredPoints: number;
+      earned: boolean;
+      earnedPoints: number;
+    };
+  } | null;
   awards?: { id: string; awardKey: string; status: string; rank: number }[];
 };
 type LoadState =
@@ -89,6 +101,8 @@ const translations = {
     intro:
       "Practice the games and follow verified monthly standings when a published round is active.",
     test: "Test round · no prizes",
+    communityNoPrizes:
+      "No prizes this round; scores do not transfer to future prize contests.",
     materialPending: "Prize terms pending · enrollment closed",
     materialPendingBody:
       "No material contest is open. Practice play remains available while the official rules and operating terms are completed.",
@@ -111,6 +125,7 @@ const translations = {
     points: "Points",
     bestDay: "Best day",
     bestWeek: "Best week",
+    topTiers: "Top tiers",
     empty: "No verified scores yet.",
     yourRound: "Your round",
     signedOut: "Sign in to enroll and play official attempts.",
@@ -127,6 +142,13 @@ const translations = {
     total: "Total points",
     rank: "Rank",
     attempts: "Attempts left today",
+    weeklyProgress: "This week",
+    gamesComplete: (complete: number, total: number) =>
+      `${complete} of ${total} games complete`,
+    contributed: "counting",
+    fullArenaEarned: (points: number) => `Full Arena earned · ${points} points`,
+    fullArenaPending: (points: number) =>
+      `Complete every active game to earn ${points} Full Arena points.`,
     playSnake: "Play Snake",
     playFlappy: "Play Flappy Bird",
     playGame: (name: string) => `Play ${name}`,
@@ -157,6 +179,8 @@ const translations = {
       `Complete all ${games} active game${games === 1 ? "" : "s"} in the same week to earn a ${points}-point Full Arena bonus.`,
     monthlyWinners: (count: number) =>
       `The top ${count} players are selected when the monthly round closes.`,
+    tieOrder:
+      "Ties are ranked by top-tier game results, then by who reached the point total first.",
     localReset: (timeZone: string) =>
       `Daily limits reset at midnight in ${timeZone}.`,
     game: "Game",
@@ -170,6 +194,8 @@ const translations = {
     intro:
       "Practica los juegos y consulta la tabla mensual verificada cuando haya una ronda publicada activa.",
     test: "Ronda de prueba · sin premios",
+    communityNoPrizes:
+      "Esta ronda no tiene premios; los puntajes no se transfieren a futuros concursos con premios.",
     materialPending: "Términos del premio pendientes · inscripción cerrada",
     materialPendingBody:
       "No hay un concurso con premios abierto. Las partidas de práctica siguen disponibles mientras se completan las reglas y condiciones operativas.",
@@ -193,6 +219,7 @@ const translations = {
     points: "Puntos",
     bestDay: "Mejor día",
     bestWeek: "Mejor semana",
+    topTiers: "Niveles máximos",
     empty: "Aún no hay puntajes verificados.",
     yourRound: "Tu ronda",
     signedOut: "Inicia sesión para inscribirte y jugar intentos oficiales.",
@@ -210,6 +237,14 @@ const translations = {
     total: "Puntos totales",
     rank: "Posición",
     attempts: "Intentos disponibles hoy",
+    weeklyProgress: "Esta semana",
+    gamesComplete: (complete: number, total: number) =>
+      `${complete} de ${total} juegos completados`,
+    contributed: "contando",
+    fullArenaEarned: (points: number) =>
+      `Full Arena obtenido · ${points} puntos`,
+    fullArenaPending: (points: number) =>
+      `Completa todos los juegos activos para ganar ${points} puntos Full Arena.`,
     playSnake: "Jugar Snake",
     playFlappy: "Jugar Flappy Bird",
     playGame: (name: string) => `Jugar ${name}`,
@@ -241,6 +276,8 @@ const translations = {
       `Completa ${games === 1 ? "el" : "los"} ${games} juego${games === 1 ? "" : "s"} activo${games === 1 ? "" : "s"} en la misma semana para ganar un bono Full Arena de ${points} puntos.`,
     monthlyWinners: (count: number) =>
       `Los ${count} mejores jugadores se seleccionan cuando termina la ronda mensual.`,
+    tieOrder:
+      "Los empates se ordenan por resultados en el nivel máximo y luego por quién alcanzó antes el total de puntos.",
     localReset: (timeZone: string) =>
       `Los límites diarios se reinician a medianoche en ${timeZone}.`,
     game: "Juego",
@@ -398,6 +435,9 @@ export function ChampionshipPanel({
               <div>
                 {round.mode === "synthetic" && (
                   <p className={styles.testBadge}>{text.test}</p>
+                )}
+                {round.mode === "community" && (
+                  <p className={styles.testBadge}>{text.communityNoPrizes}</p>
                 )}
                 {materialBlocked && (
                   <p className={styles.testBadge}>{text.materialPending}</p>
@@ -564,6 +604,42 @@ function MemberRound({
           <strong>{member.rank ? `#${member.rank}` : "—"}</strong>
         </div>
       </div>
+      {member.currentPeriod && (
+        <section className={styles.progress}>
+          <div className={styles.progressHeading}>
+            <h3>{text.weeklyProgress}</h3>
+            <span>{member.currentPeriod.periodKey}</span>
+          </div>
+          <p>
+            {text.gamesComplete(
+              member.currentPeriod.completedGames,
+              member.currentPeriod.eligibleGames,
+            )}
+          </p>
+          <ul>
+            {member.currentPeriod.games.map((game) => (
+              <li key={game.gameId} data-complete={game.completed}>
+                <span>{gameName(game.gameId, text)}</span>
+                <strong>
+                  {game.points} {text.points.toLowerCase()}
+                  {game.completed ? ` · ${text.contributed}` : ""}
+                </strong>
+              </li>
+            ))}
+          </ul>
+          {member.currentPeriod.fullArena.configuredPoints > 0 && (
+            <p className={styles.fullArenaProgress}>
+              {member.currentPeriod.fullArena.earned
+                ? text.fullArenaEarned(
+                    member.currentPeriod.fullArena.earnedPoints,
+                  )
+                : text.fullArenaPending(
+                    member.currentPeriod.fullArena.configuredPoints,
+                  )}
+            </p>
+          )}
+        </section>
+      )}
       {canPlay && (
         <>
           <h3>{text.attempts}</h3>
@@ -677,7 +753,7 @@ function AwardClaims({
           <p>
             <strong>#{award.rank}</strong> · {award.awardKey}
           </p>
-          {award.status === "offered" ? (
+          {award.status === "unclaimed" ? (
             <>
               <label className={styles.checkbox}>
                 <input
@@ -756,7 +832,10 @@ function Rules({
                 )}
               </li>
             ) : null}
-            <li>{text.monthlyWinners(round.rules.winnerCount)}</li>
+            {round.mode !== "community" ? (
+              <li>{text.monthlyWinners(round.rules.winnerCount)}</li>
+            ) : null}
+            <li>{text.tieOrder}</li>
           </>
         ) : null}
       </ul>
@@ -807,6 +886,9 @@ function Standings({
                 <th scope="col">#</th>
                 <th scope="col">{text.player}</th>
                 <th scope="col">{text.points}</th>
+                {round.rules.version === 2 ? (
+                  <th scope="col">{text.topTiers}</th>
+                ) : null}
                 <th scope="col">
                   {round.rules.version === 2 ? text.bestWeek : text.bestDay}
                 </th>
@@ -818,6 +900,9 @@ function Standings({
                   <td>{row.rank}</td>
                   <th scope="row">@{row.username}</th>
                   <td>{row.totalPoints}</td>
+                  {round.rules.version === 2 ? (
+                    <td>{row.topTierResults ?? 0}</td>
+                  ) : null}
                   <td>
                     {round.rules.version === 2
                       ? (row.maxPeriodPoints ?? row.maxDailyPoints)

@@ -1,13 +1,18 @@
 # Dai Dai weekly leaderboard rules: implementation decision
 
-**Reviewed:** September 16, 2026  
-**Source:** the `aegyo_arena_leaderboard` handoff supplied by Mateo  
-**Status:** source review retained for game mappings. Simon's September 17
-decision changed the prize cadence to monthly and the top three receive prizes.
-The current implementation record is
+**Reviewed:** September 23, 2026
+**Sources:** the `aegyo_arena_leaderboard` handoff supplied by Mateo; Dai Dai's
+September 22 reply; Simon's September 22, 21:57 approval (“Good to go! Great
+idea!”).
+**Status:** the product rules below are approved. This records the decision; it
+does not mean each scoring source is implemented or eligible for prizes. The
+current implementation record is
 [`MONTHLY_LEADERBOARD_FOUNDATION_2026-09-17.md`](./MONTHLY_LEADERBOARD_FOUNDATION_2026-09-17.md).
-Prize competition remains disabled until the remaining point, tie, prize, and
-launch decisions are complete.
+Prize competition remains disabled pending the launch, legal, prize, and source
+verification gates below.
+Mateo approved a September 23 public **no-prize** leaderboard with only Snake,
+Bias Flap, and Perfect Toss while those gates are completed. Its scores do not
+transfer into a later prize contest.
 
 The handoff is product input, not an installation package for this repository.
 Its Supabase SQL and browser client target a different architecture and must not
@@ -29,10 +34,11 @@ foundation.
 - The weekly round resets Monday at 00:00 in `America/New_York`. The service
   computes those boundaries with the IANA time zone and stores exact UTC
   instants, including across daylight-saving changes.
-- Ranking order is total points, best weekly point total, then the receipt time
-  at which the final total was reached. Receipt time, rather than asynchronous
-  verification completion time, is used. A remaining exact tie keeps a shared
-  rank and requires the published award-allocation rule.
+- Approved monthly ranking order is total points, most top-tier game results,
+  then whoever reached that total first. The implementation uses receipt time,
+  rather than asynchronous verification completion time, as the recorded time.
+  A remaining exact tie keeps a shared rank; how that tie affects prize
+  allocation still needs to be published.
 - Instant quits and verified zero results earn no tier.
 - Thresholds are frozen for the whole weekly round. Calibration changes create
   a new rules version and take effect only in a later round.
@@ -70,19 +76,49 @@ first round launches with three verified games, its weekly maximum is 80 points:
 `3 games × 20 + 20 bonus`. Public copy must say three games. Any larger maximum
 becomes true only when the additional games are verified and frozen into the round.
 
-## Weekly engagement and the monthly prize
+## Approved weekly scoring and monthly prize rules
 
-Simon has confirmed a monthly prize, while this handoff defines weekly scoring
-windows. The implemented combined model is:
+The approved product model uses weekly scoring windows and a monthly
+championship:
 
-1. each game's best verified result counts once per New York competition week;
-2. Full Arena is evaluated independently for each week; and
-3. the monthly championship total sums those weekly contributions inside one
-   frozen monthly round.
+1. For each game, each player's best score for the week converts to points once
+   for that week.
+2. The monthly leaderboard adds each player's weekly totals across the month.
+3. The approved tie order is total points, most top-tier results, then earliest
+   time reaching the final total.
 
 The monthly round's exact opening and closing instants resolve partial weeks at
 month boundaries. Public copy must state those instants and the New York daily
-and weekly boundaries before launch.
+and weekly boundaries before launch. The monthly aggregation and general tier
+foundation are described as implemented in the linked implementation record;
+the approved Claw, poll, and Slang Memory scoring below are not implemented as
+prize sources.
+
+Dai Dai proposed the following values on September 22; Simon approved the reply
+at 21:57:
+
+- Claw Machine: target about one win in five tries; count at most one win per
+  member per week. Award 20 points for A or E, 30 for D, B, or K, and 50 for
+  `!`. These rules are approved, but the current Claw server records only
+  `win`, `miss`, or `drop` against a guest device. It does not prove the plush
+  letter or attach the win to an Accounts member, so Claw cannot yet award
+  prize points. The current aimable plush set is `D/A/E/B/K/A2`; there is no
+  `!` plush in the game manifest or aim grid yet.
+- Article polls: award 10 points per vote, limited to polls on the last five
+  articles on the homepage, for a maximum of 50 points per member per week.
+  Aegyo currently stores poll votes in its own database. A trusted member
+  mapping and a frozen eligible-article/poll list are required before votes
+  can enter the Arcade ledger; browser-submitted claims cannot be accepted.
+- Slang Memory: the best weekly score converts using the same tier system as
+  the other games, once per week. The game and prize-verifiable score source
+  are not in either current Arcade or upstream Aegyo code, so it cannot yet
+  award prize points.
+
+The approved tie order is implemented for current verified-game standings.
+Only a weekly game best at that game's highest frozen tier counts as a top-tier
+result; Full Arena and engagement points do not increase that count. An exact
+tie after all three rules retains a shared rank, while its prize allocation
+still needs a published rule.
 
 ## Identity and existing users
 
@@ -105,21 +141,26 @@ and weekly boundaries before launch.
    the localized reset zone.
 4. Continue extending the verifier one game at a time. Every added game needs deterministic
    reproduction tests, tamper tests and a frozen source manifest.
-5. The confirmed monthly total now aggregates the weekly game contributions.
+5. The monthly total aggregates weekly game contributions. The newly approved
+   Claw, poll, and Slang Memory sources still need implementation and trusted
+   verification before they can contribute prize points.
 6. Keep material competition behind `ARCADE_MATERIAL_COMPETITION_ENABLED` until
    public rules, prizes, eligibility, claim handling and production rehearsals
    are approved.
 
-## Decisions still needed from Simon and Dai Dai
+## Remaining launch, legal, and source-verification gates
 
-1. Confirm how an exact shared rank that reaches or crosses third place allocates
-   the three prizes.
-2. Confirm the prize assigned to each rank, approximate retail value, eligible geography/age, claim
-   deadline and fulfillment owner.
-3. Approve the three currently material-verifiable games for the first public
-   round, or move the date to allow more verifiers to be completed and rehearsed.
-4. Confirm poll and slang-memory point values, caps, attribution, reversal and
-   abuse handling, or explicitly exclude engagement points from the first round.
+1. Publish how an exact shared rank that reaches or crosses third place
+   allocates prizes.
+2. Set the prize assigned to each rank, approximate retail value, eligible
+   geography and age, claim deadline, and fulfillment owner.
+3. Before a material-prize round, approve the eligible game set and frozen
+   calibration with the published rules. The initial no-prize leaderboard uses
+   only the three currently verified games.
+4. Implement and rehearse trusted Claw-letter/member attribution, poll
+   article/vote/member sourcing, and the Slang Memory game and score verifier
+   before those sources award prize points. Alternatively, launch with only
+   the verified sources.
 
 ## Launch acceptance
 

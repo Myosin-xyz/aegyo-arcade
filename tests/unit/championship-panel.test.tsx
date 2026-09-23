@@ -92,6 +92,43 @@ describe("championship journey", () => {
     expect(container?.textContent?.toLowerCase()).not.toContain("win a prize");
   });
 
+  it("labels a public community round as prize-free without suggesting winners are selected", async () => {
+    const communityRound = {
+      ...round,
+      mode: "community",
+      rules: {
+        version: 2,
+        mode: "community",
+        dailyAttempts: 2,
+        attemptTtlSeconds: 900,
+        games: round.rules.games,
+        cadence: "monthly",
+        winnerCount: 3,
+        scoring: {
+          bestPerGame: "week",
+          timeZone: "America/Bogota",
+          fullArenaBonusPoints: 0,
+        },
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({ round: communityRound, standings: [], provisional: true }),
+        )
+        .mockResolvedValueOnce(response({ authenticated: false }, 401)),
+    );
+    await renderPanel();
+    await vi.waitFor(() =>
+      expect(container?.textContent).toContain(
+        "No prizes this round; scores do not transfer to future prize contests.",
+      ),
+    );
+    expect(container?.textContent).not.toContain("players are selected");
+  });
+
   it("shows only official game links and remaining attempts to an enrolled member", async () => {
     vi.stubGlobal(
       "fetch",
@@ -116,6 +153,20 @@ describe("championship journey", () => {
             remaining: { snake: 2, flappy: 0 },
             totalPoints: 450,
             rank: 3,
+            currentPeriod: {
+              periodKey: "2026-09-14",
+              completedGames: 1,
+              eligibleGames: 2,
+              games: [
+                { gameId: "snake", points: 10, completed: true },
+                { gameId: "flappy", points: 0, completed: false },
+              ],
+              fullArena: {
+                configuredPoints: 20,
+                earned: false,
+                earnedPoints: 0,
+              },
+            },
           }),
         ),
     );
@@ -134,6 +185,10 @@ describe("championship journey", () => {
     expect(container?.textContent).toContain("Game high scores");
     expect(container?.textContent).toContain("@fan_99");
     expect(container?.textContent).toContain("42");
+    expect(container?.textContent).toContain("1 of 2 games complete");
+    expect(container?.textContent).toContain(
+      "Complete every active game to earn 20 Full Arena points.",
+    );
   });
 
   it("does not expose enrollment or play when material terms are pending", async () => {
@@ -287,7 +342,7 @@ describe("championship journey", () => {
     expect(container?.querySelector('a[href^="/play/"]')).toBeNull();
   });
 
-  it("keeps an offered award claim available after finalization", async () => {
+  it("keeps an unclaimed award claim available after finalization", async () => {
     vi.stubGlobal(
       "fetch",
       vi
@@ -317,7 +372,12 @@ describe("championship journey", () => {
             totalPoints: 1000,
             rank: 1,
             awards: [
-              { id: "award-1", awardKey: "winner", status: "offered", rank: 1 },
+              {
+                id: "award-1",
+                awardKey: "winner",
+                status: "unclaimed",
+                rank: 1,
+              },
             ],
           }),
         ),

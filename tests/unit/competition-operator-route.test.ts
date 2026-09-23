@@ -10,10 +10,12 @@ const mocks = vi.hoisted(() => ({
   },
   openRound: vi.fn(),
   closeRound: vi.fn(),
+  disqualifyAttempt: vi.fn(),
   finalizeRound: vi.fn(),
   fulfillAward: vi.fn(),
   rejectPendingAttempt: vi.fn(),
-  verifyAttempt: vi.fn(),
+  settleAttempt: vi.fn(),
+  dashboard: vi.fn(),
 }));
 
 vi.mock("@/competition/http", () => ({
@@ -29,14 +31,19 @@ vi.mock("@/competition/operator-auth", () => ({
 vi.mock("@/competition/operations-store", () => ({
   openRound: mocks.openRound,
   closeRound: mocks.closeRound,
+  disqualifyAttempt: mocks.disqualifyAttempt,
   finalizeRound: mocks.finalizeRound,
   fulfillAward: mocks.fulfillAward,
   rejectPendingAttempt: mocks.rejectPendingAttempt,
+  settleAttempt: mocks.settleAttempt,
 }));
-vi.mock("@/competition/store", () => ({ verifyAttempt: mocks.verifyAttempt }));
+vi.mock("@/competition/operator-dashboard", () => ({
+  competitionOperatorDashboard: mocks.dashboard,
+}));
 
 import { competitionOperatorContext } from "@/competition/operator-auth";
 import { POST } from "@/app/api/competition/operator/actions/route";
+import { GET } from "@/app/api/competition/operator/route";
 
 const roundId = "10000000-0000-4000-8000-000000000001";
 const memberId = "20000000-0000-4000-8000-000000000001";
@@ -61,6 +68,45 @@ describe("competition operator actions", () => {
       finalResultId: "30000000-0000-4000-8000-000000000001",
       standings: [{ memberId }],
       repeated: false,
+    });
+    mocks.settleAttempt.mockResolvedValue({
+      attemptId: memberId,
+      status: "verified",
+      repeated: false,
+    });
+    mocks.disqualifyAttempt.mockResolvedValue({ repeated: false });
+    mocks.dashboard.mockResolvedValue({ selected: null, rounds: [] });
+  });
+
+  it("rejects partial or malformed pending pagination cursors", async () => {
+    await expect(
+      GET(
+        new NextRequest(
+          "https://arcade.example.test/api/competition/operator?pendingAfterAt=2026-09-17T00%3A00%3A00.000001Z",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "invalid_pending_cursor", status: 400 });
+    await expect(
+      GET(
+        new NextRequest(
+          "https://arcade.example.test/api/competition/operator?pendingAfterAt=not-a-date&pendingAfterId=10000000-0000-4000-8000-000000000001",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "invalid_pending_cursor", status: 400 });
+    expect(mocks.dashboard).not.toHaveBeenCalled();
+  });
+
+  it("passes a complete pending cursor to the operator dashboard", async () => {
+    const receivedAt = "2026-09-17T00:00:00.000001Z";
+    const response = await GET(
+      new NextRequest(
+        `https://arcade.example.test/api/competition/operator?roundId=${roundId}&pendingAfterAt=${encodeURIComponent(receivedAt)}&pendingAfterId=${memberId}`,
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.dashboard).toHaveBeenCalledWith(mocks.context.db, roundId, {
+      receivedAt,
+      id: memberId,
     });
   });
 
@@ -95,6 +141,44 @@ describe("competition operator actions", () => {
       status: 409,
     });
     expect(mocks.openRound).not.toHaveBeenCalled();
+  });
+
+  it("settles through the audited operator operation", async () => {
+    mocks.body = {
+      action: "settle",
+      roundId,
+      attemptId: memberId,
+      confirmation: `settle:${memberId}`,
+      idempotencyKey: "operator-settle-0001",
+    };
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(mocks.settleAttempt).toHaveBeenCalledWith(mocks.context.db, {
+      roundId,
+      attemptId: memberId,
+      actor: "accounts:user_1",
+      idempotencyKey: "operator-settle-0001",
+    });
+  });
+
+  it("passes a reviewed disqualification to the guarded operation", async () => {
+    mocks.body = {
+      action: "disqualify",
+      roundId,
+      attemptId: memberId,
+      reason: "published-automation-rule",
+      confirmation: `disqualify:${memberId}`,
+      idempotencyKey: "operator-disqualify-0001",
+    };
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(mocks.disqualifyAttempt).toHaveBeenCalledWith(mocks.context.db, {
+      roundId,
+      attemptId: memberId,
+      actor: "accounts:user_1",
+      reason: "published-automation-rule",
+      idempotencyKey: "operator-disqualify-0001",
+    });
   });
 
   it("passes reviewed shared ties and explicit awards to finalization", async () => {

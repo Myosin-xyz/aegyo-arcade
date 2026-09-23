@@ -31,12 +31,16 @@ type RoundRow = {
   final_result_id: string | null;
 };
 
+export type PendingAttemptCursor = { receivedAt: string; id: string };
+const PENDING_PAGE_SIZE = 100;
+
 export async function competitionOperatorDashboard(
   db: Db,
   selectedRoundId?: string,
+  pendingCursor?: PendingAttemptCursor,
 ) {
-  const roundRows = rows<RoundRow>(
-    await db.execute(sql`
+  const [roundResult, clockResult] = await Promise.all([
+    db.execute(sql`
       SELECT r.id,r.slug,r.status,r.rules->>'mode' AS mode,r.rules,r.opens_at,r.closes_at,
              count(DISTINCT e.member_id)::int AS enrollment_count,
              count(DISTINCT a.id)::int AS attempt_count,
@@ -52,7 +56,13 @@ export async function competitionOperatorDashboard(
        ORDER BY r.opens_at DESC,r.id DESC
        LIMIT 24
     `),
+    db.execute(sql`SELECT clock_timestamp() AS server_now`),
+  ]);
+  const roundRows = rows<RoundRow>(roundResult);
+  const serverNow = iso(
+    rows<{ server_now: Date | string }>(clockResult)[0]?.server_now ?? null,
   );
+  if (!serverNow) throw new Error("Competition database clock is unavailable");
   const rounds = roundRows.map((round) => ({
     id: round.id,
     slug: round.slug,
@@ -72,27 +82,50 @@ export async function competitionOperatorDashboard(
   const roundId = selectedRoundId ?? rounds[0]?.id;
   if (!roundId)
     return {
-      serverNow: new Date().toISOString(),
+      serverNow,
       rounds,
       selected: null,
     };
   if (!rounds.some((round) => round.id === roundId))
     throw new CompetitionError("round_not_found", 404);
 
-  const [review, attemptsResult, awardsResult, auditResult] = await Promise.all(
-    [
-      operatorReviewBundle(db, roundId),
-      db.execute(sql`
+  const review = await operatorReviewBundle(db, roundId, {
+    pendingLimit: PENDING_PAGE_SIZE + 1,
+    pendingAfter: pendingCursor,
+  });
+  const pendingPage = review.pending.slice(0, PENDING_PAGE_SIZE);
+  const pendingIds = pendingPage.map((attempt) => attempt.attemptId);
+  const pendingIdsSql = pendingIds.length
+    ? sql`id IN (${sql.join(
+        pendingIds.map((id) => sql`${id}::uuid`),
+        sql`,`,
+      )})`
+    : sql`FALSE`;
+  const [attemptsResult, awardsResult, auditResult] = await Promise.all([
+    db.execute(sql`
+      WITH visible_attempts AS (
+        (SELECT * FROM competition_attempts
+         WHERE round_id=${roundId}::uuid AND ${pendingIdsSql}
+         ORDER BY received_at,id
+         LIMIT ${PENDING_PAGE_SIZE})
+        UNION ALL
+        (SELECT * FROM competition_attempts
+          WHERE round_id=${roundId}::uuid
+            AND status IN ('verified','rejected','void')
+            AND NOT (${pendingIdsSql})
+          ORDER BY received_at DESC NULLS LAST,issued_at DESC,id DESC
+          LIMIT 200)
+      )
       SELECT a.id,a.game_id,a.status,a.security_confirmed,a.score,a.points,
              a.received_at,a.rejection_code,p.username
-        FROM competition_attempts a
+        FROM visible_attempts a
         LEFT JOIN competition_profiles p ON p.member_id=a.member_id
-       WHERE a.round_id=${roundId}::uuid
-         AND a.status IN ('pending','rejected','void')
-       ORDER BY a.received_at DESC,a.id DESC
-       LIMIT 100
+       ORDER BY CASE WHEN a.status='pending' THEN 0 ELSE 1 END,
+                CASE WHEN a.status='pending' THEN a.received_at END ASC NULLS LAST,
+                CASE WHEN a.status<>'pending' THEN a.received_at END DESC NULLS LAST,
+                a.issued_at DESC,a.id DESC
     `),
-      db.execute(sql`
+    db.execute(sql`
       SELECT c.id,c.member_id,c.final_rank,c.award_key,c.status,c.claimed_at,
              c.fulfilled_at,p.username
         FROM competition_award_claims c
@@ -100,15 +133,20 @@ export async function competitionOperatorDashboard(
        WHERE c.round_id=${roundId}::uuid
        ORDER BY c.final_rank,c.award_key,c.id
     `),
-      db.execute(sql`
+    db.execute(sql`
       SELECT id,operation,actor,created_at
         FROM competition_operation_audit
        WHERE round_id=${roundId}::uuid
        ORDER BY created_at DESC,id DESC
        LIMIT 100
     `),
-    ],
-  );
+  ]);
+
+  const lastPending = pendingPage.at(-1);
+  const pendingNextCursor =
+    review.pending.length > PENDING_PAGE_SIZE && lastPending
+      ? { receivedAt: lastPending.receivedAt, id: lastPending.attemptId }
+      : null;
 
   const profileRows = review.candidate
     ? rows<{ member_id: string; username: string }>(
@@ -126,11 +164,12 @@ export async function competitionOperatorDashboard(
   );
 
   return {
-    serverNow: new Date().toISOString(),
+    serverNow,
     rounds,
     selected: {
       round: rounds.find((round) => round.id === roundId)!,
-      pending: review.pending,
+      pending: pendingPage,
+      pendingNextCursor,
       candidate: review.candidate
         ? {
             ...review.candidate,

@@ -16,17 +16,11 @@ assert.equal(
 const roundSlug = process.env.ARCADE_COMPETITION_STAGING_ROUND;
 assert.match(roundSlug ?? "", /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/);
 const gameId = process.env.ARCADE_COMPETITION_STAGING_GAME ?? "snake";
-assert(["snake", "flappy"].includes(gameId));
+assert.match(gameId, /^[a-z0-9-]{3,40}$/);
 const inspectOnly =
   process.env.ARCADE_COMPETITION_STAGING_INSPECT_ONLY === "true";
-const expectedRemaining = inspectOnly
-  ? Number(process.env.ARCADE_COMPETITION_STAGING_EXPECT_REMAINING)
-  : 3;
-assert(
-  Number.isInteger(expectedRemaining) &&
-    expectedRemaining >= 0 &&
-    expectedRemaining <= 3,
-);
+const configuredExpectedRemaining =
+  process.env.ARCADE_COMPETITION_STAGING_EXPECT_REMAINING;
 
 const proofRoot = new URL("../../services/accounts/.proof/", import.meta.url);
 const evidenceRoot = new URL("../../.auth-proof/", import.meta.url);
@@ -39,10 +33,18 @@ const [infra, seed, fixture] = await Promise.all([
 ]);
 
 const origins = Object.freeze({
-  accounts: "https://aegyo-accounts-accounts-staging.up.railway.app",
-  arcade: "https://arcade-auth-preview-accounts-staging.up.railway.app",
-  aegyo: "https://aegyo-auth-preview-accounts-staging.up.railway.app",
-  daebak: "https://daebak-auth-preview-accounts-staging.up.railway.app",
+  accounts:
+    process.env.ARCADE_COMPETITION_STAGING_ACCOUNTS_ORIGIN ??
+    "https://aegyo-accounts-accounts-staging.up.railway.app",
+  arcade:
+    process.env.ARCADE_COMPETITION_STAGING_ARCADE_ORIGIN ??
+    "https://arcade-auth-preview-accounts-staging.up.railway.app",
+  aegyo:
+    process.env.ARCADE_COMPETITION_STAGING_AEGYO_ORIGIN ??
+    "https://aegyo-auth-preview-accounts-staging.up.railway.app",
+  daebak:
+    process.env.ARCADE_COMPETITION_STAGING_DAEBAK_ORIGIN ??
+    "https://daebak-auth-preview-accounts-staging.up.railway.app",
 });
 const allowedOrigins = new Set(Object.values(origins));
 for (const origin of allowedOrigins) {
@@ -121,8 +123,22 @@ try {
   assert.equal(roundResponse.body.round?.slug, roundSlug);
   assert.equal(roundResponse.body.round?.mode, "synthetic");
   assert.equal(roundResponse.body.round?.status, "open");
+  const roundRules = roundResponse.body.round.rules;
   assert(
-    roundResponse.body.round.rules.games.some((game) => game.gameId === gameId),
+    roundRules.games.some((game) => game.gameId === gameId),
+    "requested game is not eligible in the selected round",
+  );
+  assert(
+    ["snake", "flappy", "perfect-toss"].includes(gameId),
+    "requested game has no staging browser automation",
+  );
+  const expectedRemaining = inspectOnly
+    ? Number(configuredExpectedRemaining)
+    : roundRules.dailyAttempts;
+  assert(
+    Number.isInteger(expectedRemaining) &&
+      expectedRemaining >= 0 &&
+      expectedRemaining <= roundRules.dailyAttempts,
   );
   pass("allowlisted open synthetic round is available");
 
@@ -228,16 +244,25 @@ try {
   if (!inspectOnly) {
     await page
       .getByRole("link", {
-        name: gameId === "snake" ? /Play Snake/ : /Play Flappy Bird/,
+        name:
+          gameId === "snake"
+            ? /Play Snake/
+            : gameId === "flappy"
+              ? /Play Flappy Bird/
+              : /Play Perfect Toss/,
       })
       .click();
     await page.getByTestId("start-championship").click();
     await page.getByText("Championship attempt in progress").waitFor();
     if (gameId === "snake") {
       await page.keyboard.press("ArrowUp");
-    } else {
+    } else if (gameId === "flappy") {
       await page.keyboard.press("Escape");
       await page.keyboard.press("Enter");
+    } else {
+      await page
+        .getByTestId("game-surface")
+        .click({ position: { x: 20, y: 320 } });
     }
     await page
       .getByText(/Replay verified|did not qualify/, { exact: false })
@@ -285,6 +310,7 @@ try {
   for (const standing of publicAfter.body.standings) {
     assert.deepEqual(Object.keys(standing).sort(), [
       "maxDailyPoints",
+      "maxPeriodPoints",
       "rank",
       "totalPoints",
       "username",
@@ -324,7 +350,13 @@ try {
   assert(!JSON.stringify(publicAfter.body).includes("@example.invalid"));
   report.publicStandings = {
     rows: publicAfter.body.standings.length,
-    fields: ["username", "rank", "totalPoints", "maxDailyPoints"],
+    fields: [
+      "username",
+      "rank",
+      "totalPoints",
+      "maxDailyPoints",
+      "maxPeriodPoints",
+    ],
     gameHighScoreRows: publicAfter.body.gameHighScores.length,
     gameHighScoreFields: ["gameId", "username", "score"],
   };

@@ -18,6 +18,7 @@ const migrations = [
   "src/db/migrations/0001_arcade_shared_auth.sql",
   "src/db/migrations/0002_arcade_competition.sql",
   "src/db/migrations/0003_monthly_scoring_windows.sql",
+  "src/db/migrations/0004_expand_competition_games.sql",
 ];
 const proofDir = join(repo, ".auth-proof", "competition-ui");
 const memberId = "10000000-0000-4000-8000-000000000001";
@@ -28,23 +29,43 @@ const readerKey = randomBytes(32).toString("base64url");
 const memberToken = randomBytes(32).toString("base64url");
 const memberHash = createHash("sha256").update(memberToken).digest("hex");
 const rules = {
-  version: 1,
+  version: 2,
   mode: "synthetic",
-  dailyAttempts: 3,
+  dailyAttempts: 2,
   attemptTtlSeconds: 900,
+  cadence: "monthly",
+  winnerCount: 3,
+  scoring: {
+    bestPerGame: "week",
+    timeZone: "America/New_York",
+    fullArenaBonusPoints: 17,
+  },
   games: [
     {
       gameId: "snake",
       calibration: [
         { score: 0, points: 0 },
-        { score: 100, points: 1000 },
+        { score: 25, points: 7 },
+        { score: 50, points: 13 },
+        { score: 100, points: 25 },
       ],
     },
     {
       gameId: "flappy",
       calibration: [
         { score: 0, points: 0 },
-        { score: 100, points: 1000 },
+        { score: 25, points: 7 },
+        { score: 50, points: 13 },
+        { score: 100, points: 25 },
+      ],
+    },
+    {
+      gameId: "perfect-toss",
+      calibration: [
+        { score: 0, points: 0 },
+        { score: 1, points: 7 },
+        { score: 8, points: 13 },
+        { score: 15, points: 25 },
       ],
     },
   ],
@@ -356,8 +377,12 @@ try {
       await page.getByText("Attempts left today").waitFor();
       assert.match(
         await page.getByRole("link", { name: /Play Snake/ }).textContent(),
-        /· 2$/,
+        /· 1$/,
       );
+      await page.getByText(/of 3 games complete/).waitFor();
+      await page
+        .getByText("Complete every active game to earn 17 Full Arena points.")
+        .waitFor();
       pass("desktop username, enrollment, official attempt and decrement");
     } else {
       pass("mobile account and championship render without overflow");

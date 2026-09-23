@@ -38,6 +38,10 @@ const rules: RoundRulesV2 = {
     schedule: "October 1 through October 31, America/New_York",
     ties: "Published exact-tie allocation procedure T1",
     engagementSources: "Engagement points are not used in this round",
+    scoring: {
+      gamePoints: "Approved scoring table decision S1",
+      fullArenaBonus: "Approved Full Arena decision S2",
+    },
     approvedBy: "legal-review-2026-09",
   },
 };
@@ -58,6 +62,10 @@ describe("material competition launch readiness", () => {
           prizes: "TBD",
           ties: "Pending legal review",
           engagementSources: undefined,
+          scoring: {
+            gamePoints: "REQUIRED: approved game points",
+            fullArenaBonus: "TBD",
+          },
           approvedBy: "placeholder",
         },
       }),
@@ -65,18 +73,42 @@ describe("material competition launch readiness", () => {
       "approval_authority",
       "eligibility_geography_age",
       "prize_allocation",
+      "game_point_tables",
+      "full_arena_bonus",
       "exact_tie_policy",
       "engagement_sources",
     ]);
   });
 
-  it("requires the approved 20-point Full Arena bonus for material rounds", () => {
+  it("accepts any safe configured scoring values with resolved approval references", () => {
     expect(
       materialLaunchBlockers({
         ...rules,
-        scoring: { ...rules.scoring, fullArenaBonusPoints: 10 },
+        scoring: { ...rules.scoring, fullArenaBonusPoints: 0 },
+        games: [
+          {
+            gameId: "perfect-toss",
+            calibration: [
+              { score: 0, points: 0 },
+              { score: 4, points: 7 },
+              { score: 12, points: 31 },
+            ],
+          },
+        ],
       }),
-    ).toContain("full_arena_bonus");
+    ).toEqual([]);
+  });
+
+  it("fails closed when either structured scoring approval is missing", () => {
+    expect(
+      materialLaunchBlockers({
+        ...rules,
+        approval: {
+          ...rules.approval!,
+          scoring: undefined,
+        },
+      }),
+    ).toEqual(["game_point_tables", "full_arena_bonus"]);
   });
 
   it("rejects standalone required placeholders without rejecting legal prose", () => {

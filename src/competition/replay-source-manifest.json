@@ -29,6 +29,14 @@
         "src/games/hangman/logic.ts": "a6fc7e88bc18cd2e5dcd2870fe65b7d83595f4baa87636f53e9328a0b6b5e4ae",
         "src/shell/rng.ts": "61c5cec159a0da6cf81c2883b1736ceacc9a202c00586b41ac8e68347ee9483c"
       }
+    },
+    "4": {
+      "entrypoint": "src/competition/replay-v4.ts",
+      "files": {
+        "src/competition/replay-v4.ts": "eda02cdfcc31757981dae680d2de08a6355ff0beaa044cd93dfdf8fe3d57c7ed",
+        "src/games/no-cap/logic.ts": "27480af7b5d366647189b98ce18386e9943cb9659a24fb93a66bb67bf36d3159",
+        "src/shell/rng.ts": "61c5cec159a0da6cf81c2883b1736ceacc9a202c00586b41ac8e68347ee9483c"
+      }
     }
   }
 }

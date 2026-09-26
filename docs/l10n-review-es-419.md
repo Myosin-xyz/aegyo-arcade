@@ -1,6 +1,6 @@
 # es-419 Native Review Pack (EXT-LOCALE gate)
 
-> Generated from src/i18n/locales (359 strings) by
+> Generated from src/i18n/locales (378 strings) by
 > scripts/ops/generate-l10n-review.mjs — regenerate after ANY copy
 > change; a unit test pins this document to the JSON values.
 > LOCALE-1 requires a native/fan-fluent review before es-419 is
@@ -221,6 +221,25 @@
 | `game.jumper.intro.5`                     | Climb from chart rank #100 all the way to #1. You have 3 lives.                        | Sube del puesto #100 del chart hasta el #1. Tienes 3 vidas.                                              |
 | `game.jumper.tagline`                     | Bounce up the charts. Don't flop off the top 100.                                      | Rebota hasta la cima del chart. No te caigas del top 100.                                                |
 | `game.jumper.title`                       | Comeback Climb                                                                         | Comeback Climb                                                                                           |
+| `game.no-cap.combo.busted`                | BUSTED                                                                                 | ¡ATRAPADO!                                                                                               |
+| `game.no-cap.combo.buster`                | FAKE BUSTER                                                                            | CAZADOR DE FALSOS                                                                                        |
+| `game.no-cap.combo.legendary`             | LEGENDARY BUST                                                                         | GOLPE LEGENDARIO                                                                                         |
+| `game.no-cap.combo.streak`                | SCAM STREAK                                                                            | RACHA ANTIPIRATA                                                                                         |
+| `game.no-cap.controls`                    | Swipe across bootleg merch to bust it. Avoid the real merch.                           | Desliza para romper el merch pirata. Evita el merch auténtico.                                           |
+| `game.no-cap.hud.best`                    | Best                                                                                   | Récord                                                                                                   |
+| `game.no-cap.hud.score`                   | Score                                                                                  | Puntos                                                                                                   |
+| `game.no-cap.intro.1`                     | Swipe to slice the scalper's bootleg fakes flying up.                                  | Desliza para cortar las imitaciones que lanza el revendedor.                                             |
+| `game.no-cap.intro.2`                     | Score as many busts as you can before the 90-second bar runs out.                      | Rompe tantas como puedas antes de que se agote la barra de 90 segundos.                                  |
+| `game.no-cap.intro.3`                     | Avoid genuine merch: slicing it costs 20 points.                                       | Evita el merch auténtico: cortarlo te cuesta 20 puntos.                                                  |
+| `game.no-cap.intro.4`                     | Chain fakes for combos; silver and gold fakes are worth more.                          | Encadena imitaciones para hacer combos; las plateadas y doradas valen más.                               |
+| `game.no-cap.intro.subtitle`              | Bust as many fakes as you can!                                                         | ¡Acaba con todas las imitaciones que puedas!                                                             |
+| `game.no-cap.intro.title`                 | NO CAP                                                                                 | NO CAP                                                                                                   |
+| `game.no-cap.over.title`                  | TIME'S UP!                                                                             | ¡SE ACABÓ EL TIEMPO!                                                                                     |
+| `game.no-cap.tagline`                     | Swipe away a scalper's bootleg merch in a 90-second rush.                              | Desliza para acabar con el merch pirata en 90 segundos.                                                  |
+| `game.no-cap.title`                       | NO CAP                                                                                 | NO CAP                                                                                                   |
+| `game.no-cap.toast.gold`                  | ✨ SCALPER TROPHY! +{points}                                                           | ✨ ¡TROFEO DEL REVENDEDOR! +{points}                                                                     |
+| `game.no-cap.toast.real`                  | THAT WAS REAL! -{points}                                                               | ¡ERA AUTÉNTICO! -{points}                                                                                |
+| `game.no-cap.toast.silver`                | ⭐ NICE BUST! +{points}                                                                | ⭐ ¡BUEN GOLPE! +{points}                                                                                |
 | `game.perfect-toss.controls`              | Tap anywhere (or press Space) when the marker is inside the gold zone.                 | Toca en cualquier lugar (o presiona Espacio) cuando el marcador esté dentro de la zona dorada.           |
 | `game.perfect-toss.end.title`             | MISSED!                                                                                | ¡FALLASTE!                                                                                               |
 | `game.perfect-toss.hud.best`              | Best                                                                                   | Récord                                                                                                   |

@@ -122,7 +122,7 @@ export function GameHostInner({
   const [completionActive, setCompletionActive] = useState(false);
   const championshipRound =
     championshipEnabled &&
-    ["snake", "flappy", "perfect-toss", "hangman"].includes(gameId)
+    ["snake", "flappy", "perfect-toss", "hangman", "no-cap"].includes(gameId)
       ? requestedChampionshipRound
       : null;
   const [hasOfficialRetry, setHasOfficialRetry] = useState(false);

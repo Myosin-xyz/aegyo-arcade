@@ -396,6 +396,38 @@ describe("published calibration and activation", () => {
       }),
     ).toThrow("invalid_calibration");
   });
+  it("can add NO CAP to a future monthly round without changing existing games", () => {
+    const rules = parseRules({
+      ...draft,
+      version: 2,
+      dailyAttempts: 2,
+      cadence: "monthly",
+      winnerCount: 3,
+      games: [
+        { gameId: "snake", calibration: tierCalibration },
+        {
+          gameId: "no-cap",
+          calibration: [
+            { score: 0, points: 0 },
+            { score: 50, points: 5 },
+            { score: 800, points: 10 },
+            { score: 2000, points: 20 },
+          ],
+        },
+      ],
+      scoring: {
+        bestPerGame: "week",
+        timeZone: "America/New_York",
+        fullArenaBonusPoints: 20,
+      },
+    });
+    expect(
+      [0, 49, 50, 799, 800, 1999, 2000].map((score) =>
+        pointsForScore(rules, "no-cap", score),
+      ),
+    ).toEqual([0, 0, 5, 5, 10, 10, 20]);
+    expect(pointsForScore(rules, "snake", 8)).toBe(10);
+  });
   it("rejects malformed monthly scoring configuration", () => {
     for (const scoring of [
       {

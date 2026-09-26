@@ -20,6 +20,7 @@ import { perfectTossMeta } from "./perfect-toss/meta";
 import { fanchantHeroMeta } from "./fanchant-hero/meta";
 import { biasMatchMeta } from "./bias-match/meta";
 import { aegyoPopMeta } from "./aegyo-pop/meta";
+import { noCapMeta } from "./no-cap/meta";
 
 export interface RegistryEntry {
   meta: GameMeta;
@@ -222,6 +223,25 @@ const entries: RegistryEntry[] = [
     },
     load: () =>
       import("./perfect-toss/module").then((m) => m.perfectTossDefinition),
+  },
+  {
+    meta: noCapMeta,
+    preview: landingPreview("no-cap"),
+    scorePresentation: "authored",
+    endPresentation: "game-authored",
+    introKeys: [
+      "game.no-cap.intro.1",
+      "game.no-cap.intro.2",
+      "game.no-cap.intro.3",
+      "game.no-cap.intro.4",
+    ],
+    introPresentation: {
+      titleKey: "game.no-cap.intro.title",
+      subtitleKey: "game.no-cap.intro.subtitle",
+      bulletIcons: ["✂️", "⏳", "😬", "✨"],
+      variant: "neon",
+    },
+    load: () => import("./no-cap/module").then((m) => m.noCapDefinition),
   },
   {
     meta: fanchantHeroMeta,

@@ -41,4 +41,5 @@ export const GAME_ACCENTS: Record<string, string> = {
   "perfect-toss": "#ff4fd8",
   "fanchant-hero": PALETTE.accent,
   "aegyo-pop": "#ff4fd8",
+  "no-cap": "#4ff0ff",
 };

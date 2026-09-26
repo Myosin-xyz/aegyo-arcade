@@ -961,5 +961,6 @@ function gameName(
   if (gameId === "flappy") return "Flappy Bird";
   if (gameId === "perfect-toss") return text.gamePerfectToss;
   if (gameId === "hangman") return text.gameHangman;
+  if (gameId === "no-cap") return "NO CAP";
   return gameId;
 }

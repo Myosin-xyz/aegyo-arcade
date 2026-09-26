@@ -1,17 +1,20 @@
 /** Versioned championship rules. No default prizes or production round. */
-export type CompetitionGame = "snake" | "flappy" | "perfect-toss" | "hangman";
+export type CompetitionGame =
+  "snake" | "flappy" | "perfect-toss" | "hangman" | "no-cap";
 export type CalibrationPoint = { score: number; points: number };
 const COMPETITION_GAMES = new Set<CompetitionGame>([
   "snake",
   "flappy",
   "perfect-toss",
   "hangman",
+  "no-cap",
 ]);
 const V1_COMPETITION_GAMES = new Set<CompetitionGame>(["snake", "flappy"]);
 const V2_MATERIAL_COMPETITION_GAMES = new Set<CompetitionGame>([
   "snake",
   "flappy",
   "perfect-toss",
+  "no-cap",
 ]);
 const V2_COMMUNITY_COMPETITION_GAMES = new Set<CompetitionGame>([
   "snake",

@@ -118,6 +118,23 @@ const SMOKE_ACTIONS: Record<
     },
     terminal: true,
   },
+  "no-cap": {
+    // Swipe through the canvas via the same pointer path used on mobile.
+    // The 90-second timer is covered by the deterministic replay tests.
+    act: async (page) => {
+      const surface = page.getByTestId("game-surface");
+      const box = await surface.boundingBox();
+      if (!box) throw new Error("no-cap: no game-surface bounding box");
+      const scale = Math.min(box.width / 360, box.height / 640);
+      const x = box.x + (box.width - 360 * scale) / 2;
+      const y = box.y + (box.height - 640 * scale) / 2;
+      await page.mouse.move(x + 80 * scale, y + 400 * scale);
+      await page.mouse.down();
+      await page.mouse.move(x + 280 * scale, y + 400 * scale, { steps: 8 });
+      await page.mouse.up();
+    },
+    terminal: false,
+  },
   "fanchant-hero": {
     // Pin the chart, catch its first note through the primary mobile pointer
     // path, and require an observable score change before waiting for the

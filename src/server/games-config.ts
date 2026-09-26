@@ -62,6 +62,11 @@ export const COUNTED_GAMES: Record<string, CountedGameConfig> = Object.assign(
     // envelope within the 15-minute attempt TTL. Prize competition
     // uses deterministic input-trace replay in addition to this cosmetic cap.
     "perfect-toss": { maxScore: 1634, scored: true },
+    // The 90-second spawn floor permits at most ~252 items. If every item
+    // were a gold fake and every hit sustained the unbounded authored combo,
+    // the arithmetic ceiling is below one million. Prize points additionally
+    // require exact server replay; this bound only protects ordinary runs.
+    "no-cap": { maxScore: 1_000_000, scored: true },
     // The shipped seeded chart is capped at 115 notes. Every note at
     // PERFECT with one uninterrupted combo reaches exactly 24,840.
     "fanchant-hero": { maxScore: FANCHANT_MAX_SCORE, scored: true },

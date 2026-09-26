@@ -4,6 +4,7 @@ import { RUN_TICKS, type NoCapState } from "@/games/no-cap/logic";
 import * as noCapRender from "@/games/no-cap/render";
 import { seededRandom } from "@/shell/rng";
 import { verifyCompetitionTrace } from "@/competition/verify-replay";
+import type { CompetitionTraceV4 } from "@/competition/replay-v4";
 import type { GameContext, NormalizedPointer } from "@/shell/contract";
 
 vi.mock("@/games/no-cap/render", { spy: true });
@@ -95,7 +96,14 @@ describe("NO CAP shell module", () => {
         const left = Math.max(0, Math.round(target.x - 25));
         const right = Math.min(360, Math.round(target.x + 25));
         input.pointerListener?.({ action: "down", x: left, y, pointerId: 1 });
-        input.pointerListener?.({ action: "move", x: right, y, pointerId: 1 });
+        for (let move = 1; move <= 25; move++) {
+          input.pointerListener?.({
+            action: "move",
+            x: Math.round(left + ((right - left) * move) / 25),
+            y,
+            pointerId: 1,
+          });
+        }
         input.pointerListener?.({ action: "up", x: right, y, pointerId: 1 });
         input.pointerListener?.({ action: "down", x: left, y, pointerId: 1 });
         game.pause("system");
@@ -109,6 +117,8 @@ describe("NO CAP shell module", () => {
     expect(scores.at(-1)).toBeGreaterThan(0);
     expect(ends).toHaveLength(1);
     expect(ends[0].reason).toBe("completed");
+    const trace = ends[0].competitionTrace as CompetitionTraceV4;
+    expect(trace.events.filter((event) => event[1] === 1)).toHaveLength(1);
     expect(verifyCompetitionTrace(ends[0].competitionTrace)).toMatchObject({
       ok: true,
       gameId: "no-cap",

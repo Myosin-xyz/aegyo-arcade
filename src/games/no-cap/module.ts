@@ -93,6 +93,7 @@ class NoCapGame implements ShellLoopGame {
   private endedReported = false;
   private bestScore = 0;
   private pointerId: number | null = null;
+  private pendingMove: { x: number; y: number } | null = null;
   private trace: CompetitionTraceCaptureV4 | null = null;
   private unsubscribers: (() => void)[] = [];
 
@@ -129,6 +130,7 @@ class NoCapGame implements ShellLoopGame {
     this.state = createNoCapState(this.bestScore);
     this.effects = emptyEffects();
     this.pointerId = null;
+    this.pendingMove = null;
     this.paused = false;
     this.endedReported = false;
     this.trace = run.competition?.captureTrace
@@ -140,16 +142,19 @@ class NoCapGame implements ShellLoopGame {
 
   pause(): void {
     if (this.paused || this.endedReported) return;
+    this.flushPendingMove();
     // A system pause can interrupt a held swipe without a pointer-up event.
     // Close it in both the live state and trace so the next swipe still works.
     if (this.state?.pointer && this.pointerId !== null) {
       const { x, y } = this.state.pointer;
-      swipeNoCap(this.state, "cancel", x, y);
-      this.trace?.record("cancel", x, y);
-      this.pointerId = null;
+      if (!this.applyPointer("cancel", x, y)) {
+        // If the official trace is full, no later input can score. Clear the
+        // local drag without changing the score.
+        swipeNoCap(this.state, "cancel", x, y);
+        this.pointerId = null;
+      }
     }
     this.paused = true;
-    this.trace?.record("pause");
     this.tickSound?.pause();
     for (const sound of this.activeSounds) sound.pause();
   }
@@ -157,13 +162,13 @@ class NoCapGame implements ShellLoopGame {
   resume(): void {
     if (!this.paused || this.endedReported) return;
     this.paused = false;
-    this.trace?.record("resume");
     if (this.tickSound && !this.muted)
       void this.tickSound.play().catch(() => undefined);
   }
 
   update(): void {
     if (this.paused || !this.state || !this.rng || this.endedReported) return;
+    this.flushPendingMove();
     const finished = stepNoCap(this.state, this.rng);
     this.trace?.advanceTick();
     this.updateEffects();
@@ -193,6 +198,7 @@ class NoCapGame implements ShellLoopGame {
     this.rng = null;
     this.trace = null;
     this.pointerId = null;
+    this.pendingMove = null;
     this.effects = emptyEffects();
   }
 
@@ -203,20 +209,54 @@ class NoCapGame implements ShellLoopGame {
       return;
     const x = Math.max(0, Math.min(DESIGN_W, Math.round(pointer.x)));
     const y = Math.max(0, Math.min(DESIGN_H, Math.round(pointer.y)));
-    const result = swipeNoCap(this.state, pointer.action, x, y);
-    if (!result.accepted) return;
-    if (pointer.action === "down") {
+    if (pointer.action === "move") {
+      // Browser events can arrive at 120 Hz or faster. The simulation and
+      // replay both apply only the latest segment once per 60 Hz tick.
+      this.pendingMove = { x, y };
+      return;
+    }
+    if (pointer.action === "up" || pointer.action === "cancel")
+      this.flushPendingMove();
+    const accepted = this.applyPointer(pointer.action, x, y);
+    if (accepted && pointer.action === "down")
       this.pointerId = pointer.pointerId;
-      this.play("swipe_whoosh", 0.7);
-    } else if (pointer.action === "up" || pointer.action === "cancel") {
+    if (
+      !accepted &&
+      (pointer.action === "up" || pointer.action === "cancel") &&
+      this.trace &&
+      !this.trace.canRecord()
+    ) {
+      swipeNoCap(this.state, "cancel", x, y);
       this.pointerId = null;
     }
-    this.trace?.record(pointer.action, x, y);
-    if (pointer.action === "down" || pointer.action === "move") {
+  }
+
+  private flushPendingMove(): void {
+    const move = this.pendingMove;
+    this.pendingMove = null;
+    if (move) this.applyPointer("move", move.x, move.y);
+  }
+
+  private applyPointer(
+    action: NormalizedPointer["action"],
+    x: number,
+    y: number,
+  ): boolean {
+    if (!this.state || (this.trace && !this.trace.canRecord())) return false;
+    const result = swipeNoCap(this.state, action, x, y);
+    if (!result.accepted) return false;
+    if (action === "down") {
+      this.play("swipe_whoosh", 0.7);
+    } else if (action === "up" || action === "cancel") {
+      this.pointerId = null;
+    }
+    this.trace?.record(action, x, y);
+    if (action === "down" || action === "move") {
       this.effects.trail.push({ x, y, age: 0 });
       if (this.effects.trail.length > 14) this.effects.trail.shift();
     }
     for (const hit of result.hits) this.presentHit(hit);
+    return true;
   }
 
   private presentHit(hit: ReturnType<typeof swipeNoCap>["hits"][number]): void {

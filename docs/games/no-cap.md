@@ -9,7 +9,9 @@ The delivered scoring is preserved: normal fake +15, silver +40, gold +100,
 multiplied by the current 0.7-second combo; slicing genuine merch removes up
 to 20 points and resets the combo. The game simulation runs at fixed 60 Hz so
 official attempts can be replayed on the server from a seed and compact swipe
-events. Visual particles and sound are presentation only. The one-million-point
+events. Pointer moves are sampled once per simulation tick before both live
+scoring and recording, so high-refresh devices cannot outrun the trace. Visual
+particles and sound are presentation only. The one-million-point
 generic run cap is an abuse bound, not a target score or leaderboard threshold.
 
 The supplied point thresholds are a _proposal for a future monthly round_:

@@ -7,7 +7,10 @@ import {
   swipeNoCap,
   type FlyingItem,
 } from "@/games/no-cap/logic";
-import { CompetitionTraceCaptureV4 } from "@/competition/replay-v4";
+import {
+  CompetitionTraceCaptureV4,
+  MAX_TRACE_EVENTS,
+} from "@/competition/replay-v4";
 import { verifyCompetitionTrace } from "@/competition/verify-replay";
 import { seededRandom } from "@/shell/rng";
 
@@ -34,6 +37,13 @@ function item(
 }
 
 describe("NO CAP deterministic rules", () => {
+  it("never silently drops an official trace event at the safety cap", () => {
+    const capture = new CompetitionTraceCaptureV4("cap-proof");
+    for (let index = 0; index < MAX_TRACE_EVENTS; index++)
+      capture.record("down", 1, 1);
+    expect(capture.canRecord()).toBe(false);
+    expect(() => capture.record("move", 2, 2)).toThrow("no_cap_trace_full");
+  });
   it("scores rarities and combos while real merch costs at most 20 points", () => {
     const state = createNoCapState();
     state.items = [

@@ -12,7 +12,7 @@ import { seededRandom } from "@/shell/rng";
 
 export const MAX_TRACE_BYTES = 256 * 1024;
 export const MAX_TRACE_EVENTS = 8000;
-type EventCode = 0 | 1 | 2 | 3 | 4 | 5;
+type EventCode = 0 | 1 | 2 | 3;
 export type NoCapTraceEvent = [
   tick: number,
   code: EventCode,
@@ -28,13 +28,11 @@ export interface CompetitionTraceV4 {
   terminal: { tick: typeof RUN_TICKS; reason: "completed"; status: "over" };
 }
 
-const CODES: Record<SwipeAction | "pause" | "resume", EventCode> = {
+const CODES: Record<SwipeAction, EventCode> = {
   down: 0,
   move: 1,
   up: 2,
   cancel: 3,
-  pause: 4,
-  resume: 5,
 };
 const POINTER_ACTIONS: SwipeAction[] = ["down", "move", "up", "cancel"];
 
@@ -43,8 +41,11 @@ export class CompetitionTraceCaptureV4 {
   private events: NoCapTraceEvent[] = [];
   private terminal: CompetitionTraceV4["terminal"] | null = null;
   constructor(private readonly seed: string) {}
-  record(action: SwipeAction | "pause" | "resume", x = 0, y = 0): void {
-    if (this.terminal || this.events.length >= MAX_TRACE_EVENTS) return;
+  canRecord(): boolean {
+    return !this.terminal && this.events.length < MAX_TRACE_EVENTS;
+  }
+  record(action: SwipeAction, x: number, y: number): void {
+    if (!this.canRecord()) throw new Error("no_cap_trace_full");
     this.events.push([this.tick, CODES[action], x, y]);
   }
   advanceTick(): void {
@@ -111,7 +112,6 @@ export function verifyCompetitionTrace(input: unknown): ReplayResultV4 {
   const rng = seededRandom(input.seed);
   const state = createNoCapState();
   let cursor = 0;
-  let paused = false;
   let priorTick = -1;
   const events = input.events as unknown[];
   for (const raw of events) {
@@ -119,11 +119,10 @@ export function verifyCompetitionTrace(input: unknown): ReplayResultV4 {
       !Array.isArray(raw) ||
       raw.length !== 4 ||
       !integer(raw[0], RUN_TICKS - 1) ||
-      !integer(raw[1], 5) ||
+      !integer(raw[1], 3) ||
       !integer(raw[2], DESIGN_W) ||
       !integer(raw[3], DESIGN_H) ||
-      raw[0] < priorTick ||
-      (raw[1] >= 4 && (raw[2] !== 0 || raw[3] !== 0))
+      raw[0] < priorTick
     )
       return reject("invalid_event_order");
     priorTick = raw[0];
@@ -134,20 +133,10 @@ export function verifyCompetitionTrace(input: unknown): ReplayResultV4 {
       (events[cursor] as NoCapTraceEvent)[0] === tick
     ) {
       const [, code, x, y] = events[cursor++] as NoCapTraceEvent;
-      if (code === 4) {
-        if (paused) return reject("action_not_accepted");
-        paused = true;
-      } else if (code === 5) {
-        if (!paused) return reject("action_not_accepted");
-        paused = false;
-      } else if (
-        paused ||
-        !swipeNoCap(state, POINTER_ACTIONS[code], x, y).accepted
-      ) {
+      if (!swipeNoCap(state, POINTER_ACTIONS[code], x, y).accepted) {
         return reject("action_not_accepted");
       }
     }
-    if (paused) return reject("incomplete_trace");
     stepNoCap(state, rng);
   }
   if (cursor !== events.length || state.status !== "over")

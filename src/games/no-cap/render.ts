@@ -48,13 +48,14 @@ function text(
   size: number,
   color = "#fff",
   align: CanvasTextAlign = "center",
+  glow = color,
 ): void {
   g.save();
   g.fillStyle = color;
   g.textAlign = align;
   g.textBaseline = "middle";
-  g.font = `900 ${size}px ${FONT}`;
-  g.shadowColor = color;
+  g.font = `400 ${size}px ${FONT}`;
+  g.shadowColor = glow;
   g.shadowBlur = 9;
   g.fillText(value, x, y);
   g.restore();
@@ -174,26 +175,63 @@ export function renderNoCap(
   }
   g.restore();
 
-  // HUD and CRT sit outside the shake transform, as in the supplied game.
-  g.fillStyle = "rgba(4,1,16,.87)";
-  for (const x of [14, 185]) {
-    g.fillRect(x, 14, 161, 62);
-    g.strokeStyle = "#ff4fd8";
-    g.lineWidth = 2;
-    g.strokeRect(x, 14, 161, 62);
-  }
-  text(g, t("game.no-cap.hud.score"), 94, 32, 12, "#4ff0ff");
-  text(g, String(state.score), 94, 56, 23);
-  text(g, t("game.no-cap.hud.best"), 265, 32, 12, "#4ff0ff");
-  text(g, String(state.bestScore), 265, 56, 23);
-  g.fillStyle = "rgba(4,1,16,.9)";
-  g.fillRect(14, 86, DESIGN_W - 28, 16);
+  // The supplied game's CRT and vignette sit behind its bright HUD.
+  g.fillStyle = "rgba(0,0,0,.09)";
+  for (let y = 0; y < DESIGN_H; y += 4) g.fillRect(0, y, DESIGN_W, 2);
+  const vignette = g.createRadialGradient(180, 320, 100, 180, 320, 420);
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(1, "rgba(0,0,0,.45)");
+  g.fillStyle = vignette;
+  g.fillRect(0, 0, DESIGN_W, DESIGN_H);
+
+  g.save();
+  g.fillStyle = "rgba(5,1,15,.82)";
   g.strokeStyle = "#ff4fd8";
-  g.strokeRect(14, 86, DESIGN_W - 28, 16);
+  g.lineWidth = 2;
+  g.shadowColor = "rgba(255,79,216,.5)";
+  g.shadowBlur = 14;
+  for (const x of [14, 185]) {
+    g.beginPath();
+    g.roundRect(x, 14, 161, 62, 14);
+    g.fill();
+    g.stroke();
+  }
+  g.restore();
+  text(g, t("game.no-cap.hud.score").toUpperCase(), 94, 32, 12, "#4ff0ff");
+  text(g, String(state.score), 94, 56, 23, "#fff", "center", "#ff4fd8");
+  text(g, t("game.no-cap.hud.best").toUpperCase(), 265, 32, 12, "#4ff0ff");
+  text(g, String(state.bestScore), 265, 56, 23, "#fff", "center", "#ff4fd8");
+  g.save();
+  g.fillStyle = "rgba(5,1,15,.82)";
+  g.strokeStyle = "#ff4fd8";
+  g.lineWidth = 2;
+  g.shadowColor = "rgba(255,79,216,.4)";
+  g.shadowBlur = 12;
+  g.beginPath();
+  g.roundRect(14, 78, DESIGN_W - 28, 16, 8);
+  g.fill();
+  g.stroke();
+  g.restore();
   const fraction = Math.max(0, 1 - state.tick / RUN_TICKS);
-  g.fillStyle =
-    fraction < 0.2 ? "#ff5a7a" : fraction < 0.45 ? "#ffd24f" : "#5affa0";
-  g.fillRect(17, 89, (DESIGN_W - 34) * fraction, 10);
+  const timer = g.createLinearGradient(17, 0, DESIGN_W - 17, 0);
+  const colors =
+    fraction < 0.2
+      ? ["#ff5a7a", "#ff9aa8"]
+      : fraction < 0.45
+        ? ["#ffd24f", "#ffe9a8"]
+        : ["#5affa0", "#c8ffdf"];
+  timer.addColorStop(0, colors[0]);
+  timer.addColorStop(1, colors[1]);
+  g.save();
+  g.fillStyle = timer;
+  g.shadowColor = colors[0];
+  g.shadowBlur = 10;
+  if (fraction > 0) {
+    g.beginPath();
+    g.roundRect(17, 81, (DESIGN_W - 34) * fraction, 10, 5);
+    g.fill();
+  }
+  g.restore();
   if (state.combo >= 2 && state.tick - state.lastHitTick < 0.7 * 60) {
     const tier =
       state.combo >= 8
@@ -208,18 +246,11 @@ export function renderNoCap(
   }
   if (effects.toast && effects.toast.ticks > 0)
     text(g, effects.toast.text, DESIGN_W / 2, 190, 20, effects.toast.color);
-  g.fillStyle = "rgba(0,0,0,.09)";
-  for (let y = 0; y < DESIGN_H; y += 4) g.fillRect(0, y, DESIGN_W, 2);
-  const vignette = g.createRadialGradient(180, 320, 100, 180, 320, 420);
-  vignette.addColorStop(0, "rgba(0,0,0,0)");
-  vignette.addColorStop(1, "rgba(0,0,0,.45)");
-  g.fillStyle = vignette;
-  g.fillRect(0, 0, DESIGN_W, DESIGN_H);
   if (state.status === "over") {
     g.fillStyle = "rgba(5,1,15,.88)";
     g.fillRect(0, 0, DESIGN_W, DESIGN_H);
     const overTitle = t("game.no-cap.over.title");
-    g.font = `900 34px ${FONT}`;
+    g.font = `400 34px ${FONT}`;
     const overSize = Math.min(
       34,
       Math.floor((34 * 320) / Math.max(320, g.measureText(overTitle).width)),

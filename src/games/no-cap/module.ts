@@ -26,6 +26,23 @@ import {
 } from "./render";
 
 const ASSET_BASE = "/games/no-cap/";
+let hudFontLoad: Promise<void> | null = null;
+
+function loadHudFont(): Promise<void> {
+  if (typeof FontFace === "undefined") return Promise.resolve();
+  hudFontLoad ??= new FontFace(
+    "Bungee",
+    `url(${ASSET_BASE}bungee-latin.woff2)`,
+    { weight: "400" },
+  )
+    .load()
+    .then((font) => {
+      document.fonts.add(font);
+    })
+    .catch(() => undefined);
+  return hudFontLoad;
+}
+
 const IMAGE_NAMES = [
   ...FAKE_KEYS.map((key) => `fake_${key}`),
   ...REAL_KEYS.map((key) => `real_${key}`),
@@ -102,11 +119,14 @@ class NoCapGame implements ShellLoopGame {
   async init(signal: AbortSignal): Promise<void> {
     if (this.ctx.surface.kind !== "canvas")
       throw new Error("No Cap requires canvas");
-    const loaded = await Promise.all(
-      IMAGE_NAMES.map(
-        async (name) => [name, await loadImage(name, signal)] as const,
+    const [loaded] = await Promise.all([
+      Promise.all(
+        IMAGE_NAMES.map(
+          async (name) => [name, await loadImage(name, signal)] as const,
+        ),
       ),
-    );
+      loadHudFont(),
+    ]);
     this.images = Object.fromEntries(loaded);
     for (const name of SFX) {
       const audio = new Audio(`${ASSET_BASE}sfx/${name}.mp3`);

@@ -60,6 +60,29 @@ const SFX = [
   "countdown_beep",
   "gameover_gong",
 ] as const;
+type SfxName = (typeof SFX)[number];
+
+// The supplied clips are mastered close to peak volume. Keep cues distinct
+// without letting repeated swipes and long stingers pile up over the game.
+const SFX_VOLUME: Record<SfxName, number> = {
+  swipe_whoosh: 0.22,
+  fake_pop: 0.36,
+  bonus_silver_sparkle: 0.35,
+  bonus_gold_jackpot: 0.42,
+  penalty_buzzer_crack: 0.35,
+  combo_stinger: 0.18,
+  timer_tick_loop: 0.13,
+  countdown_beep: 0.28,
+  gameover_gong: 0.35,
+};
+const SFX_COOLDOWN_MS: Partial<Record<SfxName, number>> = {
+  swipe_whoosh: 180,
+  fake_pop: 100,
+  bonus_silver_sparkle: 250,
+  bonus_gold_jackpot: 250,
+  penalty_buzzer_crack: 500,
+  combo_stinger: 1500,
+};
 
 async function loadImage(
   name: string,
@@ -104,6 +127,7 @@ class NoCapGame implements ShellLoopGame {
   private effects = emptyEffects();
   private sounds: Record<string, HTMLAudioElement> = {};
   private activeSounds = new Set<HTMLAudioElement>();
+  private lastSoundAt = new Map<SfxName, number>();
   private tickSound: HTMLAudioElement | null = null;
   private muted = false;
   private paused = false;
@@ -146,6 +170,7 @@ class NoCapGame implements ShellLoopGame {
 
   start(run: RunContext): void {
     this.stopSounds();
+    this.lastSoundAt.clear();
     this.rng = run.random;
     this.state = createNoCapState(this.bestScore);
     this.effects = emptyEffects();
@@ -192,7 +217,7 @@ class NoCapGame implements ShellLoopGame {
     const finished = stepNoCap(this.state, this.rng);
     this.trace?.advanceTick();
     this.updateEffects();
-    if (!this.tickSound && this.state.tick >= 0.8 * 90 * 60 && !finished)
+    if (!this.tickSound && this.state.tick >= 80 * 60 && !finished)
       this.startTick();
     if (finished) this.endRun();
   }
@@ -266,7 +291,7 @@ class NoCapGame implements ShellLoopGame {
     const result = swipeNoCap(this.state, action, x, y);
     if (!result.accepted) return false;
     if (action === "down") {
-      this.play("swipe_whoosh", 0.7);
+      this.play("swipe_whoosh");
     } else if (action === "up" || action === "cancel") {
       this.pointerId = null;
     }
@@ -304,8 +329,7 @@ class NoCapGame implements ShellLoopGame {
             ? "bonus_silver_sparkle"
             : "fake_pop",
       );
-      if (combo === 2 || combo === 4 || combo === 6 || combo === 8)
-        this.play("combo_stinger", 0.8);
+      if (combo === 4 || combo === 8) this.play("combo_stinger");
       this.effects.shakeTicks = item.gold ? 8 : 3;
       this.effects.toast = {
         text: item.gold
@@ -369,12 +393,17 @@ class NoCapGame implements ShellLoopGame {
     effects.debris = effects.debris.filter((debris) => debris.life > 0);
   }
 
-  private play(name: (typeof SFX)[number], volume = 1): void {
+  private play(name: SfxName): void {
     if (this.muted || this.paused || this.activeSounds.size >= 16) return;
+    const now = performance.now();
+    const previous = this.lastSoundAt.get(name);
+    if (previous !== undefined && now - previous < (SFX_COOLDOWN_MS[name] ?? 0))
+      return;
     const audio = this.sounds[name]?.cloneNode(true) as
       HTMLAudioElement | undefined;
     if (!audio) return;
-    audio.volume = volume;
+    this.lastSoundAt.set(name, now);
+    audio.volume = SFX_VOLUME[name];
     audio.muted = this.muted;
     this.activeSounds.add(audio);
     audio.addEventListener("ended", () => this.activeSounds.delete(audio), {
@@ -390,7 +419,7 @@ class NoCapGame implements ShellLoopGame {
     if (!audio) return;
     this.tickSound = audio;
     audio.loop = true;
-    audio.volume = 0.55;
+    audio.volume = SFX_VOLUME.timer_tick_loop;
     void audio.play().catch(() => undefined);
   }
 

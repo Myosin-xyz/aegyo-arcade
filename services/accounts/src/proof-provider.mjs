@@ -7,6 +7,7 @@ export function createProofProvider({
   secret,
   legacyPepper,
   mailbox,
+  verificationMailbox = [],
   proofHooks = {},
 }) {
   if (
@@ -26,6 +27,7 @@ export function createProofProvider({
     allowProofAdmin: true,
     mail: async (kind, message) => {
       if (kind === "reset") mailbox.push(message);
+      if (kind === "verify") verificationMailbox.push(message);
     },
   });
 }

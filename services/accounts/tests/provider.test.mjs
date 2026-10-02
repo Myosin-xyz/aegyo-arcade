@@ -30,11 +30,13 @@ test(
       max: 4,
     });
     const mailbox = [];
+    const verificationMailbox = [];
     const config = {
       database,
       secret: randomBytes(48).toString("base64url"),
       legacyPepper: "synthetic-pepper-사랑",
       mailbox,
+      verificationMailbox,
     };
     let { auth, options } = createProofProvider(config);
     t.after(() => database.end());
@@ -630,6 +632,7 @@ test(
     );
 
     await proveRuntimeFlow(t, {
+      verificationMailbox,
       database,
       config,
       auth,

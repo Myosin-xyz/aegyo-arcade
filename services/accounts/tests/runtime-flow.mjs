@@ -25,6 +25,7 @@ export async function proveRuntimeFlow(t, context) {
     userId,
     email,
     password,
+    verificationMailbox,
   } = context;
   await t.test(
     "runtime HTTP completes interactive OAuth and protects security state",
@@ -72,6 +73,43 @@ export async function proveRuntimeFlow(t, context) {
         });
 
       try {
+        const oldContinuation = `${runtimeConfig.baseURL}/api/auth/oauth2/authorize?sig=signed&state=old-browser`;
+        const sent = await request("/api/auth/send-verification-email", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: {
+            email: "operator@example.invalid",
+            callbackURL: oldContinuation,
+          },
+        });
+        assert.equal(sent.status, 200);
+        assert.equal(verificationMailbox.length > 0, true);
+        const delivered = new URL(verificationMailbox.at(-1).url);
+        assert.equal(delivered.pathname, "/api/auth/verify-email");
+        const verified = await request(
+          `${delivered.pathname}${delivered.search}`,
+        );
+        assert.equal(verified.status, 302);
+        const verifiedLocation = new URL(verified.headers.get("location"));
+        assert.equal(verifiedLocation.origin, runtimeConfig.baseURL);
+        assert.equal(verifiedLocation.pathname, "/verify-email");
+        assert.equal(verifiedLocation.searchParams.get("status"), "success");
+        assert.equal(verifiedLocation.searchParams.has("continue"), false);
+        const verifiedPage = await request(
+          verifiedLocation.pathname + verifiedLocation.search,
+        );
+        assert.equal(verifiedPage.status, 200);
+        assert.match(await verifiedPage.text(), /Your email is confirmed/);
+        assert.equal(
+          (
+            await database.query(
+              'SELECT "emailVerified" FROM "user" WHERE email=$1',
+              ["operator@example.invalid"],
+            )
+          ).rows[0].emailVerified,
+          true,
+        );
+
         const discovery = await request(
           "/api/auth/.well-known/openid-configuration",
           {

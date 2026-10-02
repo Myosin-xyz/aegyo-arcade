@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { standaloneVerificationURL } from "./verification-link.mjs";
 
 const messages = {
   reset: {
@@ -6,8 +7,8 @@ const messages = {
     body: "Use this link to choose a new password. If you did not request this, you can ignore this email.",
   },
   verify: {
-    subject: "Verify your Aegyo Arena email",
-    body: "Use this link to verify your email address for Aegyo Arena.",
+    subject: "Verify your email · Aegyo Arena",
+    body: "Confirm your email to get the most out of Aegyo Arena.",
   },
 };
 
@@ -20,10 +21,14 @@ export function createMailSender(config, baseURL, transport = fetch) {
     // Neither provider responses nor fetch errors may expose keys or reset links.
     try {
       const copy = messages[kind];
-      const url = new URL(message.url);
+      const url =
+        kind === "verify"
+          ? standaloneVerificationURL(message.url, baseURL)
+          : new URL(message.url);
       if (!copy || url.origin !== baseURL || url.username || url.password)
         throw new Error("Invalid account email");
-      const text = `${copy.body}\n\n${url.href}\n\nAegyo Arena`;
+      const text = `${copy.body}\n\n${kind === "verify" ? "Verify my email" : "Reset my password"}: ${url.href}\n\nIf you did not request this, you can ignore this email.\n\nAegyo Arena`;
+      const html = brandedEmail(kind, url.href);
       const resend = provider === "resend";
       const response = await transport(
         resend
@@ -56,6 +61,7 @@ export function createMailSender(config, baseURL, transport = fetch) {
                   to: [message.user.email],
                   subject: copy.subject,
                   text,
+                  html,
                 }
               : {
                   Messages: [
@@ -64,6 +70,7 @@ export function createMailSender(config, baseURL, transport = fetch) {
                       To: [{ Email: message.user.email }],
                       Subject: copy.subject,
                       TextPart: text,
+                      HTMLPart: html,
                       CustomID: `accounts-${kind}`,
                     },
                   ],
@@ -87,6 +94,25 @@ export function createMailSender(config, baseURL, transport = fetch) {
       throw new Error("Account email delivery failed");
     }
   };
+}
+
+function escapeHTML(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function brandedEmail(kind, link) {
+  const verify = kind === "verify";
+  const title = verify ? "You’re one click away." : "Let’s get you back in.";
+  const description = verify
+    ? "Confirm your email to keep your Aegyo Arena account ready wherever you play."
+    : "Choose a new password for your Aegyo Arena account.";
+  const button = verify ? "Verify my email" : "Reset my password";
+  const safeLink = escapeHTML(link);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${button} · Aegyo Arena</title></head><body style="margin:0;padding:0;background:#140a26;color:#f4ecff;font-family:Arial,Helvetica,sans-serif"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#140a26"><tr><td align="center" style="padding:32px 16px"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:560px"><tr><td style="padding:4px 4px 22px;color:#ff8fb8;font-size:18px;font-weight:800;letter-spacing:1px">✦ AEGYO ARENA</td></tr><tr><td style="border:1px solid #523762;border-radius:20px;background:#21113a;padding:36px 30px"><p style="margin:0 0 12px;color:#2fe6c4;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase">YOUR ACCOUNT</p><h1 style="margin:0 0 16px;color:#ffffff;font-size:30px;line-height:1.2">${title}</h1><p style="margin:0 0 28px;color:#e0d1e8;font-size:16px;line-height:1.6">${description}</p><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#ff4f8b" style="border-radius:10px"><a href="${safeLink}" style="display:inline-block;padding:15px 24px;color:#240817;font-size:16px;font-weight:800;text-decoration:none">${button}</a></td></tr></table><p style="margin:28px 0 0;color:#b9a9c9;font-size:13px;line-height:1.5">If you didn’t request this, you can safely ignore this email.</p></td></tr><tr><td style="padding:22px 4px;color:#a993bc;font-size:12px;line-height:1.5">Aegyo Arena · Play. Return. Share.<br><span style="color:#c8bad8">If the button does not work, copy this link into your browser:</span><br><a href="${safeLink}" style="color:#ff8fb8;word-break:break-all">${safeLink}</a></td></tr></table></td></tr></table></body></html>`;
 }
 
 async function boundedJSON(response) {

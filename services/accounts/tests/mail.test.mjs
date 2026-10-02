@@ -78,7 +78,7 @@ test("verification email is branded and never resumes another browser's OAuth tr
   await sender("verify", { ...message, url: oldLink });
   const body = calls[0];
   assert.match(body.subject, /Verify your email.*Aegyo Arena/);
-  assert.match(body.html, /AEGYO ARENA/);
+  assert.match(body.html, /<img[^>]+aegyo-logo\.png[^>]+alt="Aegyo Arena"/);
   assert.match(body.html, /Verify my email/);
   assert.match(body.html, /background:#21113a/);
   assert.match(body.html, /table-layout:fixed/);
@@ -104,7 +104,7 @@ test("password reset uses the same mobile-safe Aegyo email layout", async () => 
   await sender("reset", message);
   const body = calls[0];
   assert.match(body.subject, /Reset your Aegyo Arena password/);
-  assert.match(body.html, /AEGYO ARENA/);
+  assert.match(body.html, /<img[^>]+aegyo-logo\.png[^>]+alt="Aegyo Arena"/);
   assert.match(body.html, /Reset my password/);
   assert.match(body.html, /table-layout:fixed/);
   assert.match(body.html, /word-break:break-all/);

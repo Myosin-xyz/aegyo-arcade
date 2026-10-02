@@ -247,16 +247,18 @@ export function createAccountsServer({
           config.baseURL,
           url,
         );
-        const verificationError =
-          page === "verify-email" ? url.searchParams.get("error") : null;
+        const linkError =
+          page === "verify-email" || page === "reset-password"
+            ? url.searchParams.get("error")
+            : null;
         return send(
           200,
           renderAccountPage({
             page,
             locale,
             ...continuation,
-            status: verificationError
-              ? verificationError.toUpperCase() === "TOKEN_EXPIRED"
+            status: linkError
+              ? linkError.toUpperCase() === "TOKEN_EXPIRED"
                 ? "expired"
                 : "invalid"
               : statuses.has(url.searchParams.get("status"))

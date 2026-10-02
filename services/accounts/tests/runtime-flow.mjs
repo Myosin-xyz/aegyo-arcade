@@ -61,7 +61,7 @@ export async function proveRuntimeFlow(t, context) {
             origin: runtimeConfig.baseURL,
             // The proof provider reads this synthetic header; vary it so the
             // transport proof cannot accidentally trip a database rate limit.
-            "x-aegyo-proof-ip": `203.0.113.${++requestNo}`,
+            "x-aegyo-proof-ip": `198.18.0.${++requestNo}`,
             ...headers,
           },
           body:
@@ -100,6 +100,16 @@ export async function proveRuntimeFlow(t, context) {
         );
         assert.equal(verifiedPage.status, 200);
         assert.match(await verifiedPage.text(), /Your email is confirmed/);
+        const invalidReset = await request(
+          "/reset-password?status=success&error=INVALID_TOKEN",
+        );
+        assert.equal(invalidReset.status, 200);
+        assert.match(await invalidReset.text(), /This link is invalid/);
+        const expiredReset = await request(
+          "/reset-password?status=success&error=TOKEN_EXPIRED",
+        );
+        assert.equal(expiredReset.status, 200);
+        assert.match(await expiredReset.text(), /This link has expired/);
         assert.equal(
           (
             await database.query(

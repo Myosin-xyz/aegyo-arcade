@@ -105,7 +105,10 @@
     try {
       if (action === "verify-email") {
         const query = new URLSearchParams({ token: data.token });
-        query.set("callbackURL", `${location.origin}/verify-email?status=success`);
+        query.set(
+          "callbackURL",
+          `${location.origin}/verify-email?status=success`,
+        );
         // Let the provider redirect to the success or invalid/expired page.
         // A manual fetch cannot distinguish those redirects in every browser.
         location.assign(`${endpoint}?${query}`);

@@ -42,7 +42,10 @@ test("verification success never replays an OAuth continuation opened in another
   assert.match(html, /Your email is confirmed/);
   assert.match(html, /href="\/sign-in">Sign in<\/a>/);
   assert.doesNotMatch(html, /href="[^"]*oauth2\/authorize/);
-  const expired = renderAccountPage({ page: "verify-email", status: "expired" });
+  const expired = renderAccountPage({
+    page: "verify-email",
+    status: "expired",
+  });
   assert.match(expired, /This link has expired/);
 });
 

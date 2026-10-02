@@ -85,7 +85,10 @@ test("verification email is branded and never resumes another browser's OAuth tr
   const [link] = body.text.match(/https:\/\/[^\s]+/g);
   const url = new URL(link);
   assert.equal(url.searchParams.get("token"), "synthetic-token");
-  assert.equal(url.searchParams.get("callbackURL"), `${origin}/verify-email?status=success`);
+  assert.equal(
+    url.searchParams.get("callbackURL"),
+    `${origin}/verify-email?status=success`,
+  );
   assert.ok(body.html.includes(link.replaceAll("&", "&amp;")));
   assert.ok(!body.html.includes(callback));
 });
@@ -94,9 +97,22 @@ test("old verification links also finish on Accounts, preserving the token", () 
   const old = `${origin}/api/auth/verify-email?token=synthetic-token&callbackURL=${encodeURIComponent("https://aegyoarena.com/api/auth/shared/callback?code=old")}`;
   const normalized = standaloneVerificationURL(old, origin);
   assert.equal(normalized.searchParams.get("token"), "synthetic-token");
-  assert.equal(normalized.searchParams.get("callbackURL"), `${origin}/verify-email?status=success`);
-  assert.throws(() => standaloneVerificationURL("https://evil.example/api/auth/verify-email?token=x", origin));
-  assert.throws(() => standaloneVerificationURL(`${origin}/api/auth/reset-password?token=x`, origin));
+  assert.equal(
+    normalized.searchParams.get("callbackURL"),
+    `${origin}/verify-email?status=success`,
+  );
+  assert.throws(() =>
+    standaloneVerificationURL(
+      "https://evil.example/api/auth/verify-email?token=x",
+      origin,
+    ),
+  );
+  assert.throws(() =>
+    standaloneVerificationURL(
+      `${origin}/api/auth/reset-password?token=x`,
+      origin,
+    ),
+  );
 });
 
 test("blocked, throttled, malformed, redirected and oversized mail responses fail without disclosing credentials or links", async () => {

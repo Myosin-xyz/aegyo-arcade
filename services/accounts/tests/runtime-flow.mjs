@@ -101,7 +101,12 @@ export async function proveRuntimeFlow(t, context) {
         assert.equal(verifiedPage.status, 200);
         assert.match(await verifiedPage.text(), /Your email is confirmed/);
         assert.equal(
-          (await database.query('SELECT "emailVerified" FROM "user" WHERE email=$1', ["operator@example.invalid"])).rows[0].emailVerified,
+          (
+            await database.query(
+              'SELECT "emailVerified" FROM "user" WHERE email=$1',
+              ["operator@example.invalid"],
+            )
+          ).rows[0].emailVerified,
           true,
         );
 

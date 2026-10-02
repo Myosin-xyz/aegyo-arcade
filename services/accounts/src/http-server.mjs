@@ -198,8 +198,14 @@ export function createAccountsServer({
         ) {
           // An email client may open a different browser without the app's
           // OAuth state cookie. Preserve the token, but finish on Accounts.
-          if (req.method === "GET" && url.pathname === "/api/auth/verify-email") {
-            const standalone = standaloneVerificationURL(url.href, config.baseURL);
+          if (
+            req.method === "GET" &&
+            url.pathname === "/api/auth/verify-email"
+          ) {
+            const standalone = standaloneVerificationURL(
+              url.href,
+              config.baseURL,
+            );
             req.url = standalone.pathname + standalone.search;
           }
           // Use the official adapter on GET. POST has already been bounded, so pass
@@ -249,14 +255,13 @@ export function createAccountsServer({
             page,
             locale,
             ...continuation,
-            status:
-              verificationError
-                ? verificationError.toUpperCase() === "TOKEN_EXPIRED"
-                  ? "expired"
-                  : "invalid"
-                : statuses.has(url.searchParams.get("status"))
-                  ? url.searchParams.get("status")
-                  : "idle",
+            status: verificationError
+              ? verificationError.toUpperCase() === "TOKEN_EXPIRED"
+                ? "expired"
+                : "invalid"
+              : statuses.has(url.searchParams.get("status"))
+                ? url.searchParams.get("status")
+                : "idle",
             token: url.searchParams.get("token") || "",
             email: url.searchParams.get("email") || "",
             signupAllowed: config.signupAllowed,

@@ -10,8 +10,8 @@ const round = {
   id: "00000000-0000-0000-0000-000000000001",
   slug: "september-test",
   status: "open",
-  opensAt: "2026-09-01T00:00:00.000Z",
-  closesAt: "2026-10-01T00:00:00.000Z",
+  opensAt: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+  closesAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
   mode: "synthetic",
   rulesDigest: "digest",
   rules: {
@@ -262,7 +262,9 @@ describe("championship journey", () => {
         .mockResolvedValueOnce(
           response({
             round,
-            serverNow: "2026-10-02T00:00:00.000Z",
+            serverNow: new Date(
+              Date.parse(round.closesAt) + 86_400_000,
+            ).toISOString(),
           }),
         )
         .mockResolvedValueOnce(

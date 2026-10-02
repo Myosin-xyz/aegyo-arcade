@@ -90,8 +90,8 @@
       if (continuation) reset.searchParams.set("continue", continuation);
       data.redirectTo = reset.href;
     }
-    if (action === "send-verification" && continuation)
-      data.callbackURL = continuation;
+    if (action === "send-verification")
+      data.callbackURL = `${location.origin}/verify-email?status=success`;
     form.dataset.busy = "true";
     form.setAttribute("aria-busy", "true");
     const button = form.querySelector("button[type=submit]");
@@ -105,16 +105,10 @@
     try {
       if (action === "verify-email") {
         const query = new URLSearchParams({ token: data.token });
-        if (continuation) query.set("callbackURL", continuation);
-        const response = await fetch(`${endpoint}?${query}`, {
-          credentials: "same-origin",
-          redirect: "manual",
-        });
-        if (!response.ok && response.type !== "opaqueredirect")
-          throw Object.assign(new Error(), { response });
-        location.assign(
-          safeDestination(continuation, "/verify-email?status=success"),
-        );
+        query.set("callbackURL", `${location.origin}/verify-email?status=success`);
+        // Let the provider redirect to the success or invalid/expired page.
+        // A manual fetch cannot distinguish those redirects in every browser.
+        location.assign(`${endpoint}?${query}`);
         return;
       }
       const response = await fetch(endpoint, {

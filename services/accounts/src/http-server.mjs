@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
 import { renderAccountPage, accountsCss, accountsJs } from "../ui/pages.mjs";
 import { clientIP } from "./config.mjs";
+import { standaloneVerificationURL } from "./verification-link.mjs";
 import {
   authorizedReader,
   readSessionState,
@@ -195,6 +196,12 @@ export function createAccountsServer({
           url.pathname.startsWith("/api/auth/") ||
           url.pathname.startsWith("/.well-known/")
         ) {
+          // An email client may open a different browser without the app's
+          // OAuth state cookie. Preserve the token, but finish on Accounts.
+          if (req.method === "GET" && url.pathname === "/api/auth/verify-email") {
+            const standalone = standaloneVerificationURL(url.href, config.baseURL);
+            req.url = standalone.pathname + standalone.search;
+          }
           // Use the official adapter on GET. POST has already been bounded, so pass
           // a standard Request to the same maintained provider handler.
           if (req.method === "GET") return await providerHandler(req, res);
@@ -234,6 +241,8 @@ export function createAccountsServer({
           config.baseURL,
           url,
         );
+        const verificationError =
+          page === "verify-email" ? url.searchParams.get("error") : null;
         return send(
           200,
           renderAccountPage({
@@ -241,8 +250,10 @@ export function createAccountsServer({
             locale,
             ...continuation,
             status:
-              url.searchParams.get("error") === "INVALID_TOKEN"
-                ? "invalid"
+              verificationError
+                ? verificationError.toUpperCase() === "TOKEN_EXPIRED"
+                  ? "expired"
+                  : "invalid"
                 : statuses.has(url.searchParams.get("status"))
                   ? url.searchParams.get("status")
                   : "idle",

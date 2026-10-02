@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createMailSender } from "../src/mail.mjs";
 import { readConfig } from "../src/config.mjs";
+import { standaloneVerificationURL } from "../src/verification-link.mjs";
 
 const origin = "https://accounts.example.test";
 const config = {
@@ -64,6 +65,38 @@ test("Resend uses the verified sender contract and stable opaque retry keys", as
   assert.ok(
     !key.includes(message.user.email) && !key.includes("synthetic-token"),
   );
+});
+
+test("verification email is branded and never resumes another browser's OAuth transaction", async () => {
+  const calls = [];
+  const sender = createMailSender(config, origin, async (_url, request) => {
+    calls.push(JSON.parse(request.body));
+    return success();
+  });
+  const callback = `${origin}/api/auth/oauth2/authorize?sig=signed&state=opaque`;
+  const oldLink = `${origin}/api/auth/verify-email?token=synthetic-token&callbackURL=${encodeURIComponent(callback)}`;
+  await sender("verify", { ...message, url: oldLink });
+  const body = calls[0];
+  assert.match(body.subject, /Verify your email.*Aegyo Arena/);
+  assert.match(body.html, /AEGYO ARENA/);
+  assert.match(body.html, /Verify my email/);
+  assert.match(body.html, /background:#21113a/);
+  assert.doesNotMatch(body.text, /oauth2\/authorize/);
+  const [link] = body.text.match(/https:\/\/[^\s]+/g);
+  const url = new URL(link);
+  assert.equal(url.searchParams.get("token"), "synthetic-token");
+  assert.equal(url.searchParams.get("callbackURL"), `${origin}/verify-email?status=success`);
+  assert.ok(body.html.includes(link.replaceAll("&", "&amp;")));
+  assert.ok(!body.html.includes(callback));
+});
+
+test("old verification links also finish on Accounts, preserving the token", () => {
+  const old = `${origin}/api/auth/verify-email?token=synthetic-token&callbackURL=${encodeURIComponent("https://aegyoarena.com/api/auth/shared/callback?code=old")}`;
+  const normalized = standaloneVerificationURL(old, origin);
+  assert.equal(normalized.searchParams.get("token"), "synthetic-token");
+  assert.equal(normalized.searchParams.get("callbackURL"), `${origin}/verify-email?status=success`);
+  assert.throws(() => standaloneVerificationURL("https://evil.example/api/auth/verify-email?token=x", origin));
+  assert.throws(() => standaloneVerificationURL(`${origin}/api/auth/reset-password?token=x`, origin));
 });
 
 test("blocked, throttled, malformed, redirected and oversized mail responses fail without disclosing credentials or links", async () => {

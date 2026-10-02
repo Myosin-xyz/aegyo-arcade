@@ -31,6 +31,21 @@ test("unverified members can reach verification without losing the authorization
   assert.doesNotMatch(verified, /href="[^\"]+">Verify email/);
 });
 
+test("verification success never replays an OAuth continuation opened in another browser", () => {
+  const continuationUrl =
+    "https://account.aegyoarena.com/api/auth/oauth2/authorize?sig=signed&state=opaque";
+  const html = renderAccountPage({
+    page: "verify-email",
+    status: "success",
+    continuationUrl,
+  });
+  assert.match(html, /Your email is confirmed/);
+  assert.match(html, /href="\/sign-in">Sign in<\/a>/);
+  assert.doesNotMatch(html, /href="[^"]*oauth2\/authorize/);
+  const expired = renderAccountPage({ page: "verify-email", status: "expired" });
+  assert.match(expired, /This link has expired/);
+});
+
 test("sign-up and language links preserve the exact signed authorization journey", () => {
   const oauthQuery =
     "client_id=arcade&redirect_uri=https%3A%2F%2Farcade.aegyoarena.com%2Fapi%2Faccounts%2Fcallback&max_age=0&state=a%2Bb&sig=signed";

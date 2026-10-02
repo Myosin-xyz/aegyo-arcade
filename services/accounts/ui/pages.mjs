@@ -60,7 +60,8 @@ const copy = {
     verificationSent:
       "A new verification email is on its way. You can close this page after checking your inbox.",
     verifiedTitle: "Email verified",
-    verifiedBody: "Your email is confirmed. You can continue to Aegyo Arena.",
+    verifiedBody:
+      "Your email is confirmed. Return to the browser where you started, or sign in here to continue.",
     invalidLink:
       "This link is invalid or has already been used. Request a new one to continue.",
     expiredLink: "This link has expired. Request a new one to continue.",
@@ -134,7 +135,7 @@ const copy = {
       "Enviamos un nuevo correo de verificación. Puedes cerrar esta página después de revisar tu bandeja.",
     verifiedTitle: "Correo verificado",
     verifiedBody:
-      "Tu correo está confirmado. Ya puedes continuar a Aegyo Arena.",
+      "Tu correo está confirmado. Vuelve al navegador donde comenzaste o inicia sesión aquí para continuar.",
     invalidLink:
       "Este enlace no es válido o ya fue usado. Solicita uno nuevo para continuar.",
     expiredLink: "Este enlace venció. Solicita uno nuevo para continuar.",
@@ -271,9 +272,7 @@ function formFor(page, c, vm) {
   }
   if (page === "verify-email") {
     if (vm.status === "success")
-      return vm.continuationUrl
-        ? `<a class="primary-action action-link" href="${esc(vm.continuationUrl)}">${c.continue}</a>`
-        : `<a class="primary-action action-link" href="/account">${c.continue}</a>`;
+      return `<a class="primary-action action-link" href="/sign-in">${c.goSignin}</a>`;
     if (vm.token && !["invalid", "expired"].includes(vm.status))
       return `<form data-auth-form="verify-email" data-auto-submit><input type="hidden" name="token" value="${esc(vm.token)}"><div class="verifying" role="status"><span class="spinner" aria-hidden="true"></span>${c.working}</div></form>`;
     if (!vm.emailAvailable)

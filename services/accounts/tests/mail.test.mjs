@@ -81,6 +81,8 @@ test("verification email is branded and never resumes another browser's OAuth tr
   assert.match(body.html, /AEGYO ARENA/);
   assert.match(body.html, /Verify my email/);
   assert.match(body.html, /background:#21113a/);
+  assert.match(body.html, /table-layout:fixed/);
+  assert.match(body.html, /word-break:break-all/);
   assert.doesNotMatch(body.text, /oauth2\/authorize/);
   const [link] = body.text.match(/https:\/\/[^\s]+/g);
   const url = new URL(link);
@@ -91,6 +93,21 @@ test("verification email is branded and never resumes another browser's OAuth tr
   );
   assert.ok(body.html.includes(link.replaceAll("&", "&amp;")));
   assert.ok(!body.html.includes(callback));
+});
+
+test("password reset uses the same mobile-safe Aegyo email layout", async () => {
+  const calls = [];
+  const sender = createMailSender(config, origin, async (_url, request) => {
+    calls.push(JSON.parse(request.body));
+    return success();
+  });
+  await sender("reset", message);
+  const body = calls[0];
+  assert.match(body.subject, /Reset your Aegyo Arena password/);
+  assert.match(body.html, /AEGYO ARENA/);
+  assert.match(body.html, /Reset my password/);
+  assert.match(body.html, /table-layout:fixed/);
+  assert.match(body.html, /word-break:break-all/);
 });
 
 test("old verification links also finish on Accounts, preserving the token", () => {

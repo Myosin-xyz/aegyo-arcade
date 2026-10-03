@@ -9,6 +9,8 @@ export default async function BrowserSignOutPage({
 }) {
   const product = (await searchParams).return;
   return (
-    <BrowserSignOutClient product={product && products.has(product) ? product : null} />
+    <BrowserSignOutClient
+      product={product && products.has(product) ? product : null}
+    />
   );
 }

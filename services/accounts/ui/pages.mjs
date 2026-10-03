@@ -30,6 +30,9 @@ const copy = {
       "Confirming your email protects your account and unlocks member features.",
     accountTitle: "You’re signed in",
     accountIntro: "Your Aegyo Arena account is ready wherever you play.",
+    signoutTitle: "Signing you out",
+    signoutIntro:
+      "Ending your session across Aegyo Arena, Arcade and Daebak in this browser.",
     name: "Display name",
     email: "Email address",
     password: "Password",
@@ -104,6 +107,9 @@ const copy = {
       "Confirmar tu correo protege tu cuenta y activa las funciones para miembros.",
     accountTitle: "Tu sesión está activa",
     accountIntro: "Tu cuenta de Aegyo Arena está lista donde sea que juegues.",
+    signoutTitle: "Cerrando tu sesión",
+    signoutIntro:
+      "Terminando tu sesión en Aegyo Arena, Arcade y Daebak en este navegador.",
     name: "Nombre visible",
     email: "Correo electrónico",
     password: "Contraseña",
@@ -166,6 +172,7 @@ const pageMeta = {
   "reset-password": ["resetTitle", "resetIntro"],
   "verify-email": ["verifyTitle", "verifyIntro"],
   account: ["accountTitle", "accountIntro"],
+  "sign-out": ["signoutTitle", "signoutIntro"],
 };
 
 const safeErrors = {
@@ -279,6 +286,8 @@ function formFor(page, c, vm) {
       return `<div class="notice notice-success" role="status"><strong>${c.emailUnavailableTitle}</strong><p>${c.emailUnavailable}</p></div><a class="primary-action action-link" href="/sign-in">${c.goSignin}</a>`;
     return action("send-verification", c.resend, commonEmail);
   }
+  if (page === "sign-out")
+    return action("sign-out", c.signout, "", " data-auto-submit");
   const user = vm.user || {};
   const verificationLink = user.emailVerified
     ? ""
@@ -299,6 +308,9 @@ export function renderAccountPage({
   signupAllowed = false,
   emailAvailable = true,
   user = null,
+  logoutNext = "",
+  logoutReturn = "",
+  browserLogoutEnabled = false,
 } = {}) {
   if (!pageMeta[page]) throw new TypeError(`Unknown account page: ${page}`);
   const lang = locale === "es" ? "es" : "en";
@@ -317,6 +329,8 @@ export function renderAccountPage({
     user,
   };
   const alternateParams = new URLSearchParams({ lang: c.languageCode });
+  if (page === "sign-out" && logoutReturn)
+    alternateParams.set("return", logoutReturn);
   if (continuationUrl) alternateParams.set("continue", continuationUrl);
   if (token && (page === "reset-password" || page === "verify-email"))
     alternateParams.set("token", token);
@@ -324,7 +338,7 @@ export function renderAccountPage({
   const safeContinuation = esc(continuationUrl);
   return `<!doctype html>
 <html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#140a26"><title>${esc(c[titleKey])} · ${c.brand}</title><link rel="stylesheet" href="/assets/accounts.css"><script src="/assets/accounts.js" defer></script></head>
-<body data-page="${page}" data-status="${esc(status)}" data-continuation="${safeContinuation}" data-oauth-query="${esc(oauthQuery)}" data-trusted-redirect-uri="${esc(trustedRedirectUri)}" data-working="${esc(c.working)}" data-error-generic="${esc(c.genericError)}" data-error-network="${esc(c.networkError)}" data-error-credentials="${esc(c.credentialsError)}" data-error-email-exists="${esc(c.emailExists)}" data-error-rate="${esc(c.rateLimited)}" data-error-mismatch="${esc(c.passwordMismatch)}">
+<body data-page="${page}" data-status="${esc(status)}" data-continuation="${safeContinuation}" data-oauth-query="${esc(oauthQuery)}" data-trusted-redirect-uri="${esc(trustedRedirectUri)}" data-logout-next="${esc(logoutNext)}" data-browser-logout-enabled="${browserLogoutEnabled ? "true" : "false"}" data-working="${esc(c.working)}" data-error-generic="${esc(c.genericError)}" data-error-network="${esc(c.networkError)}" data-error-credentials="${esc(c.credentialsError)}" data-error-email-exists="${esc(c.emailExists)}" data-error-rate="${esc(c.rateLimited)}" data-error-mismatch="${esc(c.passwordMismatch)}">
 <a class="skip-link" href="#account-form">${c.skip}</a><div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
 <header class="site-header"><a class="brand" href="/" aria-label="${c.brand}">${bunny()}<span>${c.brand}</span></a><nav aria-label="${lang === "es" ? "Opciones" : "Options"}"><a href="${alternateUrl}" hreflang="${c.languageCode}">${c.language}</a><a href="https://aegyoarena.com">${c.close}</a></nav></header>
 <main><section class="account-shell" id="account-form" aria-labelledby="page-title"><div class="title-lockup"><span class="signal" aria-hidden="true"><i></i><i></i><i></i></span><p>${c.secure}</p></div><h1 id="page-title">${c[titleKey]}</h1><p class="intro">${c[introKey]}</p>${alertBlock(c, status, errorCode, page)}${formFor(page, c, vm)}</section></main>

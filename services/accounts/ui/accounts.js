@@ -67,6 +67,14 @@
 
   async function submit(form) {
     const action = form.dataset.authForm;
+    if (
+      action === "sign-out" &&
+      body.dataset.page !== "sign-out" &&
+      body.dataset.browserLogoutEnabled === "true"
+    ) {
+      location.assign("/sign-out?return=aegyo");
+      return;
+    }
     const endpoint = endpointByAction[action];
     if (!endpoint || form.dataset.busy === "true") return;
     const data = Object.fromEntries(new FormData(form));
@@ -135,6 +143,8 @@
         );
       else if (action === "reset-password")
         location.assign("/reset-password?status=success");
+      else if (action === "sign-out" && body.dataset.page === "sign-out")
+        location.replace(body.dataset.logoutNext || "/sign-in");
       else if (action === "sign-out") location.assign("/sign-in");
       else {
         location.assign(postAuthDestination(payload.url));

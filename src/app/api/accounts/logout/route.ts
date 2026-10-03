@@ -16,7 +16,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ code: "service_unavailable" }, { status: 503 });
   const token = request.cookies.get(MEMBER_COOKIE)?.value;
   if (token) await revokeMemberSession(db, token);
-  const response = NextResponse.json({ ok: true });
+  const response = NextResponse.json(
+    config.appOrigin === "https://arcade.aegyoarena.com" &&
+      request.nextUrl.origin === config.appOrigin
+      ? {
+          ok: true,
+          next: `${config.providerBaseUrl}/sign-out?return=arcade`,
+        }
+      : { ok: true },
+  );
   clearAccountsCookies(response);
   return response;
 }

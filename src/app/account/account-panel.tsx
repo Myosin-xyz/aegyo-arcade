@@ -46,7 +46,8 @@ const copy = {
     invalid: "Use 3–20 lowercase letters, numbers, or underscores.",
     saveUnknown:
       "We couldn’t confirm the username. Check your account before trying again.",
-    signOut: "Sign out of this arcade",
+    signOut: "Sign out",
+    signOutError: "We couldn’t finish signing out. Please try again.",
   },
   "es-419": {
     title: "Tu cuenta de jugador",
@@ -76,7 +77,8 @@ const copy = {
     invalid: "Usa de 3 a 20 letras minúsculas, números o guiones bajos.",
     saveUnknown:
       "No pudimos confirmar el nombre. Revisa tu cuenta antes de intentar de nuevo.",
-    signOut: "Cerrar sesión en este arcade",
+    signOut: "Cerrar sesión",
+    signOutError: "No pudimos cerrar la sesión. Inténtalo de nuevo.",
   },
 } as const;
 
@@ -87,6 +89,7 @@ export function AccountPanel() {
   const [username, setUsername] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [signOutError, setSignOutError] = useState(false);
 
   async function loadProfile(): Promise<View> {
     try {
@@ -163,13 +166,21 @@ export function AccountPanel() {
 
   async function signOut() {
     try {
-      await fetch("/api/accounts/logout", {
+      setSignOutError(false);
+      const response = await fetch("/api/accounts/logout", {
         method: "POST",
         credentials: "same-origin",
       });
-    } finally {
+      if (!response.ok) throw new Error("logout_failed");
+      const result: { next?: string } = await response.json();
+      if (result.next) {
+        window.location.assign(result.next);
+        return;
+      }
       router.push("/");
       router.refresh();
+    } catch {
+      setSignOutError(true);
     }
   }
 
@@ -284,6 +295,9 @@ export function AccountPanel() {
             >
               {text.signOut}
             </button>
+            {signOutError && (
+              <p className={styles.error}>{text.signOutError}</p>
+            )}
           </div>
         )}
       </section>

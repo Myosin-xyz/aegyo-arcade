@@ -3,6 +3,7 @@ import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
 import { renderAccountPage, accountsCss, accountsJs } from "../ui/pages.mjs";
 import { clientIP } from "./config.mjs";
 import { standaloneVerificationURL } from "./verification-link.mjs";
+import { browserSignOutNext } from "./browser-sign-out.mjs";
 import {
   authorizedReader,
   readSessionState,
@@ -141,6 +142,28 @@ export function createAccountsServer({
           return send(404, { error: "not_found" });
         if (!(await isReady()))
           return send(503, { error: "accounts_temporarily_unavailable" });
+        if (url.pathname === "/sign-out") {
+          if (req.method !== "GET")
+            return send(405, { error: "method_not_allowed" });
+          if (
+            config.environment !== "production" ||
+            config.baseURL !== "https://account.aegyoarena.com"
+          )
+            return send(404, { error: "not_found" });
+          const logoutNext = browserSignOutNext(url.searchParams.get("return"));
+          if (!logoutNext)
+            return send(400, { error: "invalid_return_product" });
+          return send(
+            200,
+            renderAccountPage({
+              page: "sign-out",
+              locale: url.searchParams.get("lang") === "es" ? "es" : "en",
+              logoutNext,
+              logoutReturn: url.searchParams.get("return"),
+            }),
+            "text/html; charset=utf-8",
+          );
+        }
         if (
           ["/api/internal/session-state", "/api/internal/proxy-proof"].includes(
             url.pathname,
@@ -268,6 +291,9 @@ export function createAccountsServer({
             email: url.searchParams.get("email") || "",
             signupAllowed: config.signupAllowed,
             emailAvailable: Boolean(config.mail),
+            browserLogoutEnabled:
+              config.environment === "production" &&
+              config.baseURL === "https://account.aegyoarena.com",
             user: session
               ? {
                   name: session.user.name,

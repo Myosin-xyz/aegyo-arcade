@@ -12,11 +12,11 @@ export type ChampionshipPhase =
   | "error";
 const copy = {
   en: {
-    title: "Official attempt",
-    rule: "Uses one attempt. Leaving or reloading forfeits it.",
-    start: "Start official run",
+    title: "Monthly leaderboard",
+    rule: "Uses one official attempt. Leaving or reloading forfeits it.",
+    start: "Play for monthly leaderboard",
     issuing: "Reserving attempt…",
-    active: "Official run in progress · don't leave",
+    active: "Leaderboard run in progress · don't leave",
     submitting: "Saving replay…",
     pending: "Replay saved. Waiting for verification; no points awarded yet.",
     verified: "Replay verified",
@@ -29,11 +29,11 @@ const copy = {
     readying: "Getting the game ready…",
   },
   "es-419": {
-    title: "Intento oficial",
-    rule: "Usa un intento. Salir o recargar lo consume.",
-    start: "Iniciar partida oficial",
+    title: "Tabla mensual",
+    rule: "Usa un intento oficial. Salir o recargar lo consume.",
+    start: "Jugar para la tabla mensual",
     issuing: "Reservando intento…",
-    active: "Partida oficial en curso · no salgas",
+    active: "Partida de tabla mensual en curso · no salgas",
     submitting: "Guardando repetición…",
     pending: "Repetición guardada. Esperando verificación; aún sin puntos.",
     verified: "Repetición verificada",

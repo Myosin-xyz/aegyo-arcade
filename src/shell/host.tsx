@@ -846,16 +846,17 @@ export function GameHostInner({
           </button>
         </div>
       </header>
-      {championshipRound && (
-        <ChampionshipControls
-          phase={championshipPhase}
-          canStart={canStart(lifecycle)}
-          points={championshipPoints}
-          onStart={() => void startChampionshipRun()}
-          onRetry={() => void submitOfficial()}
-          hasRetry={hasOfficialRetry}
-        />
-      )}
+      {championshipRound &&
+        (championshipPhase !== "idle" || lifecycle === "ended") && (
+          <ChampionshipControls
+            phase={championshipPhase}
+            canStart={lifecycle !== "ready" && canStart(lifecycle)}
+            points={championshipPoints}
+            onStart={() => void startChampionshipRun()}
+            onRetry={() => void submitOfficial()}
+            hasRetry={hasOfficialRetry}
+          />
+        )}
 
       <p className="sr-only" aria-live="polite">
         {lifecycle === "ended" &&
@@ -946,7 +947,75 @@ export function GameHostInner({
                 {t(`game.${gameId}.controls`)}
               </p>
             )}
-            {countedCapable && (
+            {championshipRound && (
+              <>
+                <button
+                  type="button"
+                  className="btn-arcade px-6 py-3 text-base"
+                  onClick={() => void startChampionshipRun()}
+                  disabled={championshipPhase === "issuing"}
+                  data-testid="start-championship"
+                >
+                  {championshipPhase === "issuing"
+                    ? t("host.leaderboardIssuing")
+                    : t("host.leaderboardRun")}
+                </button>
+                <p className="max-w-xs text-center text-xs text-white/75">
+                  {t("host.leaderboardRunNote")}
+                </p>
+              </>
+            )}
+            {championshipRound && (
+              <details className="w-full max-w-xs rounded-xl border border-white/25 bg-black/20 px-4 py-2 text-center text-sm">
+                <summary className="min-h-11 cursor-pointer content-center font-semibold text-white/90">
+                  {t("host.otherWaysToPlay")}
+                </summary>
+                <div className="flex flex-col items-center gap-2 border-t border-white/20 pt-3">
+                  {countedCapable && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-ghost min-h-11 px-5 py-2 font-semibold"
+                        onClick={() => void startCountedRun()}
+                        disabled={counted.kind === "issuing"}
+                        data-testid="start-counted"
+                      >
+                        {counted.kind === "issuing"
+                          ? t("host.countedIssuing")
+                          : t("host.todaysRun")}
+                      </button>
+                      <p className="text-xs text-white/70">
+                        {t("host.dailyRunNote")}
+                      </p>
+                      {counted.kind === "blocked" && (
+                        <p className="text-xs">
+                          {t("host.countedBlocked", {
+                            time: formatEligibleTime(counted.nextEligibleAt),
+                          })}
+                        </p>
+                      )}
+                      {counted.kind === "error" && (
+                        <p className="text-xs">
+                          {t("host.countedUnavailable")}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-ghost min-h-11 px-5 py-2 font-semibold"
+                    onClick={startRun}
+                    data-testid="start-run"
+                  >
+                    {t("host.practice")}
+                  </button>
+                  <p className="text-xs text-white/70">
+                    {t("host.practiceNote")}
+                  </p>
+                </div>
+              </details>
+            )}
+            {!championshipRound && countedCapable && (
               <>
                 <button
                   type="button"
@@ -973,14 +1042,16 @@ export function GameHostInner({
                 )}
               </>
             )}
-            <button
-              type="button"
-              className="btn-ghost px-7 py-3 text-lg font-semibold"
-              onClick={startRun}
-              data-testid="start-run"
-            >
-              {countedCapable ? t("host.practice") : t("host.start")}
-            </button>
+            {!championshipRound && (
+              <button
+                type="button"
+                className="btn-ghost px-7 py-3 text-lg font-semibold"
+                onClick={startRun}
+                data-testid="start-run"
+              >
+                {countedCapable ? t("host.practice") : t("host.start")}
+              </button>
+            )}
           </Overlay>
         )}
         {lifecycle === "paused" && (
@@ -1037,7 +1108,9 @@ export function GameHostInner({
                   disabled={counted.kind === "submitting"}
                   data-testid="play-again"
                 >
-                  {t("host.playAgain")}
+                  {t(
+                    championshipRound ? "host.practiceAgain" : "host.playAgain",
+                  )}
                 </button>
                 <ChallengeShareButton
                   gameId={gameId}
@@ -1078,7 +1151,7 @@ export function GameHostInner({
                 disabled={counted.kind === "submitting"}
                 data-testid="play-again"
               >
-                {t("host.playAgain")}
+                {t(championshipRound ? "host.practiceAgain" : "host.playAgain")}
               </button>
               <ChallengeShareButton
                 gameId={gameId}

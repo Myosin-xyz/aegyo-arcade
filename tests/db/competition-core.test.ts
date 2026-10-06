@@ -13,6 +13,10 @@ import {
 } from "@/competition/store";
 import type { RoundRules } from "@/competition/rules";
 import { publicRound } from "@/competition/read";
+import {
+  activeRoundForGame,
+  isEnrolledForRound,
+} from "@/competition/play-options";
 import { finalizeRound, settleAttempt } from "@/competition/operations-store";
 import { competitionOperatorDashboard } from "@/competition/operator-dashboard";
 import {
@@ -234,6 +238,14 @@ beforeEach(async () => {
 });
 
 describe("competition store on PostgreSQL", () => {
+  it("discovers an active game's round and distinguishes enrollment", async () => {
+    expect(await activeRoundForGame(db, "snake")).toBe(ROUND);
+    expect(await activeRoundForGame(db, "perfect-toss")).toBeNull();
+    expect(await isEnrolledForRound(db, ROUND, A)).toBe(false);
+    await enrollActor();
+    expect(await isEnrolledForRound(db, ROUND, A)).toBe(true);
+  });
+
   it("refuses awards for a public community round", async () => {
     const communityId = crypto.randomUUID();
     await pool.query(

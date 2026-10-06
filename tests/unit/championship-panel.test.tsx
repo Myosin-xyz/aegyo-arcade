@@ -50,12 +50,17 @@ describe("championship journey", () => {
     vi.unstubAllGlobals();
   });
 
-  async function renderPanel(selectedRound?: string) {
+  async function renderPanel(selectedRound?: string, returnGameId?: string) {
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
     await act(async () =>
-      root?.render(<ChampionshipPanel selectedRound={selectedRound} />),
+      root?.render(
+        <ChampionshipPanel
+          selectedRound={selectedRound}
+          returnGameId={returnGameId}
+        />,
+      ),
     );
   }
 
@@ -79,7 +84,7 @@ describe("championship journey", () => {
         )
         .mockResolvedValueOnce(response({ authenticated: false }, 401)),
     );
-    await renderPanel();
+    await renderPanel(undefined, "snake");
     await vi.waitFor(() =>
       expect(container?.textContent).toContain("Test round · no prizes"),
     );
@@ -89,6 +94,9 @@ describe("championship journey", () => {
     expect(container?.querySelector('a[href="/account"]')?.textContent).toBe(
       "Open my account",
     );
+    expect(
+      container?.querySelector('a[href="/play/snake"]')?.textContent,
+    ).toContain("Back to Snake");
     expect(container?.textContent?.toLowerCase()).not.toContain("win a prize");
   });
 
@@ -170,14 +178,18 @@ describe("championship journey", () => {
           }),
         ),
     );
-    await renderPanel();
+    await renderPanel(undefined, "snake");
     await vi.waitFor(() =>
       expect(container?.textContent).toContain("You’re enrolled"),
     );
     expect(
-      container?.querySelector('a[href^="/play/snake?championship="]')
+      container?.querySelector(`a[href="/play/snake?championship=${round.id}"]`)
         ?.textContent,
-    ).toContain("· 2");
+    ).toContain("Play Snake for monthly points · 2 left today");
+    expect(
+      container?.querySelectorAll('a[href^="/play/snake?championship="]')
+        .length,
+    ).toBe(1);
     expect(
       container?.querySelector('a[href^="/play/flappy?championship="]'),
     ).toBeNull();

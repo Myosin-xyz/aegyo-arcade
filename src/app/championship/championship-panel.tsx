@@ -184,6 +184,9 @@ const translations = {
     rawScore: "Game score",
     roundPoints: "Round points",
     home: "Back to games",
+    backToGame: (name: string) => `Back to ${name}`,
+    continueGame: (name: string, remaining: number) =>
+      `Play ${name} for monthly points · ${remaining} left today`,
   },
   "es-419": {
     title: "Campeonato",
@@ -278,6 +281,9 @@ const translations = {
     rawScore: "Puntaje del juego",
     roundPoints: "Puntos de ronda",
     home: "Volver a los juegos",
+    backToGame: (name: string) => `Volver a ${name}`,
+    continueGame: (name: string, remaining: number) =>
+      `Jugar ${name} por puntos mensuales · quedan ${remaining} hoy`,
   },
 } as const;
 
@@ -317,8 +323,10 @@ async function fetchChampionship(selectedRound?: string): Promise<LoadState> {
 
 export function ChampionshipPanel({
   selectedRound,
+  returnGameId,
 }: {
   selectedRound?: string;
+  returnGameId?: string;
 }) {
   const text = translations[getLocale()];
   const locale = getLocale() === "es-419" ? "es-419" : "en";
@@ -400,6 +408,14 @@ export function ChampionshipPanel({
       <header className={styles.header}>
         <AegyoLogo className={styles.logo} />
         <h1>{text.title}</h1>
+        {returnGameId && (
+          <Link
+            href={`/play/${returnGameId}`}
+            className="inline-flex min-h-11 items-center text-sm text-brand underline underline-offset-4"
+          >
+            ← {text.backToGame(gameName(returnGameId, text))}
+          </Link>
+        )}
       </header>
 
       {state.kind === "loading" && (
@@ -526,7 +542,34 @@ export function ChampionshipPanel({
                 </Link>
               </div>
             ) : member.enrolled ? (
-              <MemberRound member={member} round={round} text={text} canPlay />
+              <>
+                {returnGameId &&
+                  (member.remaining[returnGameId] ?? 0) > 0 &&
+                  round.rules.games.some(
+                    (game) => game.gameId === returnGameId,
+                  ) && (
+                    <Link
+                      className="btn-arcade mb-4 inline-flex min-h-11 items-center px-5 py-3"
+                      href={`/play/${returnGameId}?championship=${encodeURIComponent(round.id)}`}
+                    >
+                      {text.continueGame(
+                        gameName(returnGameId, text),
+                        member.remaining[returnGameId],
+                      )}
+                    </Link>
+                  )}
+                <MemberRound
+                  member={member}
+                  round={round}
+                  text={text}
+                  canPlay
+                  highlightedGameId={
+                    returnGameId && (member.remaining[returnGameId] ?? 0) > 0
+                      ? returnGameId
+                      : undefined
+                  }
+                />
+              </>
             ) : (
               <form
                 className={styles.enroll}
@@ -577,12 +620,17 @@ function MemberRound({
   round,
   text,
   canPlay,
+  highlightedGameId,
 }: {
   member: MemberState;
   round: Round;
   text: (typeof translations)["en"] | (typeof translations)["es-419"];
   canPlay: boolean;
+  highlightedGameId?: string;
 }) {
+  const otherGames = round.rules.games.filter(
+    (game) => game.gameId !== highlightedGameId,
+  );
   return (
     <div className={styles.member}>
       <p className={styles.enrolled}>✓ {text.enrolled}</p>
@@ -632,11 +680,11 @@ function MemberRound({
           )}
         </section>
       )}
-      {canPlay && (
+      {canPlay && otherGames.length > 0 && (
         <>
           <h3>{text.attempts}</h3>
           <div className={styles.gameActions}>
-            {round.rules.games.map(({ gameId }) => (
+            {otherGames.map(({ gameId }) => (
               <Link
                 className="btn-arcade"
                 href={`/play/${gameId}?championship=${encodeURIComponent(round.id)}`}

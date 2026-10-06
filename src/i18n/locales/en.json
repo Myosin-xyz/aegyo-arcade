@@ -337,7 +337,7 @@
   "host.countedUnavailable": "Today's run isn't available right now. Practice is.",
   "host.dailyRunNote": "Daily streak and game rank; no monthly leaderboard points.",
   "host.howToPlay": "How to play",
-  "host.joinMonthlyLeaderboard": "Join the monthly leaderboard",
+  "host.joinMonthlyLeaderboard": "Want monthly points? View rules and join",
   "host.leaderboardIssuing": "Reserving leaderboard attempt...",
   "host.leaderboardRun": "Play for monthly leaderboard",
   "host.leaderboardRunNote": "Uses one official attempt. Leaving or reloading forfeits it.",

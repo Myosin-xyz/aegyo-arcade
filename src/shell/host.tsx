@@ -1056,15 +1056,6 @@ export function GameHostInner({
                 )}
               </>
             )}
-            {!championshipRound && monthlyJoinAvailable && (
-              <Link
-                href="/championship"
-                className="min-h-11 rounded-xl border border-brand/70 px-5 py-3 text-center text-sm font-semibold text-brand underline-offset-4 hover:underline"
-                data-testid="join-monthly-leaderboard"
-              >
-                {t("host.joinMonthlyLeaderboard")}
-              </Link>
-            )}
             {!championshipRound && (
               <button
                 type="button"
@@ -1074,6 +1065,15 @@ export function GameHostInner({
               >
                 {countedCapable ? t("host.practice") : t("host.start")}
               </button>
+            )}
+            {!championshipRound && monthlyJoinAvailable && (
+              <Link
+                href={`/championship?game=${encodeURIComponent(gameId)}`}
+                className="inline-flex min-h-11 max-w-xs items-center justify-center text-center text-sm font-semibold text-brand underline underline-offset-4"
+                data-testid="join-monthly-leaderboard"
+              >
+                {t("host.joinMonthlyLeaderboard")}
+              </Link>
             )}
           </Overlay>
         )}

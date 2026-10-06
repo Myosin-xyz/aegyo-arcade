@@ -341,7 +341,7 @@
   "host.leaderboardIssuing": "Reserving leaderboard attempt...",
   "host.leaderboardRun": "Play for monthly leaderboard",
   "host.leaderboardRunNote": "Uses one official attempt. Leaving or reloading forfeits it.",
-  "host.monthlyAttemptsSpent": "No monthly attempts left today. They reset at midnight New York time. Daily run and Practice are still open.",
+  "host.monthlyAttemptsSpent": "No monthly attempts left today. Try a daily run or practice until tomorrow.",
   "host.loadFailed": "This game couldn't load.",
   "host.loading": "Loading...",
   "host.mute": "Sound off",

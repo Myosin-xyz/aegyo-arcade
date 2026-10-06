@@ -484,7 +484,7 @@ export function GameHostInner({
   ]);
 
   const startRun = useCallback(() => {
-    if (officialIssuingRef.current) return;
+    if (officialIssuingRef.current || officialPayloadRef.current) return;
     const mounted = mountedRef.current;
     // §6.3: start only from ready/ended — enforced HERE, in the production
     // host, not just the conformance driver (M0 review P1). The ref rejects
@@ -511,6 +511,8 @@ export function GameHostInner({
     mounted.runAbort = runAbort;
     mounted.endedThisRun = false;
     setScore(0);
+    setChampionshipPhase("idle");
+    setChampionshipPoints(null);
     setEndReason(null);
     setCompletionActive(false);
     scoreRef.current = 0;
@@ -622,10 +624,12 @@ export function GameHostInner({
 
   /** Issue today's counted attempt, then run with its server seed (§9.2). */
   const startCountedRun = useCallback(async () => {
-    if (officialIssuingRef.current) return;
+    if (officialIssuingRef.current || officialPayloadRef.current) return;
     if (!canStart(lifecycleRef.current)) return;
     if (issuingRef.current) return; // same-task double activation (P2)
     issuingRef.current = true;
+    setChampionshipPhase("idle");
+    setChampionshipPoints(null);
     setCounted({ kind: "issuing" });
     try {
       await bootstrapSession();

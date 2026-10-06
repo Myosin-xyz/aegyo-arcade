@@ -1,6 +1,6 @@
 # es-419 Native Review Pack (EXT-LOCALE gate)
 
-> Generated from src/i18n/locales (378 strings) by
+> Generated from src/i18n/locales (385 strings) by
 > scripts/ops/generate-l10n-review.mjs — regenerate after ANY copy
 > change; a unit test pins this document to the JSON values.
 > LOCALE-1 requires a native/fan-fluent review before es-419 is
@@ -354,14 +354,21 @@
 | `host.countedBlocked`                     | Today's run is done. Next one after {time}.                                            | La partida de hoy ya está. La próxima después de las {time}.                                             |
 | `host.countedIssuing`                     | Getting today's run...                                                                 | Preparando la partida de hoy...                                                                          |
 | `host.countedUnavailable`                 | Today's run isn't available right now. Practice is.                                    | La partida de hoy no está disponible. Practica mientras tanto.                                           |
+| `host.dailyRunNote`                       | Daily streak and game rank; no monthly leaderboard points.                             | Cuenta para tu racha y clasificación del juego, no para la tabla mensual.                                |
 | `host.howToPlay`                          | How to play                                                                            | Cómo jugar                                                                                               |
+| `host.leaderboardIssuing`                 | Reserving leaderboard attempt...                                                       | Reservando intento para la tabla mensual...                                                              |
+| `host.leaderboardRun`                     | Play for monthly leaderboard                                                           | Jugar para la tabla mensual                                                                              |
+| `host.leaderboardRunNote`                 | Uses one official attempt. Leaving or reloading forfeits it.                           | Usa un intento oficial. Salir o recargar lo consume.                                                     |
 | `host.loadFailed`                         | This game couldn't load.                                                               | Este juego no pudo cargar.                                                                               |
 | `host.loading`                            | Loading...                                                                             | Cargando...                                                                                              |
 | `host.mute`                               | Sound off                                                                              | Silenciar                                                                                                |
+| `host.otherWaysToPlay`                    | Other ways to play                                                                     | Otras formas de jugar                                                                                    |
 | `host.ownedSaved`                         | Today's run saved!                                                                     | ¡Partida de hoy guardada!                                                                                |
 | `host.paused`                             | Paused                                                                                 | Pausa                                                                                                    |
 | `host.playAgain`                          | Play again                                                                             | Jugar de nuevo                                                                                           |
 | `host.practice`                           | Practice                                                                               | Práctica                                                                                                 |
+| `host.practiceAgain`                      | Practice again                                                                         | Practicar de nuevo                                                                                       |
+| `host.practiceNote`                       | Unlimited plays; no score submitted.                                                   | Juega sin límite; no se envía tu puntaje.                                                                |
 | `host.resume`                             | Resume                                                                                 | Continuar                                                                                                |
 | `host.retry`                              | Retry                                                                                  | Reintentar                                                                                               |
 | `host.retrySave`                          | Retry save                                                                             | Reintentar guardado                                                                                      |
@@ -372,7 +379,7 @@
 | `host.submittedRank`                      | Saved! Rank #{rank} this week.                                                         | ¡Guardada! Puesto #{rank} esta semana.                                                                   |
 | `host.submittedUnplaced`                  | Run saved. Score a point to make the board.                                            | Partida guardada. Anota un punto para entrar a la tabla.                                                 |
 | `host.submitting`                         | Saving your run...                                                                     | Guardando tu partida...                                                                                  |
-| `host.todaysRun`                          | Play today's run                                                                       | Jugar la partida de hoy                                                                                  |
+| `host.todaysRun`                          | Daily game run                                                                         | Partida diaria                                                                                           |
 | `host.unknownGame`                        | This game doesn't exist.                                                               | Este juego no existe.                                                                                    |
 | `host.unmute`                             | Sound on                                                                               | Activar sonido                                                                                           |
 | `host.viewBoard`                          | View leaderboard                                                                       | Ver tabla                                                                                                |

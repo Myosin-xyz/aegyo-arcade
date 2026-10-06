@@ -782,16 +782,6 @@ export function GameHostInner({
       data-lifecycle={lifecycle}
       data-score={score}
     >
-      {championshipRound && (
-        <ChampionshipControls
-          phase={championshipPhase}
-          canStart={canStart(lifecycle)}
-          points={championshipPoints}
-          onStart={() => void startChampionshipRun()}
-          onRetry={() => void submitOfficial()}
-          hasRetry={hasOfficialRetry}
-        />
-      )}
       <header className="flex items-center justify-between gap-2 border-b border-line bg-surface pb-2 pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-[max(0.5rem,env(safe-area-inset-top))]">
         {/* 44\u00d744 minimum touch target (iOS HIG / WCAG 2.5.5). The glyph
             stays small; only the hit area grows, so the header keeps its
@@ -856,6 +846,16 @@ export function GameHostInner({
           </button>
         </div>
       </header>
+      {championshipRound && (
+        <ChampionshipControls
+          phase={championshipPhase}
+          canStart={canStart(lifecycle)}
+          points={championshipPoints}
+          onStart={() => void startChampionshipRun()}
+          onRetry={() => void submitOfficial()}
+          hasRetry={hasOfficialRetry}
+        />
+      )}
 
       <p className="sr-only" aria-live="polite">
         {lifecycle === "ended" &&

@@ -1100,12 +1100,12 @@ export function GameHostInner({
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
-                  className="btn-arcade px-8 py-3 text-lg"
+                  className={`${championshipRound ? "btn-ghost" : "btn-arcade"} px-8 py-3 text-lg`}
                   onClick={startRun}
                   // Same save-race guard as the standard ended branch (audit
                   // P1 recurrence): starting Practice mid-PUT would hide the
                   // pending receipt/retry state.
-                  disabled={counted.kind === "submitting"}
+                  disabled={counted.kind === "submitting" || hasOfficialRetry}
                   data-testid="play-again"
                 >
                   {t(
@@ -1146,9 +1146,9 @@ export function GameHostInner({
               />
               <button
                 type="button"
-                className="btn-arcade px-8 py-3 text-lg"
+                className={`${championshipRound ? "btn-ghost" : "btn-arcade"} px-8 py-3 text-lg`}
                 onClick={startRun}
-                disabled={counted.kind === "submitting"}
+                disabled={counted.kind === "submitting" || hasOfficialRetry}
                 data-testid="play-again"
               >
                 {t(championshipRound ? "host.practiceAgain" : "host.playAgain")}

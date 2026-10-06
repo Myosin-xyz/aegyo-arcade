@@ -11,7 +11,7 @@ export async function activeRoundForGame(db: Db, gameId: string) {
          AND opens_at <= statement_timestamp()
          AND closes_at > statement_timestamp()
          AND (rules->>'mode' IN ('synthetic', 'community') OR ${materialVisible})
-         AND rules->'games' @> jsonb_build_array(jsonb_build_object('gameId', ${gameId}))
+         AND rules->'games' @> jsonb_build_array(jsonb_build_object('gameId', ${gameId}::text))
        ORDER BY opens_at DESC
        LIMIT 1
     `)

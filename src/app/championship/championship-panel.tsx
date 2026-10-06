@@ -96,10 +96,7 @@ export function phaseAt(
 
 const translations = {
   en: {
-    eyebrow: "Monthly challenge",
     title: "Championship",
-    intro:
-      "Practice the games and follow verified monthly standings when a published round is active.",
     test: "Test round · no prizes",
     communityNoPrizes:
       "No prizes this round; scores do not transfer to future prize contests.",
@@ -189,10 +186,7 @@ const translations = {
     home: "Back to games",
   },
   "es-419": {
-    eyebrow: "Reto mensual",
     title: "Campeonato",
-    intro:
-      "Practica los juegos y consulta la tabla mensual verificada cuando haya una ronda publicada activa.",
     test: "Ronda de prueba · sin premios",
     communityNoPrizes:
       "Esta ronda no tiene premios; los puntajes no se transfieren a futuros concursos con premios.",
@@ -405,9 +399,7 @@ export function ChampionshipPanel({
     <main className={styles.page}>
       <header className={styles.header}>
         <AegyoLogo className={styles.logo} />
-        <p className={styles.eyebrow}>{text.eyebrow}</p>
         <h1>{text.title}</h1>
-        <p className={styles.intro}>{text.intro}</p>
       </header>
 
       {state.kind === "loading" && (
@@ -561,7 +553,7 @@ export function ChampionshipPanel({
             )}
           </section>
 
-          <Rules round={round} text={text} />
+          <Rules round={round} text={text} expanded={!member?.enrolled} />
           <Standings
             standings={state.publicState.standings ?? []}
             round={round}
@@ -794,72 +786,76 @@ function AwardClaims({
 function Rules({
   round,
   text,
+  expanded,
 }: {
   round: Round;
   text: (typeof translations)["en"] | (typeof translations)["es-419"];
+  expanded: boolean;
 }) {
   return (
-    <section className={styles.card} id="round-rules">
-      <h2>{text.rules}</h2>
-      {round.mode === "material_prize" &&
-      round.rules.rulesUrl &&
-      materialLaunchBlockers(round.rules).length === 0 ? (
-        <p>
-          <a href={round.rules.rulesUrl} rel="noreferrer" target="_blank">
-            {text.officialRules}
-          </a>
-        </p>
-      ) : null}
-      <ul className={styles.rules}>
-        <li>{text.attemptsPerDay(round.rules.dailyAttempts)}</li>
-        <li>
-          {round.rules.version === 2
-            ? text.localReset(round.rules.scoring.timeZone)
-            : text.utc}
-        </li>
-        <li>{text.reserve}</li>
-        <li>{text.expiry}</li>
-        <li>{text.guest}</li>
-        <li>{text.scoring}</li>
-        {round.rules.version === 2 ? (
-          <>
-            <li>{text.weeklyBest}</li>
-            {round.rules.scoring.fullArenaBonusPoints > 0 ? (
-              <li>
-                {text.fullArena(
-                  round.rules.games.length,
-                  round.rules.scoring.fullArenaBonusPoints,
-                )}
-              </li>
-            ) : null}
-            {round.mode !== "community" ? (
-              <li>{text.monthlyWinners(round.rules.winnerCount)}</li>
-            ) : null}
-            <li>{text.tieOrder}</li>
-          </>
+    <section className={styles.card} id="round-rules" aria-label={text.rules}>
+      <details open={expanded}>
+        <summary className={styles.rulesSummary}>{text.rules}</summary>
+        {round.mode === "material_prize" &&
+        round.rules.rulesUrl &&
+        materialLaunchBlockers(round.rules).length === 0 ? (
+          <p>
+            <a href={round.rules.rulesUrl} rel="noreferrer" target="_blank">
+              {text.officialRules}
+            </a>
+          </p>
         ) : null}
-      </ul>
-      <div className={styles.calibrations}>
-        {round.rules.games.map((game) => (
-          <table key={game.gameId}>
-            <caption>{gameName(game.gameId, text)}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{text.rawScore}</th>
-                <th scope="col">{text.roundPoints}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {game.calibration.map((step) => (
-                <tr key={step.score}>
-                  <td>{step.score}</td>
-                  <td>{step.points}</td>
+        <ul className={styles.rules}>
+          <li>{text.attemptsPerDay(round.rules.dailyAttempts)}</li>
+          <li>
+            {round.rules.version === 2
+              ? text.localReset(round.rules.scoring.timeZone)
+              : text.utc}
+          </li>
+          <li>{text.reserve}</li>
+          <li>{text.expiry}</li>
+          <li>{text.guest}</li>
+          <li>{text.scoring}</li>
+          {round.rules.version === 2 ? (
+            <>
+              <li>{text.weeklyBest}</li>
+              {round.rules.scoring.fullArenaBonusPoints > 0 ? (
+                <li>
+                  {text.fullArena(
+                    round.rules.games.length,
+                    round.rules.scoring.fullArenaBonusPoints,
+                  )}
+                </li>
+              ) : null}
+              {round.mode !== "community" ? (
+                <li>{text.monthlyWinners(round.rules.winnerCount)}</li>
+              ) : null}
+              <li>{text.tieOrder}</li>
+            </>
+          ) : null}
+        </ul>
+        <div className={styles.calibrations}>
+          {round.rules.games.map((game) => (
+            <table key={game.gameId}>
+              <caption>{gameName(game.gameId, text)}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{text.rawScore}</th>
+                  <th scope="col">{text.roundPoints}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ))}
-      </div>
+              </thead>
+              <tbody>
+                {game.calibration.map((step) => (
+                  <tr key={step.score}>
+                    <td>{step.score}</td>
+                    <td>{step.points}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+        </div>
+      </details>
     </section>
   );
 }

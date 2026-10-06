@@ -40,7 +40,8 @@ const copy = {
     save: "Choose username",
     saving: "Saving…",
     chosen: "Your username is set and cannot be changed.",
-    optional: "A username is optional. You can keep playing without one.",
+    optional:
+      "You can practice without a username. Leaderboard entry requires one.",
     collision: "That username is already taken.",
     reserved: "That username isn’t available.",
     invalid: "Use 3–20 lowercase letters, numbers, or underscores.",
@@ -71,7 +72,8 @@ const copy = {
     save: "Elegir nombre",
     saving: "Guardando…",
     chosen: "Tu nombre ya está definido y no se puede cambiar.",
-    optional: "El nombre es opcional. Puedes seguir jugando sin elegir uno.",
+    optional:
+      "Puedes practicar sin nombre. Para entrar a la clasificación, necesitas uno.",
     collision: "Ese nombre ya está en uso.",
     reserved: "Ese nombre no está disponible.",
     invalid: "Usa de 3 a 20 letras minúsculas, números o guiones bajos.",
@@ -286,7 +288,9 @@ export function AccountPanel() {
                   </button>
                 </form>
               ) : null}
-              <p className={styles.optional}>{text.optional}</p>
+              {!view.profile.username && (
+                <p className={styles.optional}>{text.optional}</p>
+              )}
             </div>
             <button
               className={styles.signOut}

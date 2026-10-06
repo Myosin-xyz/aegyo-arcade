@@ -12,11 +12,11 @@ export type ChampionshipPhase =
   | "error";
 const copy = {
   en: {
-    title: "Official attempt",
-    rule: "Uses one attempt. Leaving or reloading forfeits it.",
-    start: "Start official run",
+    title: "Monthly leaderboard",
+    rule: "Uses one official attempt. Leaving or reloading forfeits it.",
+    start: "Play for monthly leaderboard",
     issuing: "Reserving attempt…",
-    active: "Official run in progress · don't leave",
+    active: "Leaderboard run in progress · don't leave",
     submitting: "Saving replay…",
     pending: "Replay saved. Waiting for verification; no points awarded yet.",
     verified: "Replay verified",
@@ -29,11 +29,11 @@ const copy = {
     readying: "Getting the game ready…",
   },
   "es-419": {
-    title: "Intento oficial",
-    rule: "Usa un intento. Salir o recargar lo consume.",
-    start: "Iniciar partida oficial",
+    title: "Tabla mensual",
+    rule: "Usa un intento oficial. Salir o recargar lo consume.",
+    start: "Jugar para la tabla mensual",
     issuing: "Reservando intento…",
-    active: "Partida oficial en curso · no salgas",
+    active: "Partida de tabla mensual en curso · no salgas",
     submitting: "Guardando repetición…",
     pending: "Repetición guardada. Esperando verificación; aún sin puntos.",
     verified: "Repetición verificada",
@@ -70,7 +70,7 @@ export function ChampionshipControls({
       aria-label={text.title}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {showStart ? (
+        {showStart && (
           <button
             type="button"
             className="btn-arcade min-h-11 px-3 py-2"
@@ -78,16 +78,19 @@ export function ChampionshipControls({
             disabled={phase === "issuing" || phase === "submitting"}
             data-testid="start-championship"
           >
-            {phase === "issuing" ? text.issuing : text.start}
+            {text.start}
           </button>
-        ) : (
-          <strong role="status" className="min-w-0 flex-1 leading-snug">
-            {status}
-            {phase === "verified" && points !== null
-              ? ` · ${points} ${text.points}`
-              : ""}
-          </strong>
         )}
+        <p
+          role="status"
+          aria-live="polite"
+          className={`min-w-0 flex-1 leading-snug ${phase === "idle" ? "sr-only" : ""}`}
+        >
+          {phase === "idle" ? "" : status}
+          {phase === "verified" && points !== null
+            ? ` · ${points} ${text.points}`
+            : ""}
+        </p>
         <Link
           className="ml-auto flex min-h-11 items-center text-brand underline"
           href="/championship"
@@ -96,14 +99,6 @@ export function ChampionshipControls({
         </Link>
       </div>
       {showStart && <p className="mt-1 leading-snug text-muted">{text.rule}</p>}
-      {showStart && phase !== "idle" && (
-        <p role="status" className="mt-1 leading-snug">
-          {status}
-          {phase === "verified" && points !== null
-            ? ` · ${points} ${text.points}`
-            : ""}
-        </p>
-      )}
       {(phase === "error" || phase === "pending") && hasRetry && (
         <button className="btn-ghost mt-1 min-h-11 px-3 py-2" onClick={onRetry}>
           {text.retry}

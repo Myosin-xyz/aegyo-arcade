@@ -484,7 +484,7 @@ export function GameHostInner({
   ]);
 
   const startRun = useCallback(() => {
-    if (officialIssuingRef.current) return;
+    if (officialIssuingRef.current || officialPayloadRef.current) return;
     const mounted = mountedRef.current;
     // §6.3: start only from ready/ended — enforced HERE, in the production
     // host, not just the conformance driver (M0 review P1). The ref rejects
@@ -511,6 +511,8 @@ export function GameHostInner({
     mounted.runAbort = runAbort;
     mounted.endedThisRun = false;
     setScore(0);
+    setChampionshipPhase("idle");
+    setChampionshipPoints(null);
     setEndReason(null);
     setCompletionActive(false);
     scoreRef.current = 0;
@@ -622,10 +624,12 @@ export function GameHostInner({
 
   /** Issue today's counted attempt, then run with its server seed (§9.2). */
   const startCountedRun = useCallback(async () => {
-    if (officialIssuingRef.current) return;
+    if (officialIssuingRef.current || officialPayloadRef.current) return;
     if (!canStart(lifecycleRef.current)) return;
     if (issuingRef.current) return; // same-task double activation (P2)
     issuingRef.current = true;
+    setChampionshipPhase("idle");
+    setChampionshipPoints(null);
     setCounted({ kind: "issuing" });
     try {
       await bootstrapSession();
@@ -846,16 +850,17 @@ export function GameHostInner({
           </button>
         </div>
       </header>
-      {championshipRound && (
-        <ChampionshipControls
-          phase={championshipPhase}
-          canStart={canStart(lifecycle)}
-          points={championshipPoints}
-          onStart={() => void startChampionshipRun()}
-          onRetry={() => void submitOfficial()}
-          hasRetry={hasOfficialRetry}
-        />
-      )}
+      {championshipRound &&
+        (championshipPhase !== "idle" || lifecycle === "ended") && (
+          <ChampionshipControls
+            phase={championshipPhase}
+            canStart={lifecycle !== "ready" && canStart(lifecycle)}
+            points={championshipPoints}
+            onStart={() => void startChampionshipRun()}
+            onRetry={() => void submitOfficial()}
+            hasRetry={hasOfficialRetry}
+          />
+        )}
 
       <p className="sr-only" aria-live="polite">
         {lifecycle === "ended" &&
@@ -946,7 +951,75 @@ export function GameHostInner({
                 {t(`game.${gameId}.controls`)}
               </p>
             )}
-            {countedCapable && (
+            {championshipRound && (
+              <>
+                <button
+                  type="button"
+                  className="btn-arcade px-6 py-3 text-base"
+                  onClick={() => void startChampionshipRun()}
+                  disabled={championshipPhase === "issuing"}
+                  data-testid="start-championship"
+                >
+                  {championshipPhase === "issuing"
+                    ? t("host.leaderboardIssuing")
+                    : t("host.leaderboardRun")}
+                </button>
+                <p className="max-w-xs text-center text-xs text-white/75">
+                  {t("host.leaderboardRunNote")}
+                </p>
+              </>
+            )}
+            {championshipRound && (
+              <details className="w-full max-w-xs rounded-xl border border-white/25 bg-black/20 px-4 py-2 text-center text-sm">
+                <summary className="min-h-11 cursor-pointer content-center font-semibold text-white/90">
+                  {t("host.otherWaysToPlay")}
+                </summary>
+                <div className="flex flex-col items-center gap-2 border-t border-white/20 pt-3">
+                  {countedCapable && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-ghost min-h-11 px-5 py-2 font-semibold"
+                        onClick={() => void startCountedRun()}
+                        disabled={counted.kind === "issuing"}
+                        data-testid="start-counted"
+                      >
+                        {counted.kind === "issuing"
+                          ? t("host.countedIssuing")
+                          : t("host.todaysRun")}
+                      </button>
+                      <p className="text-xs text-white/70">
+                        {t("host.dailyRunNote")}
+                      </p>
+                      {counted.kind === "blocked" && (
+                        <p className="text-xs">
+                          {t("host.countedBlocked", {
+                            time: formatEligibleTime(counted.nextEligibleAt),
+                          })}
+                        </p>
+                      )}
+                      {counted.kind === "error" && (
+                        <p className="text-xs">
+                          {t("host.countedUnavailable")}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-ghost min-h-11 px-5 py-2 font-semibold"
+                    onClick={startRun}
+                    data-testid="start-run"
+                  >
+                    {t("host.practice")}
+                  </button>
+                  <p className="text-xs text-white/70">
+                    {t("host.practiceNote")}
+                  </p>
+                </div>
+              </details>
+            )}
+            {!championshipRound && countedCapable && (
               <>
                 <button
                   type="button"
@@ -973,14 +1046,16 @@ export function GameHostInner({
                 )}
               </>
             )}
-            <button
-              type="button"
-              className="btn-ghost px-7 py-3 text-lg font-semibold"
-              onClick={startRun}
-              data-testid="start-run"
-            >
-              {countedCapable ? t("host.practice") : t("host.start")}
-            </button>
+            {!championshipRound && (
+              <button
+                type="button"
+                className="btn-ghost px-7 py-3 text-lg font-semibold"
+                onClick={startRun}
+                data-testid="start-run"
+              >
+                {countedCapable ? t("host.practice") : t("host.start")}
+              </button>
+            )}
           </Overlay>
         )}
         {lifecycle === "paused" && (
@@ -1029,15 +1104,17 @@ export function GameHostInner({
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
-                  className="btn-arcade px-8 py-3 text-lg"
+                  className={`${championshipRound ? "btn-ghost" : "btn-arcade"} px-8 py-3 text-lg`}
                   onClick={startRun}
                   // Same save-race guard as the standard ended branch (audit
                   // P1 recurrence): starting Practice mid-PUT would hide the
                   // pending receipt/retry state.
-                  disabled={counted.kind === "submitting"}
+                  disabled={counted.kind === "submitting" || hasOfficialRetry}
                   data-testid="play-again"
                 >
-                  {t("host.playAgain")}
+                  {t(
+                    championshipRound ? "host.practiceAgain" : "host.playAgain",
+                  )}
                 </button>
                 <ChallengeShareButton
                   gameId={gameId}
@@ -1073,12 +1150,12 @@ export function GameHostInner({
               />
               <button
                 type="button"
-                className="btn-arcade px-8 py-3 text-lg"
+                className={`${championshipRound ? "btn-ghost" : "btn-arcade"} px-8 py-3 text-lg`}
                 onClick={startRun}
-                disabled={counted.kind === "submitting"}
+                disabled={counted.kind === "submitting" || hasOfficialRetry}
                 data-testid="play-again"
               >
-                {t("host.playAgain")}
+                {t(championshipRound ? "host.practiceAgain" : "host.playAgain")}
               </button>
               <ChallengeShareButton
                 gameId={gameId}

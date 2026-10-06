@@ -75,19 +75,23 @@ export function GameHost({
   championshipEnabled = false,
   requestedChampionshipRound = null,
   monthlyJoinAvailable = false,
+  monthlyAttemptsRemaining = null,
 }: {
   gameId: string;
   championshipEnabled?: boolean;
   requestedChampionshipRound?: string | null;
   monthlyJoinAvailable?: boolean;
+  monthlyAttemptsRemaining?: number | null;
 }) {
   return (
     <GameHostInner
+      key={`${gameId}:${requestedChampionshipRound ?? ""}:${monthlyAttemptsRemaining ?? "unknown"}`}
       entry={getRegistryEntry(gameId)}
       gameId={gameId}
       championshipEnabled={championshipEnabled}
       requestedChampionshipRound={requestedChampionshipRound}
       monthlyJoinAvailable={monthlyJoinAvailable}
+      monthlyAttemptsRemaining={monthlyAttemptsRemaining}
     />
   );
 }
@@ -103,12 +107,14 @@ export function GameHostInner({
   championshipEnabled = false,
   requestedChampionshipRound = null,
   monthlyJoinAvailable = false,
+  monthlyAttemptsRemaining = null,
 }: {
   entry: RegistryEntry | undefined;
   gameId: string;
   championshipEnabled?: boolean;
   requestedChampionshipRound?: string | null;
   monthlyJoinAvailable?: boolean;
+  monthlyAttemptsRemaining?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef<Mounted | null>(null);
@@ -133,6 +139,9 @@ export function GameHostInner({
   const [hasOfficialRetry, setHasOfficialRetry] = useState(false);
   const [championshipPhase, setChampionshipPhase] =
     useState<ChampionshipPhase>("idle");
+  const [officialAttemptsLeft, setOfficialAttemptsLeft] = useState(
+    monthlyAttemptsRemaining,
+  );
   const [championshipPoints, setChampionshipPoints] = useState<number | null>(
     null,
   );
@@ -551,6 +560,7 @@ export function GameHostInner({
   const startChampionshipRun = useCallback(async () => {
     if (
       !championshipRound ||
+      officialAttemptsLeft === 0 ||
       !canStart(lifecycleRef.current) ||
       issuingRef.current ||
       officialIssuingRef.current ||
@@ -572,6 +582,17 @@ export function GameHostInner({
         }),
       });
       if (!response.ok) {
+        if (response.status === 409) {
+          const error = (await response.json().catch(() => null)) as {
+            code?: string;
+          } | null;
+          if (error?.code === "daily_limit_reached") {
+            setOfficialAttemptsLeft(0);
+            officialKeyRef.current = null;
+            setChampionshipPhase("idle");
+            return;
+          }
+        }
         if (response.status < 500) officialKeyRef.current = null;
         setChampionshipPhase("error");
         return;
@@ -579,7 +600,10 @@ export function GameHostInner({
       const issued = (await response.json()) as {
         attemptId: string;
         seed: string;
+        remaining?: number;
       };
+      if (typeof issued.remaining === "number")
+        setOfficialAttemptsLeft(issued.remaining);
       const mounted = mountedRef.current;
       if (!mounted || !canStart(lifecycleRef.current)) {
         setChampionshipPhase("error");
@@ -625,7 +649,7 @@ export function GameHostInner({
     } finally {
       officialIssuingRef.current = false;
     }
-  }, [championshipRound, gameId, teardown, transition]);
+  }, [championshipRound, gameId, officialAttemptsLeft, teardown, transition]);
 
   /** Issue today's counted attempt, then run with its server seed (§9.2). */
   const startCountedRun = useCallback(async () => {
@@ -859,7 +883,11 @@ export function GameHostInner({
         (championshipPhase !== "idle" || lifecycle === "ended") && (
           <ChampionshipControls
             phase={championshipPhase}
-            canStart={lifecycle !== "ready" && canStart(lifecycle)}
+            canStart={
+              officialAttemptsLeft !== 0 &&
+              lifecycle !== "ready" &&
+              canStart(lifecycle)
+            }
             points={championshipPoints}
             onStart={() => void startChampionshipRun()}
             onRetry={() => void submitOfficial()}
@@ -956,7 +984,7 @@ export function GameHostInner({
                 {t(`game.${gameId}.controls`)}
               </p>
             )}
-            {championshipRound && (
+            {championshipRound && officialAttemptsLeft !== 0 && (
               <>
                 <button
                   type="button"
@@ -973,6 +1001,14 @@ export function GameHostInner({
                   {t("host.leaderboardRunNote")}
                 </p>
               </>
+            )}
+            {championshipRound && officialAttemptsLeft === 0 && (
+              <p
+                className="max-w-xs text-center text-sm text-white/85"
+                role="status"
+              >
+                {t("host.monthlyAttemptsSpent")}
+              </p>
             )}
             {championshipRound && (
               <details className="w-full max-w-xs rounded-xl border border-white/25 bg-black/20 px-4 py-2 text-center text-sm">

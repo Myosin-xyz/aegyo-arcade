@@ -337,6 +337,7 @@
   "host.countedUnavailable": "La partida de hoy no está disponible. Practica mientras tanto.",
   "host.dailyRunNote": "Cuenta para tu racha y clasificación del juego, no para la tabla mensual.",
   "host.howToPlay": "Cómo jugar",
+  "host.joinMonthlyLeaderboard": "Únete a la tabla mensual",
   "host.leaderboardIssuing": "Reservando intento para la tabla mensual...",
   "host.leaderboardRun": "Jugar para la tabla mensual",
   "host.leaderboardRunNote": "Usa un intento oficial. Salir o recargar lo consume.",

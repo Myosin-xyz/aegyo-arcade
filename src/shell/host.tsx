@@ -74,10 +74,12 @@ export function GameHost({
   gameId,
   championshipEnabled = false,
   requestedChampionshipRound = null,
+  monthlyJoinAvailable = false,
 }: {
   gameId: string;
   championshipEnabled?: boolean;
   requestedChampionshipRound?: string | null;
+  monthlyJoinAvailable?: boolean;
 }) {
   return (
     <GameHostInner
@@ -85,6 +87,7 @@ export function GameHost({
       gameId={gameId}
       championshipEnabled={championshipEnabled}
       requestedChampionshipRound={requestedChampionshipRound}
+      monthlyJoinAvailable={monthlyJoinAvailable}
     />
   );
 }
@@ -99,11 +102,13 @@ export function GameHostInner({
   gameId,
   championshipEnabled = false,
   requestedChampionshipRound = null,
+  monthlyJoinAvailable = false,
 }: {
   entry: RegistryEntry | undefined;
   gameId: string;
   championshipEnabled?: boolean;
   requestedChampionshipRound?: string | null;
+  monthlyJoinAvailable?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef<Mounted | null>(null);
@@ -1032,6 +1037,11 @@ export function GameHostInner({
                     ? t("host.countedIssuing")
                     : t("host.todaysRun")}
                 </button>
+                {monthlyJoinAvailable && (
+                  <p className="max-w-xs text-center text-xs text-white/75">
+                    {t("host.dailyRunNote")}
+                  </p>
+                )}
                 {counted.kind === "blocked" && (
                   <p className="max-w-xs text-center text-sm">
                     {t("host.countedBlocked", {
@@ -1045,6 +1055,15 @@ export function GameHostInner({
                   </p>
                 )}
               </>
+            )}
+            {!championshipRound && monthlyJoinAvailable && (
+              <Link
+                href="/championship"
+                className="min-h-11 rounded-xl border border-brand/70 px-5 py-3 text-center text-sm font-semibold text-brand underline-offset-4 hover:underline"
+                data-testid="join-monthly-leaderboard"
+              >
+                {t("host.joinMonthlyLeaderboard")}
+              </Link>
             )}
             {!championshipRound && (
               <button

@@ -1,6 +1,6 @@
 # es-419 Native Review Pack (EXT-LOCALE gate)
 
-> Generated from src/i18n/locales (386 strings) by
+> Generated from src/i18n/locales (387 strings) by
 > scripts/ops/generate-l10n-review.mjs — regenerate after ANY copy
 > change; a unit test pins this document to the JSON values.
 > LOCALE-1 requires a native/fan-fluent review before es-419 is
@@ -362,6 +362,7 @@
 | `host.leaderboardRunNote`                 | Uses one official attempt. Leaving or reloading forfeits it.                           | Usa un intento oficial. Salir o recargar lo consume.                                                     |
 | `host.loadFailed`                         | This game couldn't load.                                                               | Este juego no pudo cargar.                                                                               |
 | `host.loading`                            | Loading...                                                                             | Cargando...                                                                                              |
+| `host.monthlyAttemptsSpent`               | No monthly attempts left today. Try a daily run or practice until tomorrow.            | Ya no te quedan intentos mensuales hoy. Juega la partida diaria o practica hasta mañana.                 |
 | `host.mute`                               | Sound off                                                                              | Silenciar                                                                                                |
 | `host.otherWaysToPlay`                    | Other ways to play                                                                     | Otras formas de jugar                                                                                    |
 | `host.ownedSaved`                         | Today's run saved!                                                                     | ¡Partida de hoy guardada!                                                                                |

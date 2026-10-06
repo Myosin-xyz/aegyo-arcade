@@ -16,6 +16,7 @@ import { publicRound } from "@/competition/read";
 import {
   activeRoundForGame,
   isEnrolledForRound,
+  remainingAttemptsForGame,
 } from "@/competition/play-options";
 import { finalizeRound, settleAttempt } from "@/competition/operations-store";
 import { competitionOperatorDashboard } from "@/competition/operator-dashboard";
@@ -244,6 +245,34 @@ describe("competition store on PostgreSQL", () => {
     expect(await isEnrolledForRound(db, ROUND, A)).toBe(false);
     await enrollActor();
     expect(await isEnrolledForRound(db, ROUND, A)).toBe(true);
+  });
+
+  it("shows the issuer's remaining monthly attempts on the direct game route", async () => {
+    const monthlyRound = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO competition_rounds(id,slug,rules,status,opens_at,closes_at)
+       VALUES ($1,'monthly-direct-smoke',$2,'open',now()-interval '1 hour',now()+interval '1 hour')`,
+      [monthlyRound, monthlyRules],
+    );
+    await enroll(db, actor(), monthlyRound, digest(monthlyRules));
+    expect(await remainingAttemptsForGame(db, monthlyRound, A, "snake")).toBe(
+      2,
+    );
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      await issueAttempt(
+        db,
+        actor(),
+        {
+          roundId: monthlyRound,
+          gameId: "snake",
+          idempotencyKey: `monthly-direct-smoke-${attempt}`,
+        },
+        SECRET,
+      );
+      expect(await remainingAttemptsForGame(db, monthlyRound, A, "snake")).toBe(
+        2 - attempt,
+      );
+    }
   });
 
   it("refuses awards for a public community round", async () => {

@@ -4,6 +4,7 @@ import { resolveMemberSession } from "@/accounts/sessions";
 import {
   activeRoundForGame,
   isEnrolledForRound,
+  remainingAttemptsForGame,
 } from "@/competition/play-options";
 import { competitionEnabled } from "@/competition/rules";
 import { getDb } from "@/db/client";
@@ -28,24 +29,36 @@ export default async function PlayPage({
   const championshipEnabled = competitionEnabled();
   let discoveredRound: string | null = null;
   let monthlyJoinAvailable = false;
-  if (championshipEnabled && !round) {
+  let monthlyAttemptsRemaining: number | null = null;
+  if (championshipEnabled) {
     const db = getDb();
     if (db) {
       try {
-        discoveredRound = await activeRoundForGame(db, gameId);
-        if (discoveredRound) {
+        const candidateRound = round ?? (await activeRoundForGame(db, gameId));
+        if (candidateRound) {
           const token = (await cookies()).get(MEMBER_COOKIE)?.value;
           const session = token ? await resolveMemberSession(db, token) : null;
           const enrolled =
             session?.emailVerified === true &&
-            (await isEnrolledForRound(db, discoveredRound, session.memberId));
-          monthlyJoinAvailable = !enrolled;
-          if (!enrolled) discoveredRound = null;
+            (await isEnrolledForRound(db, candidateRound, session.memberId));
+          if (!round) {
+            monthlyJoinAvailable = !enrolled;
+            if (enrolled) discoveredRound = candidateRound;
+          }
+          if (enrolled) {
+            monthlyAttemptsRemaining = await remainingAttemptsForGame(
+              db,
+              candidateRound,
+              session.memberId,
+              gameId,
+            );
+          }
         }
       } catch {
         // Daily play and practice must remain available if discovery fails.
         discoveredRound = null;
         monthlyJoinAvailable = false;
+        monthlyAttemptsRemaining = null;
       }
     }
   }
@@ -55,6 +68,7 @@ export default async function PlayPage({
       championshipEnabled={championshipEnabled}
       requestedChampionshipRound={round ?? discoveredRound}
       monthlyJoinAvailable={monthlyJoinAvailable}
+      monthlyAttemptsRemaining={monthlyAttemptsRemaining}
     />
   );
 }

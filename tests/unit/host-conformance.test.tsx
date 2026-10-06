@@ -62,6 +62,37 @@ afterEach(() => {
 });
 
 describe("GameHostInner lifecycle enforcement", () => {
+  it("does not offer a spent monthly attempt on a direct game visit", async () => {
+    const { definition } = createHostileDefinition();
+    const entry: RegistryEntry = {
+      meta: hostileMeta,
+      hostManagedCanvas: false,
+      load: async () => definition,
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <GameHostInner
+          entry={entry}
+          gameId="snake"
+          championshipEnabled
+          requestedChampionshipRound="30000000-0000-4000-8000-000000000001"
+          monthlyAttemptsRemaining={0}
+        />,
+      );
+    });
+    await act(async () => {});
+    expect(lifecycleOf(container)).toBe("ready");
+    expect(
+      container.querySelector('[data-testid="start-championship"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("No monthly attempts left today");
+    expect(container.textContent).toContain("Other ways to play");
+    await act(async () => root.unmount());
+  });
+
   it("rejects a second synchronous start click (one RunContext only)", async () => {
     const { container, root, probe } = await renderHost({
       endAfterTicks: 1_000_000,

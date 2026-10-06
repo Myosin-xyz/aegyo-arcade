@@ -341,6 +341,7 @@
   "host.leaderboardIssuing": "Reservando intento para la tabla mensual...",
   "host.leaderboardRun": "Jugar para la tabla mensual",
   "host.leaderboardRunNote": "Usa un intento oficial. Salir o recargar lo consume.",
+  "host.monthlyAttemptsSpent": "Ya no te quedan intentos mensuales hoy. Juega la partida diaria o practica hasta mañana.",
   "host.loadFailed": "Este juego no pudo cargar.",
   "host.loading": "Cargando...",
   "host.mute": "Silenciar",

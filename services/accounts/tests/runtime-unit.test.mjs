@@ -8,6 +8,11 @@ import {
   createAccountsServer,
 } from "../src/http-server.mjs";
 import { createAccountsRuntime } from "../src/runtime.mjs";
+import pg from "pg";
+import {
+  createAccountsProvider,
+  PROVIDER_SESSION_SECONDS,
+} from "../src/provider-core.mjs";
 
 const baseEnv = {
   ACCOUNTS_ENVIRONMENT: "staging",
@@ -303,4 +308,30 @@ test("proxy proof remains absent in production even with reader authorization", 
     },
   );
   assert.equal(response.status, 404);
+});
+
+test("provider sessions last 8 hours, matching the product sites, and do not slide", async () => {
+  // The pool is never queried; building the provider only reads options.
+  const database = new pg.Pool({
+    connectionString: "postgres://app:synthetic@localhost/accounts",
+  });
+  try {
+    const { options, auth } = createAccountsProvider({
+      database,
+      secret: "s".repeat(48),
+      legacyPepper: "synthetic",
+      baseURL: "https://accounts.example.test",
+    });
+    assert.equal(PROVIDER_SESSION_SECONDS, 28800);
+    assert.equal(options.session.expiresIn, PROVIDER_SESSION_SECONDS);
+    // Better Auth extends a session when expiresAt - expiresIn + updateAge <= now.
+    // updateAge === expiresIn makes that true only once the session has expired.
+    assert.equal(options.session.updateAge, options.session.expiresIn);
+    assert.equal(options.session.cookieCache.enabled, false);
+    const context = await auth.$context;
+    assert.equal(context.sessionConfig.expiresIn, PROVIDER_SESSION_SECONDS);
+    assert.equal(context.sessionConfig.updateAge, PROVIDER_SESSION_SECONDS);
+  } finally {
+    await database.end();
+  }
 });

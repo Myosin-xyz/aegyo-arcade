@@ -116,3 +116,25 @@ Staging has passed the final synthetic four-origin browser journey, including Ae
 - [Railway monorepo deployment](https://docs.railway.com/deployments/monorepo)
 - [Railway Dockerfiles](https://docs.railway.com/builds/dockerfiles)
 - [Railway health checks](https://docs.railway.com/reference/healthchecks)
+
+## Production re-upload procedure (verified 2026-10-19)
+
+The production Accounts service (`aegyo-accounts-production`, Railway project `a719c26e-33b9-4a1c-8759-d5401c1e181a`, environment `production`) is not Git-connected. A merge to `main` changes nothing there. To ship a `services/accounts` change:
+
+1. Stage the committed service files only, from the reviewed commit, so no working-tree, `.env`, `.proof` or credential file can enter the archive:
+
+   ```bash
+   git archive --format=tar <commit> services/accounts | tar -x -C <private-empty-dir>
+   ```
+
+2. Upload with the **Accounts package at the archive root**. The service expects `Dockerfile` at the root of the uploaded archive; an upload rooted at the repository (containing `services/accounts/...`) fails immediately with `couldn't locate the dockerfile at path Dockerfile in code archive` (deployment `162ad6f8`, 2026-10-19). Run from inside the staged package:
+
+   ```bash
+   cd <private-empty-dir>/services/accounts
+   railway link --project a719c26e-33b9-4a1c-8759-d5401c1e181a --environment production --service aegyo-accounts-production
+   railway up --service aegyo-accounts-production --environment production --detach
+   ```
+
+3. Watch `railway deployment list` until the new deployment reports `SUCCESS`, then confirm `GET /healthz` and `GET /readyz` return 200 on `https://account.aegyoarena.com` and that OIDC discovery still answers. The service's configured deploy health check is currently `/healthz` (observed in the build log), so also check `/readyz` by hand before trusting the instance with traffic.
+
+Sessions issued before the switch keep the lifetime they were created with; only new sign-ins get the deployed configuration. Deployment `ad03031f` (2026-10-19) shipped ADR 0009's 90-day provider session this way.

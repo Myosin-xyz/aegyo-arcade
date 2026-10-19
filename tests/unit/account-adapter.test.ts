@@ -30,6 +30,7 @@ const tx: OidcTransaction = {
   maxAgeSeconds: 3600,
   reauthenticationAttempt: 0,
   returnTo: "/account",
+  client: "web",
 };
 
 describe("Arcade member adapter boundaries", () => {

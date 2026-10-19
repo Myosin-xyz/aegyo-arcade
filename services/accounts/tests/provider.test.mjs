@@ -98,6 +98,22 @@ test(
     const signupBody = await signup.json();
     const userId = signupBody.user.id;
     let providerCookie = cookies(signup);
+    const sessionLifetime = () =>
+      database.query(
+        'SELECT "expiresAt", EXTRACT(EPOCH FROM ("expiresAt"-"createdAt"))::int AS seconds FROM session WHERE "userId"=$1',
+        [userId],
+      );
+    const issued = (await sessionLifetime()).rows;
+    assert.equal(issued.length, 1);
+    assert.ok(Math.abs(issued[0].seconds - 90 * 24 * 60 * 60) <= 5);
+    const reread = await request("/get-session", { cookie: providerCookie });
+    assert.equal(reread.status, 200);
+    assert.equal((await reread.json())?.user?.id, userId);
+    assert.equal(
+      (await sessionLifetime()).rows[0].expiresAt.valueOf(),
+      issued[0].expiresAt.valueOf(),
+      "reading a provider session must not extend it",
+    );
     const memberPicture = "https://accounts.example.test/member.png";
     await database.query(
       'UPDATE "user" SET "emailVerified"=true,image=$1 WHERE id=$2',

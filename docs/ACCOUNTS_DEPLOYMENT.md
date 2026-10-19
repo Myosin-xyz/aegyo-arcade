@@ -2,6 +2,8 @@
 
 Accounts is an isolated service in the existing Railway `aegyo-arcade` project (`8229f87c-908d-426d-9562-4b01b0e89a50`). Railway lists that project under **Mateo Daza's Projects**, not the Myosin workspace. Keep that account-location distinction in operator checks even though the project name remains `aegyo-arcade`.
 
+Merging to `main` does not deploy Accounts. A change under `services/accounts` reaches the provider only through a manual Railway re-upload of that source. For example, the 90-day fixed provider session in [ADR 0009](decisions/0009-provider-session-lifetime.md) needs that re-upload, while its Arcade member-session part (web 1 day, mobile 90 days) deploys with `main` as usual.
+
 ## Railway service settings
 
 Create the Accounts application service and its staging PostgreSQL service in an isolated staging environment before any production work. Do not attach or inspect the Arcade production database.

@@ -1,5 +1,9 @@
 import * as oidc from "openid-client";
-import type { AccountsConfig } from "./config";
+import {
+  parseAccountClient,
+  type AccountClient,
+  type AccountsConfig,
+} from "./config";
 import { PROVIDER_CLOCK_SKEW_MS } from "./freshness";
 import { safeAccountReturnTo, type OidcTransaction } from "./transaction";
 
@@ -51,6 +55,7 @@ export async function beginAuthorization(
     maxAgeSeconds: number;
     reauthenticationAttempt: 0 | 1;
     returnTo?: string;
+    client?: AccountClient;
     nowMs?: number;
   },
 ): Promise<{ url: URL; transaction: OidcTransaction }> {
@@ -63,6 +68,7 @@ export async function beginAuthorization(
     maxAgeSeconds: input.maxAgeSeconds,
     reauthenticationAttempt: input.reauthenticationAttempt,
     returnTo: safeAccountReturnTo(input.returnTo),
+    client: parseAccountClient(input.client),
   };
   const url = oidc.buildAuthorizationUrl(await provider(config), {
     redirect_uri: `${config.appOrigin}/api/accounts/callback`,

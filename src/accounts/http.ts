@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import type { AccountsConfig } from "./config";
-import { MEMBER_SESSION_TTL_SECONDS } from "./config";
+import type { AccountClient, AccountsConfig } from "./config";
 import {
   MEMBER_COOKIE,
   OIDC_TRANSACTION_COOKIE,
@@ -15,6 +14,7 @@ export async function authorizationRedirect(
     maxAgeSeconds: number;
     reauthenticationAttempt: 0 | 1;
     returnTo?: string;
+    client?: AccountClient;
     nowMs?: number;
   },
 ): Promise<NextResponse> {
@@ -29,12 +29,17 @@ export async function authorizationRedirect(
   return response;
 }
 
-export function setMemberCookie(response: NextResponse, token: string): void {
+/** `maxAge` must equal the TTL the member session row was created with. */
+export function setMemberCookie(
+  response: NextResponse,
+  token: string,
+  options: { maxAge: number },
+): void {
   response.cookies.set({
     name: MEMBER_COOKIE,
     value: token,
     ...SECURE_COOKIE,
-    maxAge: MEMBER_SESSION_TTL_SECONDS,
+    maxAge: options.maxAge,
   });
 }
 

@@ -12,6 +12,14 @@ export const SECURITY_VERSION_CLAIM =
 export const OPERATOR_CUTOFF_CLAIM =
   "https://aegyoarena.com/claims/operator-cutoff";
 
+// Must outlive the longest product session (mobile, 90 days; web is 1 day).
+// Both sites drop their local session once session-state reports the provider
+// session expired, so a shorter value here silently caps every product session.
+// updateAge equal to expiresIn keeps the lifetime fixed (never extended by
+// activity). Revocation does not rely on this: session-state also checks ban,
+// credential, security and operator cutoffs on every recheck. See ADR 0009.
+export const PROVIDER_SESSION_SECONDS = 90 * 24 * 60 * 60;
+
 /** Shared provider configuration. Runtime and isolated proofs use the same hooks. */
 export function createAccountsProvider({
   database,
@@ -102,7 +110,8 @@ export function createAccountsProvider({
     account: { accountLinking: { enabled: false } },
     session: {
       cookieCache: { enabled: false },
-      expiresIn: 3600,
+      expiresIn: PROVIDER_SESSION_SECONDS,
+      updateAge: PROVIDER_SESSION_SECONDS,
       additionalFields: {
         credentialVersion,
         securityVersion: credentialVersion,

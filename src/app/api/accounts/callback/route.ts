@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccountsConfig } from "@/accounts/config";
+import { getAccountsConfig, memberSessionTtlSeconds } from "@/accounts/config";
 import { OIDC_TRANSACTION_COOKIE } from "@/accounts/cookies";
 import {
   clearTransactionCookie,
@@ -116,26 +116,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         maxAgeSeconds: 0,
         reauthenticationAttempt: 1,
         returnTo: transaction.returnTo,
+        client: transaction.client,
         nowMs: Math.max(Date.now(), notBeforeMs),
       });
     }
     if (decision.kind !== "allow") return failure(decision.reason);
-    const session = await createMemberSession(db, {
-      issuer: identity.issuer,
-      subject: identity.subject,
-      providerSessionId: identity.providerSessionId,
-      name: identity.name,
-      picture: identity.picture,
-      emailVerified: identity.emailVerified,
-      authenticatedAtMs: decision.authenticatedAtMs,
-      securityVersion: state.securityVersion,
-      resetState: state.passwordResetState as ResetState,
-    });
+    const ttlSeconds = memberSessionTtlSeconds(transaction.client);
+    const session = await createMemberSession(
+      db,
+      {
+        issuer: identity.issuer,
+        subject: identity.subject,
+        providerSessionId: identity.providerSessionId,
+        name: identity.name,
+        picture: identity.picture,
+        emailVerified: identity.emailVerified,
+        authenticatedAtMs: decision.authenticatedAtMs,
+        securityVersion: state.securityVersion,
+        resetState: state.passwordResetState as ResetState,
+      },
+      { ttlSeconds },
+    );
     const response = NextResponse.redirect(
       new URL(safeAccountReturnTo(transaction.returnTo), config.appOrigin),
     );
     clearTransactionCookie(response);
-    setMemberCookie(response, session.token);
+    setMemberCookie(response, session.token, { maxAge: ttlSeconds });
     return response;
   } catch {
     return failure("authorization_failed");

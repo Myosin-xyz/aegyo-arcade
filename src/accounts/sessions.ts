@@ -2,10 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { accountMembers, accountSessions } from "@/db/schema";
-import {
-  MEMBER_SESSION_TTL_SECONDS,
-  PROVIDER_STATE_MAX_AGE_MS,
-} from "./config";
+import { PROVIDER_STATE_MAX_AGE_MS, WEB_SESSION_TTL_SECONDS } from "./config";
 import type { ResetState } from "./freshness";
 
 export function newMemberToken(): string {
@@ -43,10 +40,11 @@ export async function createMemberSession(
     resetState: ResetState;
     now?: Date;
   },
+  options: { ttlSeconds: number } = { ttlSeconds: WEB_SESSION_TTL_SECONDS },
 ): Promise<{ token: string; expiresAt: Date }> {
   const token = newMemberToken();
   const now = input.now ?? new Date();
-  const expiresAt = new Date(now.getTime() + MEMBER_SESSION_TTL_SECONDS * 1000);
+  const expiresAt = new Date(now.getTime() + options.ttlSeconds * 1000);
   await db.transaction(async (tx) => {
     const [member] = await tx
       .insert(accountMembers)

@@ -271,6 +271,24 @@ describe("mobile contract: locale handoff", () => {
   });
 });
 
+describe("mobile contract: member session lifetime", () => {
+  it("client=mobile selects the 90-day member session; anything else is the 1-day web session", async () => {
+    const accounts =
+      await vi.importActual<typeof import("@/accounts/config")>(
+        "@/accounts/config",
+      );
+    expect(accounts.parseAccountClient("mobile"), CONTRACT).toBe("mobile");
+    expect(accounts.parseAccountClient(null), CONTRACT).toBe("web");
+    expect(accounts.parseAccountClient("Mobile"), CONTRACT).toBe("web");
+    expect(accounts.memberSessionTtlSeconds("mobile"), CONTRACT).toBe(
+      90 * 24 * 60 * 60,
+    );
+    expect(accounts.memberSessionTtlSeconds("web"), CONTRACT).toBe(
+      24 * 60 * 60,
+    );
+  });
+});
+
 describe("mobile contract: POST /api/session", () => {
   const request = (origin?: string) =>
     new NextRequest(`${ARCADE}/api/session`, {

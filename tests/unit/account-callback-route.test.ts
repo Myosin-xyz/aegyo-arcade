@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => ({
     maxAgeSeconds: 3_600,
     reauthenticationAttempt: 0,
     returnTo: "/championship",
+    client: "web" as "web" | "mobile",
   },
+  setMemberCookie: vi.fn(),
 }));
 
 const config = {
@@ -30,7 +32,10 @@ const config = {
   stateReaderKey: "reader-secret",
 };
 
-vi.mock("@/accounts/config", () => ({ getAccountsConfig: () => config }));
+vi.mock("@/accounts/config", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/accounts/config")>()),
+  getAccountsConfig: () => config,
+}));
 vi.mock("@/accounts/transaction", () => ({
   openTransaction: () => mocks.transaction,
   safeAccountReturnTo: (value: string) => value,
@@ -46,7 +51,7 @@ vi.mock("@/accounts/sessions", () => ({
 }));
 vi.mock("@/accounts/http", () => ({
   clearTransactionCookie: vi.fn(),
-  setMemberCookie: vi.fn(),
+  setMemberCookie: mocks.setMemberCookie,
   authorizationRedirect: mocks.authorizationRedirect,
 }));
 vi.mock("@/db/client", () => ({ getDb: () => ({ database: true }) }));
@@ -67,6 +72,7 @@ describe("member callback authoritative state check", () => {
       requestedAtMs: now,
       maxAgeSeconds: 3_600,
       reauthenticationAttempt: 0,
+      client: "web",
     });
     mocks.finishAuthorization.mockResolvedValue({
       issuer: config.issuer,
@@ -130,6 +136,7 @@ describe("member callback authoritative state check", () => {
         maxAgeSeconds: 0,
         reauthenticationAttempt: 1,
         returnTo: "/championship",
+        client: "web",
       }),
     );
     expect(mocks.createMemberSession).not.toHaveBeenCalled();
@@ -175,5 +182,61 @@ describe("member callback authoritative state check", () => {
     expect(response.status).toBe(400);
     expect(mocks.authorizationRedirect).not.toHaveBeenCalled();
     expect(mocks.createMemberSession).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["web", 24 * 60 * 60],
+    ["mobile", 90 * 24 * 60 * 60],
+  ] as const)(
+    "creates a %s member session and cookie with the same TTL (%i s)",
+    async (client, seconds) => {
+      mocks.transaction.client = client;
+      mocks.fetchProviderSecurityState.mockResolvedValue({
+        kind: "ok",
+        state: {
+          version: 1,
+          subject: "user-1",
+          providerSessionId: "sid-1",
+          active: true,
+          passwordResetState: resetState,
+          operatorCutoff: null,
+          securityVersion: 7,
+        },
+      });
+      mocks.createMemberSession.mockResolvedValue({ token: "member-token" });
+      const response = await GET(callbackRequest());
+      expect(response.status).toBe(307);
+      expect(mocks.createMemberSession).toHaveBeenCalledWith(
+        { database: true },
+        expect.objectContaining({ subject: "user-1" }),
+        { ttlSeconds: seconds },
+      );
+      expect(mocks.setMemberCookie).toHaveBeenCalledWith(
+        response,
+        "member-token",
+        { maxAge: seconds },
+      );
+    },
+  );
+
+  it("keeps the mobile client through the bounded reauthentication retry", async () => {
+    mocks.transaction.client = "mobile";
+    mocks.fetchProviderSecurityState.mockResolvedValue({
+      kind: "ok",
+      state: {
+        version: 1,
+        subject: "user-1",
+        providerSessionId: "sid-1",
+        active: false,
+        passwordResetState: resetState,
+        operatorCutoff: null,
+        securityVersion: 7,
+      },
+    });
+    await GET(callbackRequest());
+    expect(mocks.authorizationRedirect).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({ reauthenticationAttempt: 1, client: "mobile" }),
+    );
   });
 });

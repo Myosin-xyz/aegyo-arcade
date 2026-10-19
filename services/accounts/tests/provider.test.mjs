@@ -105,7 +105,7 @@ test(
       );
     const issued = (await sessionLifetime()).rows;
     assert.equal(issued.length, 1);
-    assert.ok(Math.abs(issued[0].seconds - 8 * 60 * 60) <= 5);
+    assert.ok(Math.abs(issued[0].seconds - 90 * 24 * 60 * 60) <= 5);
     const reread = await request("/get-session", { cookie: providerCookie });
     assert.equal(reread.status, 200);
     assert.equal((await reread.json())?.user?.id, userId);

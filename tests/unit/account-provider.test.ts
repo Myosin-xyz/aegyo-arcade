@@ -46,6 +46,7 @@ const transaction: OidcTransaction = {
   maxAgeSeconds: 3_600,
   reauthenticationAttempt: 0,
   returnTo: "/account",
+  client: "web",
 };
 
 describe("OIDC callback attack defenses", () => {

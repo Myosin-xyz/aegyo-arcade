@@ -310,7 +310,7 @@ test("proxy proof remains absent in production even with reader authorization", 
   assert.equal(response.status, 404);
 });
 
-test("provider sessions last 8 hours, matching the product sites, and do not slide", async () => {
+test("provider sessions last 90 days, outliving the mobile session, and do not slide", async () => {
   // The pool is never queried; building the provider only reads options.
   const database = new pg.Pool({
     connectionString: "postgres://app:synthetic@localhost/accounts",
@@ -322,7 +322,7 @@ test("provider sessions last 8 hours, matching the product sites, and do not sli
       legacyPepper: "synthetic",
       baseURL: "https://accounts.example.test",
     });
-    assert.equal(PROVIDER_SESSION_SECONDS, 28800);
+    assert.equal(PROVIDER_SESSION_SECONDS, 7776000);
     assert.equal(options.session.expiresIn, PROVIDER_SESSION_SECONDS);
     // Better Auth extends a session when expiresAt - expiresIn + updateAge <= now.
     // updateAge === expiresIn makes that true only once the session has expired.

@@ -48,11 +48,24 @@ Official attempts are started by the web runtime, never natively. Two entry poin
 | ---------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/account`                   | `src/app/account/page.tsx`, `account-panel.tsx` | Sign-in buttons link to `/api/accounts/login?returnTo=%2Faccount`                                                                                                                                                                                                                             |
 | `/championship`              | `src/app/championship/page.tsx`                 | 404 unless `ARCADE_COMPETITION_ENABLED=true`. `?round=<slug>` and `?game=<id>` are accepted; `game` only for snake, flappy, perfect-toss, hangman, no-cap                                                                                                                                     |
-| `GET /api/accounts/login`    | `src/app/api/accounts/login/route.ts`           | Redirects to account.aegyoarena.com. `returnTo` is filtered by `safeAccountReturnTo()` in `src/accounts/transaction.ts`                                                                                                                                                                       |
-| `GET /api/accounts/callback` | `src/app/api/accounts/callback/route.ts`        | Sets the member cookie and redirects to the filtered `returnTo`: `/account`, `/championship`, or `/play/(snake\|flappy)?championship=<uuid>`. Anything else lands on `/`                                                                                                                      |
+| `GET /api/accounts/login`    | `src/app/api/accounts/login/route.ts`           | Redirects to account.aegyoarena.com. `returnTo` is filtered by `safeAccountReturnTo()` in `src/accounts/transaction.ts`. `client=mobile` (exact value) is sealed into the transaction as `client: "mobile"`; anything else, or no parameter, is `"web"`                                       |
+| `GET /api/accounts/callback` | `src/app/api/accounts/callback/route.ts`        | Sets the member cookie and redirects to the filtered `returnTo`: `/account`, `/championship`, or `/play/(snake\|flappy)?championship=<uuid>`. Anything else lands on `/`. Session TTL and cookie `Max-Age` follow the transaction's `client` (see below)                                      |
 | `POST /api/accounts/logout`  | `src/app/api/accounts/logout/route.ts`          | `{ok: true, next: "https://account.aegyoarena.com/sign-out?return=arcade"}` only when the configured app origin is exactly `https://arcade.aegyoarena.com` and the request is on it; otherwise `{ok: true}`. 403 `bad_origin` on a mismatched Origin, 404 `not_found` without accounts config |
 | `/browser-sign-out`          | `src/app/browser-sign-out/page.tsx`             | A hop in the provider's sign-out chain; `?return=` accepts aegyo, arcade, daebak                                                                                                                                                                                                              |
 | Member cookie                | `src/accounts/cookies.ts` (`MEMBER_COOKIE`)     | `__Host-aegyo_member`                                                                                                                                                                                                                                                                         |
+
+### Member session lifetime (ADR 0009)
+
+The app's offscreen bootstrap WebView should load `/api/accounts/login?returnTo=%2Faccount&client=mobile`.
+
+| Transaction `client` | Member session TTL (`src/accounts/config.ts`) | `__Host-aegyo_member` `Max-Age` |
+| -------------------- | --------------------------------------------- | ------------------------------- |
+| `"mobile"`           | `MOBILE_SESSION_TTL_SECONDS` = 7776000 (90 d) | 7776000                         |
+| `"web"` (default)    | `WEB_SESSION_TTL_SECONDS` = 86400 (1 d)       | 86400                           |
+
+The provider session is a fixed 90 days, so it never ends a mobile session early. Revocation does not depend on these lengths: the session-state recheck runs every 30 s and on every sensitive action, and new authorizations still send `max_age=3600`. The bounded reauthentication retry in the callback keeps the original `client`.
+
+`client=mobile` is a convenience signal, not a security boundary. A browser user who adds it gets a 90-day session on their own account and nothing else. The app's WebView user agent suffix `AegyoArenaMobile/<version>` is informational: servers may log it but must not require it.
 
 ## 4. Native API calls
 

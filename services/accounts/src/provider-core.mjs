@@ -12,13 +12,13 @@ export const SECURITY_VERSION_CLAIM =
 export const OPERATOR_CUTOFF_CLAIM =
   "https://aegyoarena.com/claims/operator-cutoff";
 
-// Matches the 8 h local session TTL on Aegyo and Arcade. Both sites drop their
-// local session once session-state reports the provider session expired, so a
-// shorter value here silently caps every product session. updateAge equal to
-// expiresIn keeps the lifetime absolute (never extended by activity).
-// Revocation does not rely on this: session-state also checks ban, credential,
-// security and operator cutoffs on every recheck.
-export const PROVIDER_SESSION_SECONDS = 8 * 60 * 60;
+// Must outlive the longest product session (mobile, 90 days; web is 1 day).
+// Both sites drop their local session once session-state reports the provider
+// session expired, so a shorter value here silently caps every product session.
+// updateAge equal to expiresIn keeps the lifetime fixed (never extended by
+// activity). Revocation does not rely on this: session-state also checks ban,
+// credential, security and operator cutoffs on every recheck. See ADR 0009.
+export const PROVIDER_SESSION_SECONDS = 90 * 24 * 60 * 60;
 
 /** Shared provider configuration. Runtime and isolated proofs use the same hooks. */
 export function createAccountsProvider({

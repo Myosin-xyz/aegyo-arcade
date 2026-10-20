@@ -136,3 +136,17 @@ There is no literal "Monthly points" badge on the web. The native badge mirrors 
 
 4. For a new game, the checklist also needs: the mobile catalog entry in `src/features/arcade/catalog.ts` and both posters (`preview-v1-en.webp`, `preview-v1-es-419.webp`) shipped under `public/games/<id>/`.
 5. For a new user-facing feature, state in the PR whether mobile will ship it, skip it, or take it as a follow-up.
+
+## Shared deletion participant (Oct 20, pending rollout)
+
+`GET/POST /api/internal/account-deletion` is server-to-server only. It requires a dedicated `AEGYO_ACCOUNT_DELETION_KEY` (at least 32 characters), not a player/session/state-reader credential. POST accepts `{requestId:UUID,issuer,subject}`; issuer must exactly equal `${ARCADE_AUTH_BASE_URL}/api/auth`. GET reports `{ready:true,version:1,product:"arcade"}` after checking migration 0005.
+
+Deletion is transactional and idempotent by request and exact issuer/subject. It deletes member sessions/profile, enrollment, attempts, daily/period bests and bonuses, score ledger and award claims. Candidate/final JSON standings and review/audit references to that member are redacted. The immutable-record trigger only allows exact redaction backed by a deletion receipt; it still forbids arbitrary edits, peer ledger deletion and truncation. Other finalists' historical ranks and awards are preserved. `source_digest` remains evidence of the original snapshot; `account_deletion_redaction` audit entries disclose that the view was subsequently redacted. No anonymous device is inferred from the shared account.
+
+Apply migration 0005 before deploying. Runtime needs SELECT/INSERT/UPDATE on `account_deletion_receipts`, DELETE on the affected member/competition tables and column UPDATE on snapshot `standings,game_high_scores`, final `standings,review`, audit `payload`, plus the existing audit INSERT. Trigger checks constrain those updates; never disable immutability triggers for deletion. Installers that inventory the public schema must recognize the new receipt table. The table is SQL-owned (not a Drizzle entity). Callback writes are protected against recreation of a deleted subject, including a `no_link` receipt.
+
+Validation: `AEGYO_DELETION_PG_TEST=1 npx vitest run tests/db/account-deletion.test.ts` creates and drops a uniquely named local `/tmp` PostgreSQL database, applies every checked-in migration and verifies deletion, replay, peer preservation and resurrection/immutability guards. No production configuration is read.
+
+Owner decision (Oct 20): delete account-linked scores only. Anonymous device scores/history, including the device initiating deletion, are retained.
+
+Deletion retry contract: an internal 409 `request_conflict` requires operator reconciliation, not automatic retry. The provider receipt keeps the sign-in disabled and shows that team review is needed; it does not claim completion.

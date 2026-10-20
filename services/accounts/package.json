@@ -7,7 +7,8 @@
     "node": "24.21.0"
   },
   "scripts": {
-    "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs tests/runtime-unit.test.mjs tests/mailjet-preflight.test.mjs tests/mail.test.mjs ui/*.test.mjs",
+    "test": "node scripts/check-runtime.mjs && node --test tests/passwords.test.mjs tests/runtime-unit.test.mjs tests/mailjet-preflight.test.mjs tests/mail.test.mjs tests/deletion.test.mjs ui/*.test.mjs",
+    "test:deletion": "node scripts/check-runtime.mjs && node --test tests/deletion.test.mjs",
     "test:production-cutover": "node scripts/check-runtime.mjs && node --test tests/production-cutover.test.mjs",
     "proof": "node scripts/prove.mjs",
     "start": "node src/server.mjs",

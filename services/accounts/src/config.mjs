@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { deletionConfig } from "./deletion.mjs";
 
 export function readConfig(env = process.env) {
   const required = (name, minimum = 1) => {
@@ -107,6 +108,7 @@ export function readConfig(env = process.env) {
     ipMode,
     mail,
     signupAllowed,
+    deletion: deletionConfig(env, base.origin),
     port,
   });
 }

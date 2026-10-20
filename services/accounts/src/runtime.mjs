@@ -3,6 +3,7 @@ import { createMailSender } from "./mail.mjs";
 import { createAccountsProvider } from "./provider-core.mjs";
 import { createAccountsServer } from "./http-server.mjs";
 import { databaseOptions } from "./database-options.mjs";
+import { processDeletion } from "./deletion.mjs";
 
 export function createAccountsRuntime(
   config,
@@ -32,5 +33,23 @@ export function createAccountsRuntime(
     ...config,
     mail: mailSender(config.mail, config.baseURL),
   });
-  return { database, server: server({ auth, database, config }) };
+  const httpServer = server({ auth, database, config });
+  let deletionRunning = false;
+  const runDeletion = async () => {
+    if (deletionRunning || !config.deletion) return;
+    deletionRunning = true;
+    try {
+      await processDeletion(database, config.deletion);
+    } catch {
+      console.error("Account deletion worker unavailable");
+    } finally {
+      deletionRunning = false;
+    }
+  };
+  if (config.deletion) {
+    const timer = setInterval(() => void runDeletion(), 5000);
+    timer.unref();
+    httpServer.once("close", () => clearInterval(timer));
+  }
+  return { database, server: httpServer };
 }

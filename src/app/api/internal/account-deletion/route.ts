@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
     if (!db) return json({ error: "unavailable" }, 503);
     try {
       return json(await deleteArcadeAccount(db, input));
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === "request_conflict")
+        return json({ error: "request_conflict" }, 409);
       return json({ error: "deletion_retry_required" }, 503);
     }
   } catch {

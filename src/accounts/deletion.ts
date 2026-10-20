@@ -62,6 +62,7 @@ export async function deleteArcadeAccount(db: Db, input: DeletionInput) {
       )
     ).rows[0];
     const removed: Record<string, number> = {};
+    const affectedRounds = new Set<string>();
     // The receipt authorizes only exact competitor redaction in the immutable snapshot trigger.
     await tx.execute(sql`INSERT INTO account_deletion_receipts(request_id,issuer,subject,member_id,manifest)
       VALUES(${input.requestId}::uuid,${input.issuer},${input.subject},${member?.id ?? null}::uuid,'{}')`);
@@ -83,12 +84,14 @@ export async function deleteArcadeAccount(db: Db, input: DeletionInput) {
               `${f} IS DISTINCT FROM COALESCE(aegyo_redact_deleted_competitors(${f}),'null'::jsonb)`,
           )
           .join(" OR ");
-        removed[`${table}_redacted`] =
-          (
-            await tx.execute(
-              sql.raw(`UPDATE ${table} SET ${assignments} WHERE ${changed}`),
-            )
-          ).rowCount ?? 0;
+        const redacted = await tx.execute(
+          sql.raw(
+            `UPDATE ${table} SET ${assignments} WHERE ${changed} RETURNING round_id`,
+          ),
+        );
+        for (const row of redacted.rows)
+          affectedRounds.add(String(row.round_id));
+        removed[`${table}_redacted`] = redacted.rowCount ?? 0;
       }
       for (const table of [
         "competition_award_claims",
@@ -114,9 +117,9 @@ export async function deleteArcadeAccount(db: Db, input: DeletionInput) {
             sql`DELETE FROM account_members WHERE id=${member.id}::uuid`,
           )
         ).rowCount ?? 0;
-      for (const round of rounds)
+      for (const roundId of affectedRounds)
         await tx.execute(sql`INSERT INTO competition_operation_audit(id,round_id,operation,actor,idempotency_key,payload)
-        VALUES(${randomUUID()}::uuid,${round.id}::uuid,'account_deletion_redaction','account-deletion',${input.requestId},
+        VALUES(${randomUUID()}::uuid,${roundId}::uuid,'account_deletion_redaction','account-deletion',${input.requestId},
         ${JSON.stringify({ requestId: input.requestId, originalSourceDigestPreserved: true })}::jsonb)`);
     }
     const manifest = {

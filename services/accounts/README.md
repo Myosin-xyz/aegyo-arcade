@@ -51,3 +51,5 @@ Daebak deliberately retains the wallet/Privy recovery identity and user associat
 `AEGYO_DELETION_PG_TEST=1 npm run test:deletion` uses a fresh uniquely named local PostgreSQL database on `/tmp`; it checks the real pinned BetterAuth schema, revocation, retries and removal, plus HTTP consent/origin/recent-sign-in boundaries. It never opens the configured production database.
 
 Owner decision (Oct 20): delete account-linked scores only. Anonymous device scores/history, including the device initiating deletion, are retained.
+
+Participant HTTP 409 conflicts are recorded as `blocked` in the receipt manifest. Other products continue; provider credential finalization waits. The job keeps sign-in disabled, sets `last_error=participant_conflict` and `next_attempt_at=infinity`. An operator must investigate the conflicting request binding before correcting the manifest and resuming. No completed deletion is reported for this state.

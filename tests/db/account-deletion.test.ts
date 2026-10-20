@@ -44,6 +44,11 @@ test.skipIf(process.env.AEGYO_DELETION_PG_TEST !== "1")(
         "INSERT INTO competition_rounds(id,slug,rules,opens_at,closes_at) VALUES($1,'test','{}',now()-interval '1 day',now())",
         [round],
       );
+      const untouchedRound = randomUUID();
+      await pool.query(
+        "INSERT INTO competition_rounds(id,slug,rules,opens_at,closes_at) VALUES($1,'untouched','{}',now(),now()+interval '1 day')",
+        [untouchedRound],
+      );
       const standings = [
         { memberId: member, points: 10, finalRank: 1 },
         { memberId: other, points: 9, finalRank: 2 },
@@ -82,6 +87,13 @@ test.skipIf(process.env.AEGYO_DELETION_PG_TEST !== "1")(
       const db = drizzle(pool, { schema });
       const receipt = await deleteArcadeAccount(db, input);
       expect(receipt.status).toBe("completed");
+      expect(
+        (
+          await pool.query(
+            "SELECT round_id FROM competition_operation_audit WHERE operation='account_deletion_redaction'",
+          )
+        ).rows,
+      ).toEqual([{ round_id: round }]);
       expect(
         (await pool.query("SELECT * FROM competition_attempts")).rows,
       ).toHaveLength(0);

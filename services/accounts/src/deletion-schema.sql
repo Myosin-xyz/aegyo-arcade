@@ -36,7 +36,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION account_deletion.finish_request(request_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,account_deletion AS $$
-DECLARE job account_deletion.jobs; old_email text;
+DECLARE job account_deletion.jobs; old_email text; verification_row record;
 BEGIN
   SELECT * INTO job FROM account_deletion.jobs WHERE id=request_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'deletion_unknown_request'; END IF;
@@ -54,10 +54,18 @@ BEGIN
   DELETE FROM public."oauthConsent" WHERE "userId"=job.subject;
   DELETE FROM public."session" WHERE "userId"=job.subject;
   DELETE FROM public."account" WHERE "userId"=job.subject;
-  -- Recovery/verification rows may embed the subject or email in their identifier/value.
-  DELETE FROM public."verification" WHERE
-    strpos(identifier,job.subject)>0 OR strpos(value,job.subject)>0 OR
-    (old_email IS NOT NULL AND (strpos(identifier,old_email)>0 OR strpos(value,old_email)>0));
+  -- BetterAuth resets store the exact user id. OAuth codes store JSON userId.
+  -- Never substring-match emails or ids belonging to other users.
+  DELETE FROM public."verification" WHERE value=job.subject OR identifier=job.subject OR
+    (old_email IS NOT NULL AND (lower(identifier)=lower(old_email) OR lower(value)=lower(old_email)));
+  FOR verification_row IN SELECT id,value FROM public."verification" WHERE left(ltrim(value),1)='{' LOOP
+    BEGIN
+      IF verification_row.value::jsonb->>'userId'=job.subject THEN
+        DELETE FROM public."verification" WHERE id=verification_row.id;
+      END IF;
+    EXCEPTION WHEN invalid_text_representation THEN NULL;
+    END;
+  END LOOP;
   UPDATE public."user" SET name='Deleted account',
     email='deleted-'||request_id::text||'@example.invalid', image=NULL,
     "emailVerified"=false, banned=true, "banReason"='account_deleted', "banExpires"=NULL,

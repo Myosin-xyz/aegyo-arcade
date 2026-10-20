@@ -100,8 +100,13 @@ export async function processDeletion(database, config, transport = fetch) {
     RETURNING id,subject,manifest`);
   const job = claimed.rows[0];
   if (!job) return false;
+  let conflict = false;
   try {
     for (const product of PRODUCTS) {
+      if (job.manifest[product]?.status === "blocked") {
+        conflict = true;
+        continue;
+      }
       if (
         ["completed", "no_link", "needs_review"].includes(
           job.manifest[product]?.status,
@@ -123,6 +128,18 @@ export async function processDeletion(database, config, transport = fetch) {
           subject: job.subject,
         }),
       });
+      if (response.status === 409) {
+        conflict = true;
+        await database.query(
+          "UPDATE account_deletion.jobs SET manifest=jsonb_set(manifest,ARRAY[$2::text],$3::jsonb) WHERE id=$1::uuid",
+          [
+            job.id,
+            product,
+            JSON.stringify({ status: "blocked", reason: "request_conflict" }),
+          ],
+        );
+        continue;
+      }
       const payload = response.ok ? await response.json() : null;
       if (
         !payload ||
@@ -137,6 +154,13 @@ export async function processDeletion(database, config, transport = fetch) {
         "UPDATE account_deletion.jobs SET manifest=jsonb_set(manifest,ARRAY[$2::text],$3::jsonb) WHERE id=$1::uuid",
         [job.id, product, JSON.stringify(payload)],
       );
+    }
+    if (conflict) {
+      await database.query(
+        "UPDATE account_deletion.jobs SET lease_until=NULL,last_error='participant_conflict',next_attempt_at='infinity' WHERE id=$1::uuid",
+        [job.id],
+      );
+      return true;
     }
     await database.query("SELECT account_deletion.finish_request($1::uuid)", [
       job.id,

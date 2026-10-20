@@ -348,14 +348,27 @@ export function createAccountsServer({
           config.baseURL,
           url,
         );
-        // Fixed same-origin continuation for reauthentication before deletion; never an arbitrary URL.
-        if (
-          page === "sign-in" &&
-          ["/delete-account", "/delete-account?lang=es"].includes(
-            url.searchParams.get("continue"),
-          )
-        )
-          continuation.continuationUrl = `${config.baseURL}${url.searchParams.get("continue")}`;
+        // Fixed same-origin continuation, including absolute links emitted by locale toggles.
+        if (page === "sign-in" && url.searchParams.get("continue")) {
+          let next;
+          try {
+            next = new URL(url.searchParams.get("continue"), config.baseURL);
+          } catch {
+            /* invalid continuation */
+          }
+          if (
+            next &&
+            next.origin === canonical.origin &&
+            !next.username &&
+            !next.password &&
+            !next.hash &&
+            ["/delete-account", "/delete-account?lang=es"].includes(
+              next.pathname + next.search,
+            )
+          ) {
+            continuation.continuationUrl = `${config.baseURL}/delete-account${locale === "es" ? "?lang=es" : ""}`;
+          }
+        }
         const linkError =
           page === "verify-email" || page === "reset-password"
             ? url.searchParams.get("error")

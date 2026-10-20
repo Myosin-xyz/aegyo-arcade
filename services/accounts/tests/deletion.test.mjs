@@ -146,6 +146,21 @@ test(
     );
     await database.query(`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt","credentialVersion","securityVersion") VALUES('fan','Fan','fan@example.test',true,now(),now(),0,0);
  INSERT INTO "session"(id,token,"userId","expiresAt","createdAt","updatedAt","credentialVersion","securityVersion") VALUES('sid','synthetic-token','fan',now()+interval '1 day',now(),now(),0,0);`);
+    for (const [id, identifier, value] of [
+      ["own-reset", "reset-password:own", "fan"],
+      ["peer-reset", "reset-password:peer", "other-fan"],
+      ["peer-email", "other-fan@example.test", "other-fan@example.test"],
+      ["own-code", "oauth-own", JSON.stringify({ userId: "fan" })],
+      [
+        "peer-code",
+        "oauth-peer",
+        JSON.stringify({ userId: "other-fan", referenceId: "fan" }),
+      ],
+    ])
+      await database.query(
+        `INSERT INTO "verification"(id,identifier,value,"expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,now()+interval '1 day',now(),now())`,
+        [id, identifier, value],
+      );
     const started = await beginDeletion(database, {
       user: { id: "fan" },
       session: { id: "sid" },
@@ -185,6 +200,12 @@ test(
     assert.equal(
       (await database.query('SELECT email FROM "user"')).rows[0].email,
       `deleted-${started.id}@example.invalid`,
+    );
+    assert.deepEqual(
+      (
+        await database.query('SELECT id FROM "verification" ORDER BY id')
+      ).rows.map((row) => row.id),
+      ["peer-code", "peer-email", "peer-reset"],
     );
     assert.equal(await processDeletion(database, config), false);
   },
@@ -243,9 +264,53 @@ test("HTTP confirmation requires same origin, explicit consent and recent authen
     404,
   );
   assert.equal(writes, 0);
+  for (const target of [
+    "/delete-account?lang=es",
+    "https://accounts.example.test/delete-account?lang=es",
+  ]) {
+    const signin = await fetch(
+      url.replace(
+        "/api/account-deletion",
+        `/sign-in?lang=es&continue=${encodeURIComponent(target)}`,
+      ),
+    );
+    assert.match(
+      await signin.text(),
+      /data-continuation="https:\/\/accounts.example.test\/delete-account\?lang=es"/,
+    );
+  }
+  const hostile = await fetch(
+    url.replace(
+      "/api/account-deletion",
+      "/sign-in?continue=https%3A%2F%2Fevil.example%2Fdelete-account",
+    ),
+  );
+  assert.match(await hostile.text(), /data-continuation=""/);
   const page = await fetch(
     url.replace("/api/account-deletion", "/delete-account?lang=es"),
   );
   assert.equal(page.status, 200);
   assert.match(await page.text(), /lang="es"/);
+});
+
+test("participant conflicts halt automatic retries without declaring completion", async () => {
+  const calls = [];
+  let visited = 0;
+  const database = {
+    query: async (text, args) => {
+      calls.push({ text, args });
+      return {
+        rows: text.startsWith("UPDATE account_deletion.jobs SET\n")
+          ? [{ id: randomUUID(), subject: "fan", manifest: {} }]
+          : [],
+      };
+    },
+  };
+  await processDeletion(database, config, async () => {
+    visited++;
+    return new Response("{}", { status: 409 });
+  });
+  assert.equal(visited, 3);
+  assert.ok(calls.some((c) => c.text.includes("next_attempt_at='infinity'")));
+  assert.ok(!calls.some((c) => c.text.includes("finish_request")));
 });

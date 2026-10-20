@@ -148,3 +148,5 @@ Apply migration 0005 before deploying. Runtime needs SELECT/INSERT/UPDATE on `ac
 Validation: `AEGYO_DELETION_PG_TEST=1 npx vitest run tests/db/account-deletion.test.ts` creates and drops a uniquely named local `/tmp` PostgreSQL database, applies every checked-in migration and verifies deletion, replay, peer preservation and resurrection/immutability guards. No production configuration is read.
 
 Owner decision (Oct 20): delete account-linked scores only. Anonymous device scores/history, including the device initiating deletion, are retained.
+
+Deletion retry contract: an internal 409 `request_conflict` requires operator reconciliation, not automatic retry. The provider receipt keeps the sign-in disabled and shows that team review is needed; it does not claim completion.

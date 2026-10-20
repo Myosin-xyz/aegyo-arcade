@@ -31,8 +31,15 @@
         "Wallet recovery, wallet association, transaction history and the deletion record are retained. Account-linked scores and ranking entries are removed once Arcade confirms completion.",
         "Se conservan la recuperación y asociación de la wallet, el historial de transacciones y el comprobante. Las puntuaciones y posiciones vinculadas a la cuenta se eliminan cuando Arcade confirma.",
       );
-    status.textContent =
-      data.status === "completed"
+    const blocked = Object.values(data.manifest || {}).some(
+      (product) => product.status === "blocked",
+    );
+    status.textContent = blocked
+      ? t(
+          "Your shared sign-in is disabled. Deletion needs a team review before it can finish; keep this receipt for follow-up.",
+          "Tu acceso compartido está desactivado. El equipo debe revisar la eliminación antes de completarla; conserva este comprobante.",
+        )
+      : data.status === "completed"
         ? t(
             "Account deletion completed. The retained items are listed below.",
             "Eliminación completada. Los datos conservados figuran abajo.",
@@ -49,7 +56,8 @@
     window.ReactNativeWebView?.postMessage(
       JSON.stringify({ type: "aegyo-account-deletion", status: data.status }),
     );
-    if (data.status === "processing") timer = setTimeout(check, 5000);
+    if (data.status === "processing" && !blocked)
+      timer = setTimeout(check, 5000);
   }
   async function check() {
     if (polling) return;

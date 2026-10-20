@@ -60,3 +60,16 @@ test("deletion confirmation works without AbortSignal.timeout and emits a receip
   );
   assert.match(elements["deletion-manifest"].textContent, /receipt/);
 });
+
+test("Spanish account keeps the deletion disclosure in Spanish", async () => {
+  const { renderAccountPage } = await import("./pages.mjs");
+  assert.match(
+    renderAccountPage({
+      page: "account",
+      locale: "es",
+      deletionEnabled: true,
+      user: { name: "Fan", emailVerified: true },
+    }),
+    /href="\/delete-account\?lang=es">Eliminar cuenta/,
+  );
+});

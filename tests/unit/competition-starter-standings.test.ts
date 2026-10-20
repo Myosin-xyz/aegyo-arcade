@@ -29,21 +29,22 @@ const player = (
 afterEach(() => vi.unstubAllEnvs());
 
 describe("October presentation standings", () => {
-  it("adds 20 stable names with a symmetric 1–15 point spread without changing real score rows", () => {
+  it("fills vacant slots from a stable 1–15 point pool without changing real score rows", () => {
     const verified = [player("real_player", 5)];
     const original = structuredClone(verified);
     const result = withStarterStandings(round, verified);
-    expect(result).toHaveLength(21);
+    expect(withStarterStandings(round, [])).toHaveLength(20);
+    expect(result).toHaveLength(20);
     expect(verified).toEqual(original);
     expect(result.find((row) => row.username === "real_player")).toEqual({
       ...original[0],
-      rank: 17,
+      rank: 16,
     });
     expect(
       fixture.entries.reduce((total, row) => total + row.totalPoints, 0),
     ).toBe(160);
-    expect(new Set(result.map((row) => row.username)).size).toBe(21);
-    expect(result[0].totalPoints).toBe(15);
+    expect(new Set(result.map((row) => row.username)).size).toBe(20);
+    expect(result[0].totalPoints).toBe(13);
     expect(result.at(-1)?.totalPoints).toBe(1);
     expect(withStarterStandings(round, verified)).toEqual(result);
     expect(result.every((row) => row.maxPeriodPoints <= row.totalPoints)).toBe(
@@ -66,10 +67,40 @@ describe("October presentation standings", () => {
       result
         .filter((row) => ["alice", "bob"].includes(row.username))
         .map((row) => row.rank),
-    ).toEqual([5, 5]);
+    ).toEqual([3, 3]);
     expect(
       result.filter((row) => row.totalPoints === 10).map((row) => row.rank),
-    ).toEqual([5, 5, 7, 7]);
+    ).toEqual([3, 3, 5, 5]);
+  });
+
+  it("replaces the highest placeholders as distinct real players earn points, never capping real players", () => {
+    for (const count of [0, 1, 3, 12, 19, 20, 25]) {
+      const verified = Array.from({ length: count }, (_, i) =>
+        player(`real_${i}`, 100 - i, i + 1),
+      );
+      const result = withStarterStandings(round, verified);
+      expect(result).toHaveLength(Math.max(20, count));
+      expect(result.filter((row) => row.username.startsWith("real_"))).toEqual(
+        verified,
+      );
+      const starters = result.filter(
+        (row) => !row.username.startsWith("real_"),
+      );
+      expect(starters).toHaveLength(Math.max(0, 20 - count));
+      expect(starters.map((row) => row.totalPoints)).toEqual(
+        fixture.entries
+          .map((row) => row.totalPoints)
+          .sort((a, b) => a - b)
+          .slice(0, Math.max(0, 20 - count))
+          .sort((a, b) => b - a),
+      );
+      if (count >= 20) expect(result).toBe(verified);
+    }
+    const names = (points: number) =>
+      withStarterStandings(round, [player("real_one", points)])
+        .filter((row) => row.username !== "real_one")
+        .map((row) => row.username);
+    expect(names(5)).toEqual(names(50));
   });
 
   it("never impersonates an existing registered username, even before that player scores", () => {

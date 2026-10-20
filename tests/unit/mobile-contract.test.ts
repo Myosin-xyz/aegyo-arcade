@@ -685,7 +685,7 @@ describe("October starter standings shared by web and mobile", () => {
     );
     expect(response.status).toBe(200);
     const publicBoard = await response.json();
-    expect(publicBoard.standings).toHaveLength(21);
+    expect(publicBoard.standings).toHaveLength(20);
     expect(publicBoard.gameHighScores).toEqual([]);
     const memberResponse = await getCompetitionMe(
       new NextRequest(`${ARCADE}/api/competition/me?roundId=${ROUND_ID}`, {
@@ -696,7 +696,7 @@ describe("October starter standings shared by web and mobile", () => {
     const member = await memberResponse.json();
     expect(member.totalPoints).toBe(5);
     expect(member.attempts).toEqual([]);
-    expect(member.rank).toBe(17);
+    expect(member.rank).toBe(16);
     expect(
       publicBoard.standings.find(
         (row: { username: string }) => row.username === "real_player",

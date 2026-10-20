@@ -44,21 +44,30 @@ export function withStarterStandings(
       (name) => name.toLowerCase(),
     ),
   );
+  // The real standings determine how much space remains. Never cap real players.
+  const remainingSlots = Math.max(0, 20 - verified.length);
+  if (remainingSlots === 0) return verified;
+  const starters = fixture.entries
+    .filter((row) => !existing.has(row.username.toLowerCase()))
+    .sort(
+      (a, b) =>
+        a.totalPoints - b.totalPoints ||
+        a.username.localeCompare(b.username, "en"),
+    )
+    .slice(0, remainingSlots);
   const rows = [
     ...verified.map((standing) => ({ standing, starter: false })),
-    ...fixture.entries
-      .filter((row) => !existing.has(row.username.toLowerCase()))
-      .map((row) => ({
-        starter: true,
-        standing: {
-          username: row.username,
-          rank: 0,
-          totalPoints: row.totalPoints,
-          topTierResults: 0,
-          maxDailyPoints: row.maxPeriodPoints,
-          maxPeriodPoints: row.maxPeriodPoints,
-        },
-      })),
+    ...starters.map((row) => ({
+      starter: true,
+      standing: {
+        username: row.username,
+        rank: 0,
+        totalPoints: row.totalPoints,
+        topTierResults: 0,
+        maxDailyPoints: row.maxPeriodPoints,
+        maxPeriodPoints: row.maxPeriodPoints,
+      },
+    })),
   ];
   rows.sort(
     (a, b) =>

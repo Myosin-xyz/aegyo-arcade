@@ -5,6 +5,15 @@ import { clientIP } from "./config.mjs";
 import { standaloneVerificationURL } from "./verification-link.mjs";
 import { browserSignOutNext } from "./browser-sign-out.mjs";
 import {
+  DELETION_COOKIE,
+  DELETION_POLICY_VERSION,
+  preflightDeletion,
+  beginDeletion,
+  deletionReceipt,
+  receiptToken,
+} from "./deletion.mjs";
+import { renderDeletionPage, deletionJs } from "../ui/deletion.mjs";
+import {
   authorizedReader,
   readSessionState,
   checkDatabaseReadiness,
@@ -142,6 +151,17 @@ export function createAccountsServer({
           return send(404, { error: "not_found" });
         if (!(await isReady()))
           return send(503, { error: "accounts_temporarily_unavailable" });
+        if (req.method === "GET" && url.pathname === "/deletion.js")
+          return send(200, deletionJs, "application/javascript; charset=utf-8");
+        if (req.method === "GET" && url.pathname === "/delete-account")
+          return send(
+            200,
+            renderDeletionPage(
+              url.searchParams.get("lang") === "es" ? "es" : "en",
+              Boolean(config.deletion),
+            ),
+            "text/html; charset=utf-8",
+          );
         if (url.pathname === "/sign-out") {
           if (req.method !== "GET")
             return send(405, { error: "method_not_allowed" });
@@ -183,6 +203,64 @@ export function createAccountsServer({
             chunks.push(chunk);
           }
           rawBody = Buffer.concat(chunks);
+        }
+        if (url.pathname === "/api/account-deletion") {
+          if (!config.deletion)
+            return send(503, { error: "deletion_unavailable" });
+          if (req.method === "GET") {
+            // A receipt from a previously deleted account must not sign out a new account.
+            const active = await auth.api.getSession({
+              headers: fromNodeHeaders(req.headers),
+            });
+            if (active) return send(404, { error: "not_found" });
+            const receipt = await deletionReceipt(
+              database,
+              receiptToken(req.headers.cookie),
+            );
+            return send(receipt ? 200 : 404, receipt || { error: "not_found" });
+          }
+          if (req.method !== "POST")
+            return send(405, { error: "method_not_allowed" });
+          if (
+            req.headers.origin !== canonical.origin ||
+            !req.headers["content-type"]?.startsWith("application/json")
+          )
+            return send(403, { error: "invalid_origin" });
+          let input;
+          try {
+            input = JSON.parse(rawBody.toString("utf8"));
+          } catch {
+            return send(400, { error: "invalid_request" });
+          }
+          if (
+            input?.confirm !== true ||
+            input?.policyVersion !== DELETION_POLICY_VERSION
+          )
+            return send(400, { error: "confirmation_required" });
+          const session = await auth.api.getSession({
+            headers: fromNodeHeaders(req.headers),
+          });
+          if (!session) {
+            const receipt = await deletionReceipt(
+              database,
+              receiptToken(req.headers.cookie),
+            );
+            return send(
+              receipt ? 202 : 401,
+              receipt || { error: "reauthentication_required" },
+            );
+          }
+          const age =
+            Date.now() - new Date(session.session.createdAt).getTime();
+          if (!Number.isFinite(age) || age < 0 || age >= 15 * 60_000)
+            return send(401, { error: "reauthentication_required" });
+          await preflightDeletion(database, config.deletion);
+          const started = await beginDeletion(database, session);
+          res.setHeader(
+            "set-cookie",
+            `${DELETION_COOKIE}=${started.token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`,
+          );
+          return send(202, await deletionReceipt(database, started.token));
         }
         if (url.pathname === "/api/internal/proxy-proof") {
           if (req.method !== "POST")
@@ -270,6 +348,14 @@ export function createAccountsServer({
           config.baseURL,
           url,
         );
+        // Fixed same-origin continuation for reauthentication before deletion; never an arbitrary URL.
+        if (
+          page === "sign-in" &&
+          ["/delete-account", "/delete-account?lang=es"].includes(
+            url.searchParams.get("continue"),
+          )
+        )
+          continuation.continuationUrl = `${config.baseURL}${url.searchParams.get("continue")}`;
         const linkError =
           page === "verify-email" || page === "reset-password"
             ? url.searchParams.get("error")
@@ -290,6 +376,7 @@ export function createAccountsServer({
             token: url.searchParams.get("token") || "",
             email: url.searchParams.get("email") || "",
             signupAllowed: config.signupAllowed,
+            deletionEnabled: Boolean(config.deletion),
             emailAvailable: Boolean(config.mail),
             browserLogoutEnabled:
               config.environment === "production" &&

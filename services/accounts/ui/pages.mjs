@@ -292,7 +292,7 @@ function formFor(page, c, vm) {
   const verificationLink = user.emailVerified
     ? ""
     : `<a class="primary-action action-link" href="${esc(journeyHref("/verify-email", vm.continuationUrl))}">${c.verify}</a>`;
-  return `<div class="identity"><span class="avatar" aria-hidden="true">${esc((user.name || user.email || "A").trim().charAt(0).toUpperCase())}</span><div><span>${c.signedInAs}</span><strong>${esc(user.name || user.email || "")}</strong>${user.name && user.email ? `<small>${esc(user.email)}</small>` : ""}</div></div><div class="verification-state ${user.emailVerified ? "is-verified" : ""}"><span aria-hidden="true">${user.emailVerified ? "✓" : "!"}</span>${user.emailVerified ? c.verified : c.notVerified}</div>${verificationLink}${vm.continuationUrl ? `<a class="primary-action action-link" href="${esc(vm.continuationUrl)}">${c.continue}</a>` : ""}${action("sign-out", c.signout, "")}`;
+  return `<div class="identity"><span class="avatar" aria-hidden="true">${esc((user.name || user.email || "A").trim().charAt(0).toUpperCase())}</span><div><span>${c.signedInAs}</span><strong>${esc(user.name || user.email || "")}</strong>${user.name && user.email ? `<small>${esc(user.email)}</small>` : ""}</div></div><div class="verification-state ${user.emailVerified ? "is-verified" : ""}"><span aria-hidden="true">${user.emailVerified ? "✓" : "!"}</span>${user.emailVerified ? c.verified : c.notVerified}</div>${verificationLink}${vm.continuationUrl ? `<a class="primary-action action-link" href="${esc(vm.continuationUrl)}">${c.continue}</a>` : ""}${action("sign-out", c.signout, "")}${vm.deletionEnabled ? `<p><a href="/delete-account">${vm.deletionLabel}</a></p>` : ""}`;
 }
 
 export function renderAccountPage({
@@ -311,6 +311,7 @@ export function renderAccountPage({
   logoutNext = "",
   logoutReturn = "",
   browserLogoutEnabled = false,
+  deletionEnabled = false,
 } = {}) {
   if (!pageMeta[page]) throw new TypeError(`Unknown account page: ${page}`);
   const lang = locale === "es" ? "es" : "en";
@@ -326,6 +327,8 @@ export function renderAccountPage({
     trustedRedirectUri,
     signupAllowed,
     emailAvailable,
+    deletionEnabled,
+    deletionLabel: lang === "es" ? "Eliminar cuenta" : "Delete account",
     user,
   };
   const alternateParams = new URLSearchParams({ lang: c.languageCode });

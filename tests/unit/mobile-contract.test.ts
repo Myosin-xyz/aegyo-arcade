@@ -50,6 +50,11 @@ import { GET as getLeaderboard } from "@/app/api/leaderboards/[gameId]/route";
 import { GET as getCompetition } from "@/app/api/competition/route";
 import { GET as getCompetitionMe } from "@/app/api/competition/me/route";
 
+import {
+  GET as getDeletionReadiness,
+  POST as postDeletion,
+} from "@/app/api/internal/account-deletion/route";
+
 const ARCADE = "https://arcade.example.test";
 const CONTRACT =
   "the Aegyo mobile app (Myosin-xyz/aegyo-mobile) depends on this; see docs/MOBILE_CONTRACT.md";
@@ -611,5 +616,28 @@ describe("mobile contract: GET /api/competition/me", () => {
       expect(attemptsSql, `attempt column ${alias}: ${CONTRACT}`).toContain(
         alias,
       );
+  });
+});
+
+describe("shared deletion transport", () => {
+  it("does not accept mobile session cookies as deletion authority", async () => {
+    vi.stubEnv("AEGYO_ACCOUNT_DELETION_KEY", "s".repeat(40));
+    const headers = { cookie: `${MEMBER_COOKIE}=mobile-session` };
+    for (const [method, handler] of [
+      ["GET", getDeletionReadiness],
+      ["POST", postDeletion],
+    ] as const) {
+      const response = await handler(
+        new NextRequest(`${ARCADE}/api/internal/account-deletion`, {
+          method,
+          headers,
+        }),
+      );
+      expect(response.status, CONTRACT).toBe(401);
+      expect(await response.json(), CONTRACT).toEqual({
+        error: "unauthorized",
+      });
+      expect(response.headers.get("cache-control")).toBe("no-store");
+    }
   });
 });

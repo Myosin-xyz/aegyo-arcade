@@ -150,3 +150,11 @@ Validation: `AEGYO_DELETION_PG_TEST=1 npx vitest run tests/db/account-deletion.t
 Owner decision (Oct 20): delete account-linked scores only. Anonymous device scores/history, including the device initiating deletion, are retained.
 
 Deletion retry contract: an internal 409 `request_conflict` requires operator reconciliation, not automatic retry. The provider receipt keeps the sign-in disabled and shows that team review is needed; it does not claim completion.
+
+## October 2026 starter leaderboard (owner-approved presentation data)
+
+For the active, open `october-2026-community-leaderboard`, `/api/competition` merges 20 internally identified fixture profiles into public standings. The owner explicitly requested ordinary public usernames without badges or a disclosure note. Fixed totals span 1–15 with mean/median 8. The existing row shape is unchanged; web and native mobile consume the same response.
+
+Fixtures live only in `src/competition/fixtures/october-2026-starters.json`; no auth users, sessions, verified attempts, ledger points, game high scores, enrollments or awards are created. Existing registered usernames take precedence (case-insensitive). Genuine relative order and exact ties are preserved; `/api/competition/me` uses the same displayed rank while its score/history/allowances remain real.
+
+Fixtures apply only while the target community round is open and within its play window. Final snapshots and other months remain authoritative. `ARCADE_OCTOBER_STARTERS_ENABLED=false` disables the display layer immediately on the next request after configuration deployment. Mobile: **ship**, no client rebuild needed; tracked in [aegyo-mobile#3](https://github.com/Myosin-xyz/aegyo-mobile/issues/3).

@@ -1,4 +1,10 @@
 import { sql } from "drizzle-orm";
+import {
+  starterRoundActive,
+  withStarterStandings,
+  type DisplayRound,
+  type PublicStanding,
+} from "./starter-standings";
 import type { Db } from "@/db/client";
 import {
   rankCandidateStandings,
@@ -16,6 +22,22 @@ import {
   publicRules,
   type RoundRules,
 } from "./rules";
+async function displayStandings(
+  db: Db,
+  round: DisplayRound,
+  verified: PublicStanding[],
+) {
+  if (!starterRoundActive(round)) return verified;
+  const profiles = await db.execute(
+    sql`SELECT username FROM competition_profiles`,
+  );
+  return withStarterStandings(
+    round,
+    verified,
+    profiles.rows.map((row) => String(row.username)),
+  );
+}
+
 export async function roundStandings(
   db: Db,
   roundId: string,
@@ -192,7 +214,20 @@ export async function publicRound(db: Db, slug?: string) {
       rules: publicRules(row.rules),
       rulesDigest: digest(row.rules),
     },
-    standings: finalized?.standings ?? standing!.public,
+    standings:
+      finalized?.standings ??
+      (await displayStandings(
+        db,
+        {
+          slug: row.slug,
+          status: row.status,
+          mode: row.rules.mode,
+          opensAt,
+          closesAt,
+          serverNow: row.server_now,
+        },
+        standing!.public,
+      )),
     gameHighScores,
     provisional: row.status !== "final",
   };
@@ -206,7 +241,7 @@ export async function memberRound(
   const [roundResult, enrollment, profile, attempts, awards] =
     await Promise.all([
       db.execute(
-        sql`SELECT rules,status,opens_at,closes_at,statement_timestamp() AS server_now FROM competition_rounds WHERE id=${roundId}::uuid`,
+        sql`SELECT rules,status,opens_at,closes_at,slug,statement_timestamp() AS server_now FROM competition_rounds WHERE id=${roundId}::uuid`,
       ),
       db.execute(
         sql`SELECT 1 FROM competition_enrollments WHERE round_id=${roundId}::uuid AND member_id=${memberId}::uuid`,
@@ -237,6 +272,21 @@ export async function memberRound(
   const periodKey = competitionScorePeriodKey(roundRules, serverNow);
   const all = attempts.rows;
   const mine = board.ranked.find((row) => row.memberId === memberId);
+  const display = await displayStandings(
+    db,
+    {
+      slug: String(roundRow?.slug ?? ""),
+      status: String(roundRow?.status ?? ""),
+      mode: roundRules.mode,
+      opensAt: roundRow?.opens_at as Date | string,
+      closesAt: roundRow?.closes_at as Date | string,
+      serverNow,
+    },
+    board.public,
+  );
+  const displayRank = display.find(
+    (row) => row.username === profile.rows[0]?.username,
+  )?.rank;
   const currentPeriod =
     roundRules.version === 2 && roundCanPlay
       ? await currentPeriodProgress(
@@ -266,7 +316,7 @@ export async function memberRound(
       ]),
     ),
     totalPoints: mine?.totalPoints ?? 0,
-    rank: mine?.provisionalRank ?? null,
+    rank: mine ? (displayRank ?? mine.provisionalRank) : null,
     currentPeriod,
     awards: awards.rows,
   };

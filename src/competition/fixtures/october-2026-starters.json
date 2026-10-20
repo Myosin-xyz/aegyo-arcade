@@ -1,0 +1,107 @@
+{
+  "kind": "starter_profiles",
+  "roundSlug": "october-2026-community-leaderboard",
+  "asOfDate": "2026-10-20",
+  "entries": [
+    {
+      "username": "mochi_03",
+      "totalPoints": 15,
+      "maxPeriodPoints": 8
+    },
+    {
+      "username": "seoulstarlight",
+      "totalPoints": 13,
+      "maxPeriodPoints": 7
+    },
+    {
+      "username": "jules4svt",
+      "totalPoints": 12,
+      "maxPeriodPoints": 7
+    },
+    {
+      "username": "mintchoco_moon",
+      "totalPoints": 11,
+      "maxPeriodPoints": 6
+    },
+    {
+      "username": "bside_bloom",
+      "totalPoints": 10,
+      "maxPeriodPoints": 6
+    },
+    {
+      "username": "niniwaves",
+      "totalPoints": 10,
+      "maxPeriodPoints": 5
+    },
+    {
+      "username": "starry_ari",
+      "totalPoints": 9,
+      "maxPeriodPoints": 5
+    },
+    {
+      "username": "yooniverse7",
+      "totalPoints": 9,
+      "maxPeriodPoints": 6
+    },
+    {
+      "username": "dancing_tteok",
+      "totalPoints": 8,
+      "maxPeriodPoints": 4
+    },
+    {
+      "username": "velvetheadphones",
+      "totalPoints": 8,
+      "maxPeriodPoints": 5
+    },
+    {
+      "username": "sarang_soda",
+      "totalPoints": 8,
+      "maxPeriodPoints": 4
+    },
+    {
+      "username": "cherryencore",
+      "totalPoints": 8,
+      "maxPeriodPoints": 5
+    },
+    {
+      "username": "kpopdad92",
+      "totalPoints": 7,
+      "maxPeriodPoints": 4
+    },
+    {
+      "username": "noona_nova",
+      "totalPoints": 7,
+      "maxPeriodPoints": 4
+    },
+    {
+      "username": "tiny_lightstick",
+      "totalPoints": 6,
+      "maxPeriodPoints": 3
+    },
+    {
+      "username": "matcha_melody",
+      "totalPoints": 6,
+      "maxPeriodPoints": 4
+    },
+    {
+      "username": "honeycomeback",
+      "totalPoints": 5,
+      "maxPeriodPoints": 3
+    },
+    {
+      "username": "luv4leeseo",
+      "totalPoints": 4,
+      "maxPeriodPoints": 2
+    },
+    {
+      "username": "bluehour_blossom",
+      "totalPoints": 3,
+      "maxPeriodPoints": 2
+    },
+    {
+      "username": "cozy_fancam",
+      "totalPoints": 1,
+      "maxPeriodPoints": 1
+    }
+  ]
+}

@@ -641,3 +641,72 @@ describe("shared deletion transport", () => {
     }
   });
 });
+
+describe("October starter standings shared by web and mobile", () => {
+  it("keeps the public and signed-in rank consistent without inventing attempts or score writes", async () => {
+    const october = {
+      ...roundRow,
+      slug: "october-2026-community-leaderboard",
+      closes_at: new Date("2026-11-01T04:00:00Z"),
+      server_now: new Date("2026-10-20T21:30:00Z"),
+    };
+    mocks.authorizeMemberSession.mockResolvedValue({
+      kind: "allowed",
+      session: { memberId: "m1", emailVerified: true },
+    });
+    const seen = routeExecute([
+      [/SELECT \*,statement_timestamp/, [october]],
+      [/SELECT rules,status,opens_at,closes_at/, [october]],
+      [/SELECT slug,status,opens_at,closes_at/, []],
+      [/SELECT 1 FROM competition_enrollments/, [{ exists: 1 }]],
+      [
+        /SELECT username FROM competition_profiles/,
+        [{ username: "real_player" }],
+      ],
+      [
+        /SELECT member_id,username FROM competition_profiles/,
+        [{ member_id: "m1", username: "real_player" }],
+      ],
+      [
+        /FROM competition_period_best/,
+        [
+          {
+            memberId: "m1",
+            gameId: "snake",
+            points: 5,
+            dayKey: "2026-10-19",
+            receivedAt: new Date("2026-10-20T12:00:00Z"),
+          },
+        ],
+      ],
+    ]);
+    const response = await getCompetition(
+      new NextRequest(`${ARCADE}/api/competition`),
+    );
+    expect(response.status).toBe(200);
+    const publicBoard = await response.json();
+    expect(publicBoard.standings).toHaveLength(20);
+    expect(publicBoard.gameHighScores).toEqual([]);
+    const memberResponse = await getCompetitionMe(
+      new NextRequest(`${ARCADE}/api/competition/me?roundId=${ROUND_ID}`, {
+        headers: { cookie: `${MEMBER_COOKIE}=member-token` },
+      }),
+    );
+    expect(memberResponse.status).toBe(200);
+    const member = await memberResponse.json();
+    expect(member.totalPoints).toBe(5);
+    expect(member.attempts).toEqual([]);
+    expect(member.rank).toBe(16);
+    expect(
+      publicBoard.standings.find(
+        (row: { username: string }) => row.username === "real_player",
+      ).rank,
+    ).toBe(member.rank);
+    expect(seen.every((statement) => /^SELECT/.test(statement.trim()))).toBe(
+      true,
+    );
+    expect(JSON.stringify(publicBoard)).not.toMatch(
+      /starter_profiles|asOfDate|"starter"/,
+    );
+  });
+});
